@@ -44,6 +44,9 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     runtime_status_label.set_horizontal_alignment(Label::align_left);
     client_size_label.set_horizontal_alignment(Label::align_left);
 
+    root_panel.get_style().background_color = Color(232, 241, 249);
+    root_panel.get_style().border_width = 0;
+
     header_panel.get_style().background_color = Color(214, 235, 249);
     header_panel.get_style().border_color = Color(121, 171, 211);
     header_panel.get_style().border_width = 1;
@@ -99,10 +102,10 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
         this
     );
 
-    root_container.add_child(&header_panel);
-    root_container.add_child(&conversation_panel);
-    root_container.add_child(&sidebar_panel);
-    root_container.add_child(&message_input_strip);
+    root_panel.add_child(&header_panel);
+    root_panel.add_child(&conversation_panel);
+    root_panel.add_child(&sidebar_panel);
+    root_panel.add_child(&message_input_strip);
 }
 
 void StatusView::layout(int width, int height) {
@@ -115,7 +118,7 @@ void StatusView::layout(int width, int height) {
     client_width = width;
     client_height = height;
 
-    root_container.set_bounds(0, 0, client_width, client_height);
+    root_panel.set_bounds(0, 0, client_width, client_height);
 
     int content_width = client_width - (outer_padding * 2);
     if (content_width < 0) {
@@ -230,12 +233,12 @@ void StatusView::layout(int width, int height) {
 }
 
 bool StatusView::handle_event(const UIEvent& event) {
-    return root_container.handle_event(event);
+    return root_panel.handle_event(event);
 }
 
 void StatusView::render(ComponentRenderer& renderer) {
     update_dynamic_text();
-    root_container.render(renderer);
+    root_panel.render(renderer);
 }
 
 void StatusView::on_message_submitted(
