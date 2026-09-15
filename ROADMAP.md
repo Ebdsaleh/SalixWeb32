@@ -54,20 +54,23 @@ Goal: reproduce the useful architectural separation demonstrated by SalixTorrent
 - [x] semantic `Component` base
 - [x] container component
 - [x] label
-- [~] button
-- [~] text input
+- [x] button
+- [x] text input
 - [x] basic row/column layout concepts
-- [~] event dispatch
-- [~] styling primitives
+- [x] event dispatch
+- [x] styling primitives
 - [x] `ComponentRenderer` contract
 - [x] Win32 component renderer
 - [x] application view independent of Win32 calls
+- [~] styled `Panel` composition
+- [~] reusable `MessageInputStrip`
+- [~] messenger-style shell layout
 
-Validated Phase 2 foundations now include the backend-neutral `View`, `Component`, `Label`, `Container`, and `StackPanel` layers plus the Win32 component renderer. The status screen has been rebuilt successfully on the Pentium 4 through both the presentation-separation and container/layout tranches.
+Validated Phase 2 foundations now include the backend-neutral `View`, `Component`, `Label`, `Container`, `StackPanel`, `Button`, `TextInput`, `UIEvent`, and style layers plus the Win32 component renderer. The interactive control tranche was rebuilt successfully on the Pentium 4 after correcting a missing `UIEvent.h` include in `Component.cpp`.
 
-The current interactive tranche introduces `UIEvent`, `Button`, `TextInput`, backend-neutral style primitives, Win32 mouse/keyboard translation, and a live input/button test in `StatusView`. These remain active until rebuilt and exercised on the target system.
+The current layout tranche adds a reusable styled `Panel`, start/center/end main-axis alignment for `StackPanel`, and a late-2000s messenger-inspired shell with a header, conversation surface, diagnostics sidebar, and a composite `MessageInputStrip`. The strip owns a text field plus a right-anchored Send button and exposes a configurable `submit_on_enter` boolean so Enter can submit while the text field is focused.
 
-**Exit criterion:** application UI is described through framework components and rendered by the Win32 backend.
+**Exit criterion:** core criterion achieved. The current messenger-style composition remains active until rebuilt and exercised on the target system.
 
 ## Phase 3 — WebView and backend contract
 
