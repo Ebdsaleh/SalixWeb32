@@ -11,6 +11,7 @@
 #include "framework/Panel.h"
 #include "MessageToolbar.h"
 #include "MessageInputStrip.h"
+#include "MessageDraft.h"
 
 class FileDialog;
 class NativeControlHost;
@@ -19,7 +20,7 @@ class MessageComposer : public Panel {
     public:
         typedef void (*SubmitHandler)(
             MessageComposer* composer,
-            const char* text,
+            const MessageDraft& draft,
             void* context
         );
 
@@ -84,6 +85,7 @@ class MessageComposer : public Panel {
             void* context
         );
 
+        void build_draft(MessageDraft& draft) const;
         void add_attachments(const std::vector<std::string>& paths);
         void clear_attachments();
 

@@ -9,6 +9,7 @@
 #include "framework/TextInput.h"
 #include "framework/Button.h"
 
+class FormattedText;
 class MimeData;
 
 class MessageInputStrip : public Panel {
@@ -23,6 +24,7 @@ class MessageInputStrip : public Panel {
 
         void set_text(const char* new_text);
         const char* get_text() const;
+        void get_formatted_text(FormattedText& formatted_text) const;
         void clear();
 
         void set_button_text(const char* new_text);

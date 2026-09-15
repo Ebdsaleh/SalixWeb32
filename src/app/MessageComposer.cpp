@@ -5,6 +5,7 @@
 // =================================================================================
 
 #include "MessageComposer.h"
+#include "framework/FormattedText.h"
 #include "framework/MimeData.h"
 #include "framework/UIEvent.h"
 
@@ -163,16 +164,20 @@ void MessageComposer::on_input_submitted(
     void* context
 ) {
     (void)input_strip;
+    (void)text;
 
     MessageComposer* composer = (MessageComposer*)context;
     if (composer == 0) {
         return;
     }
 
-    if (composer->submit_handler != 0) {
+    MessageDraft draft;
+    composer->build_draft(draft);
+
+    if (composer->submit_handler != 0 && !draft.empty()) {
         composer->submit_handler(
             composer,
-            text,
+            draft,
             composer->submit_context
         );
     }
@@ -231,6 +236,18 @@ void MessageComposer::on_toolbar_format_changed(
         underline,
         font_size
     );
+}
+
+void MessageComposer::build_draft(MessageDraft& draft) const {
+    draft.clear();
+
+    FormattedText body;
+    message_input_strip.get_formatted_text(body);
+    draft.set_body(body);
+
+    for (int index = 0; index < (int)attachment_paths.size(); ++index) {
+        draft.add_attachment(attachment_paths[index].c_str());
+    }
 }
 
 void MessageComposer::add_attachments(

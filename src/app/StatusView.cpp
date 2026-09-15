@@ -291,12 +291,14 @@ void StatusView::render(ComponentRenderer& renderer) {
 
 void StatusView::on_message_submitted(
     MessageComposer* composer,
-    const char* text,
+    const MessageDraft& draft,
     void* context
 ) {
+    (void)composer;
+
     StatusView* status_view = (StatusView*)context;
     if (status_view != 0) {
-        status_view->show_submitted_message(composer, text);
+        status_view->show_submitted_message(draft);
     }
 }
 
@@ -326,22 +328,17 @@ void StatusView::update_dynamic_text() {
     client_size_label.set_text(size_text);
 }
 
-void StatusView::show_submitted_message(
-    MessageComposer* composer,
-    const char* text
-) {
-    if (text != 0 && text[0] != '\0') {
-        conversation_view.append_local_message(text);
+void StatusView::show_submitted_message(const MessageDraft& draft) {
+    const FormattedText& body = draft.get_body();
+
+    if (!body.empty()) {
+        conversation_view.append_local_message(body);
     }
 
-    if (composer == 0) {
-        return;
-    }
-
-    int attachment_count = composer->get_attachment_count();
+    int attachment_count = draft.get_attachment_count();
 
     for (int index = 0; index < attachment_count; ++index) {
-        const char* path = composer->get_attachment_path(index);
+        const char* path = draft.get_attachment_path(index);
         std::string attachment_message("Attached: ");
         attachment_message += get_file_name_from_path(path);
 

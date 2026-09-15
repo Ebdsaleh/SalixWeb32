@@ -24,6 +24,13 @@ class Win32TextMetrics : public TextMetrics {
             int pixel_x
         );
 
+        virtual int measure_formatted_text_width(
+            const char* text,
+            int text_length,
+            const TextFormat* formats,
+            int format_count
+        );
+
         virtual int get_formatted_character_index_at_x(
             const char* text,
             int text_length,

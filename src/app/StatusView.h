@@ -32,15 +32,12 @@ class StatusView : public View {
     private:
         static void on_message_submitted(
             MessageComposer* composer,
-            const char* text,
+            const MessageDraft& draft,
             void* context
         );
 
         void update_dynamic_text();
-        void show_submitted_message(
-            MessageComposer* composer,
-            const char* text
-        );
+        void show_submitted_message(const MessageDraft& draft);
 
         ApplicationRuntime* application_runtime;
         int client_width;

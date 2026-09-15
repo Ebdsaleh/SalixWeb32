@@ -1,16 +1,19 @@
 // =================================================================================
 // Filename:    framework/Label.h
 // Author:      Ebdsaleh
-// Description: Declares a backend-neutral text label component.
+// Description: Declares a backend-neutral selectable formatted text label.
 // =================================================================================
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "Component.h"
+#include "TextFormat.h"
 #include "TextSelection.h"
 
 class Clipboard;
+class FormattedText;
 class UIEvent;
 
 class Label : public Component {
@@ -24,7 +27,13 @@ class Label : public Component {
         Label();
 
         void set_text(const char* new_text);
+        void set_formatted_text(const FormattedText& formatted_text);
         const char* get_text() const;
+
+        TextFormat get_character_format(int index) const;
+        const TextFormat* get_format_data() const;
+        int get_format_count() const;
+        int get_max_font_size() const;
 
         void set_horizontal_alignment(HorizontalAlignment new_alignment);
         HorizontalAlignment get_horizontal_alignment() const;
@@ -39,6 +48,7 @@ class Label : public Component {
         int get_selection_end() const;
         int get_selection_range_count() const;
         bool get_selection_range(int index, int& start, int& end) const;
+        bool is_character_selected(int character_index) const;
         void clear_selection();
         void select_all();
 
@@ -49,8 +59,10 @@ class Label : public Component {
         void move_cursor(int new_cursor_position, bool extend_selection);
         int get_cursor_position_from_event(const UIEvent& event) const;
         bool copy_selection(Clipboard* clipboard) const;
+        void ensure_format_length();
 
         std::string text;
+        std::vector<TextFormat> character_formats;
         HorizontalAlignment horizontal_alignment;
         bool is_selectable;
         bool is_focused;

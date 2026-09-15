@@ -1,12 +1,13 @@
 // =================================================================================
 // Filename:    framework/Label.cpp
 // Author:      Ebdsaleh
-// Description: Implements a backend-neutral text label component.
+// Description: Implements a backend-neutral selectable formatted text label.
 // =================================================================================
 
 #include "Label.h"
 #include "UIEvent.h"
 #include "Clipboard.h"
+#include "FormattedText.h"
 #include "MimeData.h"
 #include "MimeTypes.h"
 #include "TextMetrics.h"
@@ -25,16 +26,74 @@ Label::Label()
 void Label::set_text(const char* new_text) {
     if (new_text == 0) {
         text.clear();
+        character_formats.clear();
         selection.reset(0, 0);
         return;
     }
 
     text = new_text;
+    character_formats.assign(text.length(), TextFormat());
+    selection.reset((int)text.length(), (int)text.length());
+}
+
+void Label::set_formatted_text(const FormattedText& formatted_text) {
+    text = formatted_text.get_text();
+    character_formats.clear();
+
+    const TextFormat* formats = formatted_text.get_format_data();
+    int format_count = formatted_text.get_format_count();
+
+    if (formats != 0 && format_count > 0) {
+        int copy_count = format_count;
+        if (copy_count > (int)text.length()) {
+            copy_count = (int)text.length();
+        }
+
+        character_formats.insert(
+            character_formats.end(),
+            formats,
+            formats + copy_count
+        );
+    }
+
+    ensure_format_length();
     selection.reset((int)text.length(), (int)text.length());
 }
 
 const char* Label::get_text() const {
     return text.c_str();
+}
+
+TextFormat Label::get_character_format(int index) const {
+    if (index < 0 || index >= (int)character_formats.size()) {
+        return TextFormat();
+    }
+
+    return character_formats[index];
+}
+
+const TextFormat* Label::get_format_data() const {
+    if (character_formats.empty()) {
+        return 0;
+    }
+
+    return &character_formats[0];
+}
+
+int Label::get_format_count() const {
+    return (int)character_formats.size();
+}
+
+int Label::get_max_font_size() const {
+    int maximum = 12;
+
+    for (int index = 0; index < (int)character_formats.size(); ++index) {
+        if (character_formats[index].font_size > maximum) {
+            maximum = character_formats[index].font_size;
+        }
+    }
+
+    return maximum;
 }
 
 void Label::set_horizontal_alignment(HorizontalAlignment new_alignment) {
@@ -90,6 +149,32 @@ bool Label::get_selection_range(
     int& end
 ) const {
     return selection.get_range(index, start, end);
+}
+
+bool Label::is_character_selected(int character_index) const {
+    if (character_index < 0 || character_index >= (int)text.length()) {
+        return false;
+    }
+
+    int range_count = selection.get_range_count();
+
+    for (int index = 0; index < range_count; ++index) {
+        int range_start = 0;
+        int range_end = 0;
+
+        if (!selection.get_range(index, range_start, range_end)) {
+            continue;
+        }
+
+        if (
+            character_index >= range_start &&
+            character_index < range_end
+        ) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Label::clear_selection() {
@@ -422,9 +507,11 @@ int Label::get_cursor_position_from_event(
         return (int)text.length();
     }
 
-    int text_width = event.text_metrics->measure_text_width(
+    int text_width = event.text_metrics->measure_formatted_text_width(
         text.c_str(),
-        (int)text.length()
+        (int)text.length(),
+        get_format_data(),
+        get_format_count()
     );
 
     int text_x = get_x();
@@ -443,9 +530,11 @@ int Label::get_cursor_position_from_event(
             break;
     }
 
-    return event.text_metrics->get_character_index_at_x(
+    return event.text_metrics->get_formatted_character_index_at_x(
         text.c_str(),
         (int)text.length(),
+        get_format_data(),
+        get_format_count(),
         event.x - text_x
     );
 }
@@ -467,4 +556,15 @@ bool Label::copy_selection(Clipboard* clipboard) const {
     );
 
     return clipboard->set_data(data);
+}
+
+void Label::ensure_format_length() {
+    if (character_formats.size() < text.length()) {
+        character_formats.resize(text.length(), TextFormat());
+    } else if (character_formats.size() > text.length()) {
+        character_formats.erase(
+            character_formats.begin() + text.length(),
+            character_formats.end()
+        );
+    }
 }

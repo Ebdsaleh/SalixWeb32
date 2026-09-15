@@ -5,6 +5,7 @@
 // =================================================================================
 
 #include "MessageInputStrip.h"
+#include "framework/FormattedText.h"
 #include "framework/UIEvent.h"
 #include "framework/MimeData.h"
 
@@ -41,6 +42,17 @@ void MessageInputStrip::set_text(const char* new_text) {
 
 const char* MessageInputStrip::get_text() const {
     return message_input.get_text();
+}
+
+void MessageInputStrip::get_formatted_text(
+    FormattedText& formatted_text
+) const {
+    formatted_text.set_formatted_text(
+        message_input.get_text(),
+        message_input.get_format_data(),
+        message_input.get_format_count(),
+        message_input.get_typing_format()
+    );
 }
 
 void MessageInputStrip::clear() {

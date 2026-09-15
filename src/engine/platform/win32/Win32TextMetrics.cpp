@@ -155,6 +155,42 @@ int Win32TextMetrics::get_character_index_at_x(
     return result_index;
 }
 
+int Win32TextMetrics::measure_formatted_text_width(
+    const char* text,
+    int text_length,
+    const TextFormat* formats,
+    int format_count
+) {
+    if (
+        device_context == NULL ||
+        text == 0 ||
+        text_length <= 0
+    ) {
+        return 0;
+    }
+
+    if (formats == 0 || format_count <= 0) {
+        return measure_text_width(text, text_length);
+    }
+
+    int width = 0;
+
+    for (int index = 0; index < text_length; ++index) {
+        TextFormat format;
+        if (index < format_count) {
+            format = formats[index];
+        }
+
+        width += measure_character(
+            device_context,
+            text + index,
+            format
+        );
+    }
+
+    return width;
+}
+
 int Win32TextMetrics::get_formatted_character_index_at_x(
     const char* text,
     int text_length,

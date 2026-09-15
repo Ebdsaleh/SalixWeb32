@@ -4,14 +4,10 @@
 // Description: Implements the append-only scrollable conversation message surface.
 // =================================================================================
 
-#include <string>
-
 #include "ConversationView.h"
 
 ConversationView::ConversationView()
     : first_visible_index(0),
-      visible_capacity(0),
-      row_height(24),
       row_spacing(4),
       content_padding(4),
       scroll_button_width(24) {
@@ -47,8 +43,24 @@ ConversationView::~ConversationView() {
     clear_messages();
 }
 
-bool ConversationView::append_message(MessageRole role, const char* text) {
+bool ConversationView::append_message(
+    MessageRole role,
+    const char* text
+) {
     if (text == 0 || text[0] == '\0') {
+        return false;
+    }
+
+    FormattedText formatted_text;
+    formatted_text.set_plain_text(text, TextFormat());
+    return append_message(role, formatted_text);
+}
+
+bool ConversationView::append_message(
+    MessageRole role,
+    const FormattedText& text
+) {
+    if (text.empty()) {
         return false;
     }
 
@@ -57,10 +69,14 @@ bool ConversationView::append_message(MessageRole role, const char* text) {
         return false;
     }
 
-    std::string display_text = get_role_prefix(role);
-    display_text += text;
+    FormattedText display_text;
+    display_text.append_plain_text(
+        get_role_prefix(role),
+        TextFormat(false, false, false, 12)
+    );
+    display_text.append_formatted_text(text);
 
-    message_label->set_text(display_text.c_str());
+    message_label->set_formatted_text(display_text);
     message_label->set_horizontal_alignment(Label::align_left);
     message_label->set_selectable(true);
     message_label->get_style().foreground_color = get_role_color(role);
@@ -73,6 +89,7 @@ bool ConversationView::append_message(MessageRole role, const char* text) {
     MessageEntry entry;
     entry.role = role;
     entry.label = message_label;
+    entry.row_height = calculate_entry_height(*message_label);
     messages.push_back(entry);
 
     scroll_to_bottom();
@@ -87,7 +104,19 @@ bool ConversationView::append_local_message(const char* text) {
     return append_message(message_local, text);
 }
 
+bool ConversationView::append_local_message(
+    const FormattedText& text
+) {
+    return append_message(message_local, text);
+}
+
 bool ConversationView::append_remote_message(const char* text) {
+    return append_message(message_remote, text);
+}
+
+bool ConversationView::append_remote_message(
+    const FormattedText& text
+) {
     return append_message(message_remote, text);
 }
 
@@ -125,17 +154,7 @@ void ConversationView::scroll_lines(int line_count) {
 }
 
 void ConversationView::scroll_to_bottom() {
-    visible_capacity = calculate_visible_capacity();
-
-    if (visible_capacity <= 0) {
-        first_visible_index = 0;
-    } else {
-        first_visible_index = (int)messages.size() - visible_capacity;
-        if (first_visible_index < 0) {
-            first_visible_index = 0;
-        }
-    }
-
+    first_visible_index = calculate_first_index_for_bottom();
     relayout();
 }
 
@@ -158,7 +177,6 @@ void ConversationView::on_scroll_down(Button* button, void* context) {
 }
 
 void ConversationView::relayout() {
-    visible_capacity = calculate_visible_capacity();
     clamp_first_visible_index();
 
     int view_x = get_x();
@@ -167,21 +185,10 @@ void ConversationView::relayout() {
     int view_height = get_height();
     int message_count = (int)messages.size();
 
-    bool show_scroll_controls =
-        visible_capacity > 0 &&
-        message_count > visible_capacity;
-
-    scroll_up_button.set_visible(show_scroll_controls);
-    scroll_down_button.set_visible(show_scroll_controls);
-
-    int scroll_gap = show_scroll_controls ? 6 : 0;
-    int reserved_scroll_width = show_scroll_controls ? scroll_button_width + scroll_gap : 0;
-
-    int message_x = view_x + content_padding;
-    int message_width = view_width - (content_padding * 2) - reserved_scroll_width;
-    if (message_width < 0) {
-        message_width = 0;
-    }
+    int usable_bottom = view_y + view_height - content_padding;
+    int current_y = view_y + content_padding;
+    int last_visible_index = first_visible_index - 1;
+    bool reached_bottom = false;
 
     for (int index = 0; index < message_count; ++index) {
         Label* label = messages[index].label;
@@ -189,26 +196,64 @@ void ConversationView::relayout() {
             continue;
         }
 
-        bool is_visible =
-            visible_capacity > 0 &&
-            index >= first_visible_index &&
-            index < first_visible_index + visible_capacity;
-
-        label->set_visible(is_visible);
-
-        if (is_visible) {
-            int visible_index = index - first_visible_index;
-            int message_y = view_y + content_padding +
-                (visible_index * (row_height + row_spacing));
-
-            label->set_bounds(
-                message_x,
-                message_y,
-                message_width,
-                row_height
-            );
+        if (index < first_visible_index || reached_bottom) {
+            label->set_visible(false);
+            continue;
         }
+
+        int row_height = messages[index].row_height;
+        if (row_height < 1) {
+            row_height = 1;
+        }
+
+        if (current_y + row_height > usable_bottom) {
+            label->set_visible(false);
+            reached_bottom = true;
+            continue;
+        }
+
+        label->set_visible(true);
+        last_visible_index = index;
+        current_y += row_height + row_spacing;
     }
+
+    bool has_previous = first_visible_index > 0;
+    bool has_next = last_visible_index < message_count - 1;
+    bool show_scroll_controls = has_previous || has_next;
+
+    int scroll_gap = show_scroll_controls ? 6 : 0;
+    int reserved_scroll_width = show_scroll_controls
+        ? scroll_button_width + scroll_gap
+        : 0;
+
+    int message_x = view_x + content_padding;
+    int message_width = view_width - (content_padding * 2) - reserved_scroll_width;
+    if (message_width < 0) {
+        message_width = 0;
+    }
+
+    current_y = view_y + content_padding;
+
+    for (int index = first_visible_index;
+         index <= last_visible_index && index < message_count;
+         ++index) {
+        Label* label = messages[index].label;
+        if (label == 0 || !label->get_is_visible()) {
+            continue;
+        }
+
+        int row_height = messages[index].row_height;
+        label->set_bounds(
+            message_x,
+            current_y,
+            message_width,
+            row_height
+        );
+        current_y += row_height + row_spacing;
+    }
+
+    scroll_up_button.set_visible(show_scroll_controls);
+    scroll_down_button.set_visible(show_scroll_controls);
 
     if (show_scroll_controls) {
         int button_x = view_x + view_width - content_padding - scroll_button_width;
@@ -236,45 +281,66 @@ void ConversationView::relayout() {
             scroll_button_width,
             button_height
         );
+
+        scroll_up_button.set_enabled(has_previous);
+        scroll_down_button.set_enabled(has_next);
     }
 }
 
 void ConversationView::clamp_first_visible_index() {
-    int maximum_first_index = 0;
-
-    if (visible_capacity > 0) {
-        maximum_first_index = (int)messages.size() - visible_capacity;
-        if (maximum_first_index < 0) {
-            maximum_first_index = 0;
-        }
+    if (messages.empty()) {
+        first_visible_index = 0;
+        return;
     }
 
     if (first_visible_index < 0) {
         first_visible_index = 0;
     }
 
+    int maximum_first_index = (int)messages.size() - 1;
     if (first_visible_index > maximum_first_index) {
         first_visible_index = maximum_first_index;
     }
 }
 
-int ConversationView::calculate_visible_capacity() const {
+int ConversationView::calculate_entry_height(const Label& label) const {
+    int row_height = label.get_max_font_size() + 12;
+    if (row_height < 24) {
+        row_height = 24;
+    }
+
+    return row_height;
+}
+
+int ConversationView::calculate_first_index_for_bottom() const {
+    int message_count = (int)messages.size();
+    if (message_count <= 0) {
+        return 0;
+    }
+
     int usable_height = get_height() - (content_padding * 2);
-    if (usable_height <= 0 || row_height <= 0) {
-        return 0;
+    if (usable_height <= 0) {
+        return message_count - 1;
     }
 
-    int row_extent = row_height + row_spacing;
-    if (row_extent <= 0) {
-        return 0;
+    int used_height = 0;
+    int first_index = message_count - 1;
+
+    for (int index = message_count - 1; index >= 0; --index) {
+        int extent = messages[index].row_height;
+        if (index < message_count - 1) {
+            extent += row_spacing;
+        }
+
+        if (used_height + extent > usable_height) {
+            break;
+        }
+
+        used_height += extent;
+        first_index = index;
     }
 
-    int capacity = (usable_height + row_spacing) / row_extent;
-    if (capacity < 0) {
-        capacity = 0;
-    }
-
-    return capacity;
+    return first_index;
 }
 
 const char* ConversationView::get_role_prefix(MessageRole role) const {

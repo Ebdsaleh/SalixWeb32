@@ -22,6 +22,17 @@ class TextMetrics {
             int pixel_x
         ) = 0;
 
+        virtual int measure_formatted_text_width(
+            const char* text,
+            int text_length,
+            const TextFormat* formats,
+            int format_count
+        ) {
+            (void)formats;
+            (void)format_count;
+            return measure_text_width(text, text_length);
+        }
+
         virtual int get_formatted_character_index_at_x(
             const char* text,
             int text_length,

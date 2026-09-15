@@ -98,6 +98,7 @@
 			<File RelativePath="..\..\src\app\EmojiPanel.cpp"/>
 			<File RelativePath="..\..\src\app\EmoticonRegistry.cpp"/>
 			<File RelativePath="..\..\src\app\MessageComposer.cpp"/>
+			<File RelativePath="..\..\src\app\MessageDraft.cpp"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.cpp"/>
 			<File RelativePath="..\..\src\app\MessageToolbar.cpp"/>
 			<File RelativePath="..\..\src\app\StatusView.cpp"/>
@@ -105,6 +106,7 @@
 			<File RelativePath="..\..\src\framework\ComboBox.cpp"/>
 			<File RelativePath="..\..\src\framework\Component.cpp"/>
 			<File RelativePath="..\..\src\framework\Container.cpp"/>
+			<File RelativePath="..\..\src\framework\FormattedText.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
 			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
@@ -129,6 +131,7 @@
 			<File RelativePath="..\..\src\app\EmojiPanel.h"/>
 			<File RelativePath="..\..\src\app\EmoticonRegistry.h"/>
 			<File RelativePath="..\..\src\app\MessageComposer.h"/>
+			<File RelativePath="..\..\src\app\MessageDraft.h"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
 			<File RelativePath="..\..\src\app\MessageToolbar.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
@@ -138,6 +141,7 @@
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
 			<File RelativePath="..\..\src\framework\FileDialog.h"/>
+			<File RelativePath="..\..\src\framework\FormattedText.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
 			<File RelativePath="..\..\src\framework\MimeData.h"/>
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>

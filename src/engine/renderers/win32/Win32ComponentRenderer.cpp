@@ -76,31 +76,6 @@ namespace {
         DeleteObject(brush);
     }
 
-    int measure_text_width(HDC device_context, const char* text, int length) {
-        if (
-            device_context == NULL ||
-            text == 0 ||
-            length <= 0
-        ) {
-            return 0;
-        }
-
-        SIZE text_size;
-        text_size.cx = 0;
-        text_size.cy = 0;
-
-        if (!GetTextExtentPoint32A(
-                device_context,
-                text,
-                length,
-                &text_size
-            )) {
-            return 0;
-        }
-
-        return text_size.cx;
-    }
-
     HFONT create_formatted_font(
         HDC device_context,
         const TextFormat& format
@@ -159,7 +134,7 @@ namespace {
         return text_size.cx;
     }
 
-    int measure_formatted_prefix(
+    int measure_text_input_prefix(
         HDC device_context,
         const TextInput& text_input,
         const std::string& text,
@@ -180,6 +155,33 @@ namespace {
                 device_context,
                 text[index],
                 text_input.get_character_format(index)
+            );
+        }
+
+        return width;
+    }
+
+    int measure_label_prefix(
+        HDC device_context,
+        const Label& label,
+        const std::string& text,
+        int end_index
+    ) {
+        if (end_index < 0) {
+            end_index = 0;
+        }
+
+        if (end_index > (int)text.length()) {
+            end_index = (int)text.length();
+        }
+
+        int width = 0;
+
+        for (int index = 0; index < end_index; ++index) {
+            width += measure_formatted_character(
+                device_context,
+                text[index],
+                label.get_character_format(index)
             );
         }
 
@@ -235,73 +237,6 @@ namespace {
         }
 
         DeleteObject(caret_pen);
-    }
-
-    void draw_selection_range(
-        HDC device_context,
-        const std::string& display_text,
-        int text_x,
-        int text_y,
-        int selection_top,
-        int selection_bottom,
-        int selection_start,
-        int selection_end
-    ) {
-        if (selection_start < 0) {
-            selection_start = 0;
-        }
-
-        if (selection_end > (int)display_text.length()) {
-            selection_end = (int)display_text.length();
-        }
-
-        if (selection_end <= selection_start) {
-            return;
-        }
-
-        int prefix_width = measure_text_width(
-            device_context,
-            display_text.c_str(),
-            selection_start
-        );
-
-        int selection_width = measure_text_width(
-            device_context,
-            display_text.c_str() + selection_start,
-            selection_end - selection_start
-        );
-
-        RECT selection_rect;
-        selection_rect.left = text_x + prefix_width;
-        selection_rect.top = selection_top;
-        selection_rect.right = selection_rect.left + selection_width;
-        selection_rect.bottom = selection_bottom;
-
-        FillRect(
-            device_context,
-            &selection_rect,
-            GetSysColorBrush(COLOR_HIGHLIGHT)
-        );
-
-        COLORREF previous_text_color = SetTextColor(
-            device_context,
-            GetSysColor(COLOR_HIGHLIGHTTEXT)
-        );
-
-        std::string selected_text = display_text.substr(
-            selection_start,
-            selection_end - selection_start
-        );
-
-        TextOutA(
-            device_context,
-            selection_rect.left,
-            text_y,
-            selected_text.c_str(),
-            (int)selected_text.length()
-        );
-
-        SetTextColor(device_context, previous_text_color);
     }
 }
 
@@ -364,126 +299,149 @@ void Win32ComponentRenderer::render_label(const Label& label) {
     }
 
     RECT label_rect = component_rect(label);
-    UINT draw_flags = DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
+    int saved_state = SaveDC(device_context);
 
-    switch (label.get_horizontal_alignment()) {
-        case Label::align_center:
-            draw_flags |= DT_CENTER;
-            break;
+    IntersectClipRect(
+        device_context,
+        label_rect.left,
+        label_rect.top,
+        label_rect.right,
+        label_rect.bottom
+    );
 
-        case Label::align_right:
-            draw_flags |= DT_RIGHT;
-            break;
-
-        case Label::align_left:
-        default:
-            draw_flags |= DT_LEFT;
-            break;
-    }
+    const char* label_text = label.get_text();
+    std::string display_text = label_text == 0 ? "" : label_text;
 
     COLORREF old_text_color = SetTextColor(
         device_context,
         to_color_ref(label.get_style().foreground_color)
     );
 
-    DrawTextA(
+    int text_width = measure_label_prefix(
         device_context,
-        label.get_text(),
-        -1,
-        &label_rect,
-        draw_flags
+        label,
+        display_text,
+        (int)display_text.length()
     );
+    int text_x = get_label_text_x(label, text_width);
 
-    if (label.get_is_selectable()) {
-        const char* label_text = label.get_text();
-        std::string display_text = label_text == 0 ? "" : label_text;
+    for (int index = 0; index < (int)display_text.length(); ++index) {
+        TextFormat format = label.get_character_format(index);
+        HFONT font = create_formatted_font(device_context, format);
+        HGDIOBJ previous_character_font = NULL;
 
-        int saved_state = SaveDC(device_context);
-        IntersectClipRect(
+        if (font != NULL) {
+            previous_character_font = SelectObject(device_context, font);
+        }
+
+        SIZE character_size;
+        character_size.cx = 0;
+        character_size.cy = 0;
+        GetTextExtentPoint32A(
             device_context,
-            label_rect.left,
-            label_rect.top,
-            label_rect.right,
-            label_rect.bottom
+            display_text.c_str() + index,
+            1,
+            &character_size
         );
 
         TEXTMETRICA text_metrics;
         ZeroMemory(&text_metrics, sizeof(text_metrics));
         GetTextMetricsA(device_context, &text_metrics);
 
-        int text_width = measure_text_width(
-            device_context,
-            display_text.c_str(),
-            (int)display_text.length()
-        );
-
-        int text_x = get_label_text_x(label, text_width);
         int text_y = label_rect.top +
             ((label_rect.bottom - label_rect.top - text_metrics.tmHeight) / 2);
-
         if (text_y < label_rect.top) {
             text_y = label_rect.top;
         }
 
-        if (label.has_selection()) {
-            int range_count = label.get_selection_range_count();
+        bool is_selected =
+            label.get_is_selectable() &&
+            label.has_selection() &&
+            label.is_character_selected(index);
 
-            for (int index = 0; index < range_count; ++index) {
-                int selection_start = 0;
-                int selection_end = 0;
+        if (is_selected) {
+            RECT selection_rect;
+            selection_rect.left = text_x;
+            selection_rect.top = label_rect.top + 2;
+            selection_rect.right = text_x + character_size.cx;
+            selection_rect.bottom = label_rect.bottom - 2;
 
-                if (!label.get_selection_range(
-                        index,
-                        selection_start,
-                        selection_end
-                    )) {
-                    continue;
-                }
-
-                draw_selection_range(
-                    device_context,
-                    display_text,
-                    text_x,
-                    text_y,
-                    text_y,
-                    text_y + text_metrics.tmHeight,
-                    selection_start,
-                    selection_end
-                );
-            }
-        }
-
-        if (label.get_is_focused()) {
-            int cursor_position = label.get_cursor_position();
-
-            if (cursor_position < 0) {
-                cursor_position = 0;
+            if (selection_rect.right <= selection_rect.left) {
+                selection_rect.right = selection_rect.left + 1;
             }
 
-            if (cursor_position > (int)display_text.length()) {
-                cursor_position = (int)display_text.length();
-            }
-
-            int cursor_x = text_x + measure_text_width(
+            FillRect(
                 device_context,
-                display_text.c_str(),
-                cursor_position
+                &selection_rect,
+                GetSysColorBrush(COLOR_HIGHLIGHT)
             );
 
-            draw_caret_line(
+            SetTextColor(
                 device_context,
-                cursor_x,
-                text_y,
-                text_y + text_metrics.tmHeight
+                GetSysColor(COLOR_HIGHLIGHTTEXT)
+            );
+        } else {
+            SetTextColor(
+                device_context,
+                to_color_ref(label.get_style().foreground_color)
             );
         }
 
-        if (saved_state != 0) {
-            RestoreDC(device_context, saved_state);
+        TextOutA(
+            device_context,
+            text_x,
+            text_y,
+            display_text.c_str() + index,
+            1
+        );
+
+        text_x += character_size.cx;
+
+        if (
+            font != NULL &&
+            previous_character_font != NULL &&
+            previous_character_font != HGDI_ERROR
+        ) {
+            SelectObject(device_context, previous_character_font);
+        }
+
+        if (font != NULL) {
+            DeleteObject(font);
         }
     }
 
+    if (label.get_is_selectable() && label.get_is_focused()) {
+        int cursor_position = label.get_cursor_position();
+
+        if (cursor_position < 0) {
+            cursor_position = 0;
+        }
+
+        if (cursor_position > (int)display_text.length()) {
+            cursor_position = (int)display_text.length();
+        }
+
+        int cursor_x = get_label_text_x(label, text_width) +
+            measure_label_prefix(
+                device_context,
+                label,
+                display_text,
+                cursor_position
+            );
+
+        draw_caret_line(
+            device_context,
+            cursor_x,
+            label_rect.top + 3,
+            label_rect.bottom - 3
+        );
+    }
+
     SetTextColor(device_context, old_text_color);
+
+    if (saved_state != 0) {
+        RestoreDC(device_context, saved_state);
+    }
 }
 
 void Win32ComponentRenderer::render_button(const Button& button) {
@@ -675,7 +633,7 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
             cursor_position = (int)display_text.length();
         }
 
-        int cursor_x = text_rect.left + measure_formatted_prefix(
+        int cursor_x = text_rect.left + measure_text_input_prefix(
             device_context,
             text_input,
             display_text,
