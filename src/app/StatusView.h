@@ -1,15 +1,16 @@
 // =================================================================================
 // Filename:    app/StatusView.h
 // Author:      Ebdsaleh
-// Description: Declares the backend-neutral SalixWeb32 status view.
+// Description: Declares the backend-neutral SalixWeb32 messenger-style shell view.
 // =================================================================================
 #pragma once
 
 #include "framework/View.h"
+#include "framework/Container.h"
+#include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
-#include "framework/Button.h"
-#include "framework/TextInput.h"
+#include "MessageInputStrip.h"
 
 class ApplicationRuntime;
 
@@ -22,23 +23,38 @@ class StatusView : public View {
         virtual void render(ComponentRenderer& renderer);
 
     private:
-        static void on_apply_button_clicked(Button* button, void* context);
+        static void on_message_submitted(
+            MessageInputStrip* input_strip,
+            const char* text,
+            void* context
+        );
 
         void update_dynamic_text();
-        void apply_input_message();
+        void show_submitted_message(const char* text);
 
         ApplicationRuntime* application_runtime;
         int client_width;
         int client_height;
 
-        StackPanel status_stack;
+        Container root_container;
+
+        Panel header_panel;
+        Label header_title_label;
+        Label header_subtitle_label;
+
+        Panel conversation_panel;
+        Label conversation_title_label;
+        Label conversation_hint_label;
+        Label conversation_message_label;
+
+        Panel sidebar_panel;
+        Label sidebar_title_label;
+        StackPanel diagnostics_stack;
         Label runtime_label;
         Label host_label;
         Label web_backend_label;
         Label runtime_status_label;
         Label client_size_label;
-        Label input_instruction_label;
-        TextInput message_input;
-        Button apply_button;
-        Label result_label;
+
+        MessageInputStrip message_input_strip;
 };
