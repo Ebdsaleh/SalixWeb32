@@ -7,6 +7,7 @@
 #include <string>
 
 #include "Win32ComponentRenderer.h"
+#include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/Button.h"
 #include "framework/TextInput.h"
@@ -92,6 +93,31 @@ Win32ComponentRenderer::~Win32ComponentRenderer() {
     }
 
     SetBkMode(device_context, previous_background_mode);
+}
+
+void Win32ComponentRenderer::render_panel(const Panel& panel) {
+    if (device_context == NULL || !panel.get_is_visible()) {
+        return;
+    }
+
+    if (panel.get_width() <= 0 || panel.get_height() <= 0) {
+        return;
+    }
+
+    RECT panel_rect = component_rect(panel);
+
+    fill_rect(
+        device_context,
+        panel_rect,
+        panel.get_style().background_color
+    );
+
+    frame_rect(
+        device_context,
+        panel_rect,
+        panel.get_style().border_color,
+        panel.get_style().border_width
+    );
 }
 
 void Win32ComponentRenderer::render_label(const Label& label) {
