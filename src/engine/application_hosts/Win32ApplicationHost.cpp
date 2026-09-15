@@ -9,6 +9,8 @@
 #include "runtime/Diagnostics.h"
 #include "framework/View.h"
 #include "framework/UIEvent.h"
+#include "engine/platform/win32/Win32Clipboard.h"
+#include "engine/platform/win32/Win32TextMetrics.h"
 #include "engine/renderers/win32/Win32ComponentRenderer.h"
 
 namespace {
@@ -50,9 +52,27 @@ namespace {
 
             case VK_ESCAPE:
                 return UIEvent::key_escape;
+
+            case 'A':
+                return UIEvent::key_a;
+
+            case 'C':
+                return UIEvent::key_c;
+
+            case 'V':
+                return UIEvent::key_v;
+
+            case 'X':
+                return UIEvent::key_x;
         }
 
         return UIEvent::key_none;
+    }
+
+    void populate_modifier_state(UIEvent& event) {
+        event.shift_down = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        event.control_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        event.alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
     }
 }
 
@@ -259,8 +279,21 @@ LRESULT Win32ApplicationHost::handle_message(
             UIEvent event(UIEvent::event_mouse_move);
             event.x = (int)(short)LOWORD(l_param);
             event.y = (int)(short)HIWORD(l_param);
+            event.left_button_down = (w_param & MK_LBUTTON) != 0;
+            populate_modifier_state(event);
 
-            if (application_view != 0 && application_view->handle_event(event)) {
+            HDC metrics_context = GetDC(current_window_handle);
+            Win32TextMetrics text_metrics(metrics_context);
+            event.text_metrics = metrics_context != NULL ? &text_metrics : 0;
+
+            bool was_handled = application_view != 0 &&
+                application_view->handle_event(event);
+
+            if (metrics_context != NULL) {
+                ReleaseDC(current_window_handle, metrics_context);
+            }
+
+            if (was_handled) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
             }
             return 0;
@@ -273,8 +306,21 @@ LRESULT Win32ApplicationHost::handle_message(
             UIEvent event(UIEvent::event_mouse_down);
             event.x = (int)(short)LOWORD(l_param);
             event.y = (int)(short)HIWORD(l_param);
+            event.left_button_down = true;
+            populate_modifier_state(event);
 
-            if (application_view != 0 && application_view->handle_event(event)) {
+            HDC metrics_context = GetDC(current_window_handle);
+            Win32TextMetrics text_metrics(metrics_context);
+            event.text_metrics = metrics_context != NULL ? &text_metrics : 0;
+
+            bool was_handled = application_view != 0 &&
+                application_view->handle_event(event);
+
+            if (metrics_context != NULL) {
+                ReleaseDC(current_window_handle, metrics_context);
+            }
+
+            if (was_handled) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
             }
             return 0;
@@ -284,8 +330,21 @@ LRESULT Win32ApplicationHost::handle_message(
             UIEvent event(UIEvent::event_mouse_up);
             event.x = (int)(short)LOWORD(l_param);
             event.y = (int)(short)HIWORD(l_param);
+            event.left_button_down = false;
+            populate_modifier_state(event);
 
-            if (application_view != 0 && application_view->handle_event(event)) {
+            HDC metrics_context = GetDC(current_window_handle);
+            Win32TextMetrics text_metrics(metrics_context);
+            event.text_metrics = metrics_context != NULL ? &text_metrics : 0;
+
+            bool was_handled = application_view != 0 &&
+                application_view->handle_event(event);
+
+            if (metrics_context != NULL) {
+                ReleaseDC(current_window_handle, metrics_context);
+            }
+
+            if (was_handled) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
             }
 
@@ -298,6 +357,10 @@ LRESULT Win32ApplicationHost::handle_message(
         case WM_KEYDOWN: {
             UIEvent event(UIEvent::event_key_down);
             event.key_code = translate_key_code(w_param);
+            populate_modifier_state(event);
+
+            Win32Clipboard clipboard(current_window_handle);
+            event.clipboard = &clipboard;
 
             if (application_view != 0 && application_view->handle_event(event)) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
@@ -308,6 +371,7 @@ LRESULT Win32ApplicationHost::handle_message(
         case WM_KEYUP: {
             UIEvent event(UIEvent::event_key_up);
             event.key_code = translate_key_code(w_param);
+            populate_modifier_state(event);
 
             if (application_view != 0 && application_view->handle_event(event)) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
@@ -318,6 +382,7 @@ LRESULT Win32ApplicationHost::handle_message(
         case WM_CHAR: {
             UIEvent event(UIEvent::event_character);
             event.character_code = (int)w_param;
+            populate_modifier_state(event);
 
             if (application_view != 0 && application_view->handle_event(event)) {
                 InvalidateRect(current_window_handle, NULL, FALSE);

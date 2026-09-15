@@ -100,6 +100,7 @@
 			<File RelativePath="..\..\src\framework\Component.cpp"/>
 			<File RelativePath="..\..\src\framework\Container.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
+			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
 			<File RelativePath="..\..\src\framework\StackPanel.cpp"/>
 			<File RelativePath="..\..\src\framework\TextInput.cpp"/>
@@ -108,19 +109,24 @@
 			<File RelativePath="..\..\src\runtime\RuntimeStatusService.cpp"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.cpp"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
 			<File RelativePath="..\..\src\framework\Button.h"/>
+			<File RelativePath="..\..\src\framework\Clipboard.h"/>
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
+			<File RelativePath="..\..\src\framework\MimeData.h"/>
 			<File RelativePath="..\..\src\framework\Panel.h"/>
 			<File RelativePath="..\..\src\framework\StackPanel.h"/>
 			<File RelativePath="..\..\src\framework\Style.h"/>
 			<File RelativePath="..\..\src\framework\TextInput.h"/>
+			<File RelativePath="..\..\src\framework\TextMetrics.h"/>
 			<File RelativePath="..\..\src\framework\UIEvent.h"/>
 			<File RelativePath="..\..\src\framework\View.h"/>
 			<File RelativePath="..\..\src\framework\rendering\ComponentRenderer.h"/>
@@ -130,6 +136,8 @@
 			<File RelativePath="..\..\src\runtime\Service.h"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.h"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
 		</Filter>
 	</Files>

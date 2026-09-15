@@ -9,6 +9,8 @@
 #include "framework/TextInput.h"
 #include "framework/Button.h"
 
+class MimeData;
+
 class MessageInputStrip : public Panel {
     public:
         typedef void (*SubmitHandler)(
@@ -28,6 +30,9 @@ class MessageInputStrip : public Panel {
 
         void set_submit_on_enter(bool new_submit_on_enter);
         bool get_submit_on_enter() const;
+
+        bool accepts_mime_type(const char* mime_type) const;
+        bool insert_mime_data(const MimeData& data);
 
         void set_submit_handler(
             SubmitHandler new_submit_handler,

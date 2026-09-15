@@ -69,6 +69,31 @@ namespace {
 
         DeleteObject(brush);
     }
+
+    int measure_text_width(HDC device_context, const char* text, int length) {
+        if (
+            device_context == NULL ||
+            text == 0 ||
+            length <= 0
+        ) {
+            return 0;
+        }
+
+        SIZE text_size;
+        text_size.cx = 0;
+        text_size.cy = 0;
+
+        if (!GetTextExtentPoint32A(
+                device_context,
+                text,
+                length,
+                &text_size
+            )) {
+            return 0;
+        }
+
+        return text_size.cx;
+    }
 }
 
 Win32ComponentRenderer::Win32ComponentRenderer(HDC new_device_context)
@@ -130,7 +155,7 @@ void Win32ComponentRenderer::render_label(const Label& label) {
     }
 
     RECT label_rect = component_rect(label);
-    UINT draw_flags = DT_VCENTER | DT_SINGLELINE;
+    UINT draw_flags = DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
 
     switch (label.get_horizontal_alignment()) {
         case Label::align_center:
@@ -199,7 +224,7 @@ void Win32ComponentRenderer::render_button(const Button& button) {
         button.get_text(),
         -1,
         &button_rect,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE
+        DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX
     );
 
     SetTextColor(device_context, old_text_color);
@@ -230,26 +255,24 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
     );
 
     RECT text_rect = input_rect;
-    text_rect.left += 6;
-    text_rect.right -= 6;
+    text_rect.left += text_input.get_text_padding();
+    text_rect.right -= text_input.get_text_padding();
 
-    std::string display_text = text_input.get_text();
-    if (text_input.get_is_focused()) {
-        int cursor_position = text_input.get_cursor_position();
-
-        if (cursor_position < 0) {
-            cursor_position = 0;
-        }
-
-        if (cursor_position > (int)display_text.length()) {
-            cursor_position = (int)display_text.length();
-        }
-
-        display_text.insert(
-            (std::string::size_type)cursor_position,
-            "|"
-        );
+    if (text_rect.right < text_rect.left) {
+        text_rect.right = text_rect.left;
     }
+
+    int saved_state = SaveDC(device_context);
+    IntersectClipRect(
+        device_context,
+        text_rect.left,
+        text_rect.top,
+        text_rect.right,
+        text_rect.bottom
+    );
+
+    const char* input_text = text_input.get_text();
+    std::string display_text = input_text == 0 ? "" : input_text;
 
     COLORREF old_text_color = SetTextColor(
         device_context,
@@ -261,8 +284,129 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
         display_text.c_str(),
         -1,
         &text_rect,
-        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS
+        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX
     );
 
+    TEXTMETRICA text_metrics;
+    ZeroMemory(&text_metrics, sizeof(text_metrics));
+    GetTextMetricsA(device_context, &text_metrics);
+
+    int text_y = text_rect.top +
+        ((text_rect.bottom - text_rect.top - text_metrics.tmHeight) / 2);
+
+    if (text_y < text_rect.top) {
+        text_y = text_rect.top;
+    }
+
+    if (text_input.get_is_focused() && text_input.has_selection()) {
+        int selection_start = text_input.get_selection_start();
+        int selection_end = text_input.get_selection_end();
+
+        if (selection_start < 0) {
+            selection_start = 0;
+        }
+
+        if (selection_end > (int)display_text.length()) {
+            selection_end = (int)display_text.length();
+        }
+
+        if (selection_end > selection_start) {
+            int prefix_width = measure_text_width(
+                device_context,
+                display_text.c_str(),
+                selection_start
+            );
+
+            int selection_width = measure_text_width(
+                device_context,
+                display_text.c_str() + selection_start,
+                selection_end - selection_start
+            );
+
+            RECT selection_rect;
+            selection_rect.left = text_rect.left + prefix_width;
+            selection_rect.top = text_rect.top + 2;
+            selection_rect.right = selection_rect.left + selection_width;
+            selection_rect.bottom = text_rect.bottom - 2;
+
+            FillRect(
+                device_context,
+                &selection_rect,
+                GetSysColorBrush(COLOR_HIGHLIGHT)
+            );
+
+            COLORREF selection_text_color = SetTextColor(
+                device_context,
+                GetSysColor(COLOR_HIGHLIGHTTEXT)
+            );
+
+            std::string selected_text = display_text.substr(
+                selection_start,
+                selection_end - selection_start
+            );
+
+            TextOutA(
+                device_context,
+                selection_rect.left,
+                text_y,
+                selected_text.c_str(),
+                (int)selected_text.length()
+            );
+
+            SetTextColor(device_context, selection_text_color);
+        }
+    }
+
+    if (text_input.get_is_focused()) {
+        int cursor_position = text_input.get_cursor_position();
+
+        if (cursor_position < 0) {
+            cursor_position = 0;
+        }
+
+        if (cursor_position > (int)display_text.length()) {
+            cursor_position = (int)display_text.length();
+        }
+
+        int cursor_x = text_rect.left + measure_text_width(
+            device_context,
+            display_text.c_str(),
+            cursor_position
+        );
+
+        HPEN caret_pen = CreatePen(
+            PS_SOLID,
+            1,
+            GetSysColor(COLOR_WINDOWTEXT)
+        );
+
+        if (caret_pen != NULL) {
+            HGDIOBJ previous_pen = SelectObject(device_context, caret_pen);
+
+            MoveToEx(
+                device_context,
+                cursor_x,
+                text_rect.top + 4,
+                NULL
+            );
+
+            LineTo(
+                device_context,
+                cursor_x,
+                text_rect.bottom - 4
+            );
+
+            if (previous_pen != NULL && previous_pen != HGDI_ERROR) {
+                SelectObject(device_context, previous_pen);
+            }
+
+            DeleteObject(caret_pen);
+        }
+    }
+
     SetTextColor(device_context, old_text_color);
+
+    if (saved_state != 0) {
+        RestoreDC(device_context, saved_state);
+    }
 }

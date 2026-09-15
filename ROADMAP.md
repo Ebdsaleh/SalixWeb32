@@ -62,15 +62,25 @@ Goal: reproduce the useful architectural separation demonstrated by SalixTorrent
 - [x] `ComponentRenderer` contract
 - [x] Win32 component renderer
 - [x] application view independent of Win32 calls
-- [~] styled `Panel` composition
-- [~] reusable `MessageInputStrip`
-- [~] messenger-style shell layout
+- [x] styled `Panel` composition
+- [x] reusable `MessageInputStrip`
+- [x] messenger-style shell layout
+- [x] double-buffered Win32 presentation
+- [x] text caret navigation/editing
+- [~] mouse/keyboard text selection
+- [~] copy/cut/paste
+- [~] backend-neutral clipboard contract
+- [~] MIME-aware composer payloads
+- [~] precise text hit-testing
+- [ ] append-only conversation model
+- [ ] scrollable conversation view
+- [ ] framework dirty-region invalidation
 
-Validated Phase 2 foundations now include the backend-neutral `View`, `Component`, `Label`, `Container`, `StackPanel`, `Button`, `TextInput`, `UIEvent`, and style layers plus the Win32 component renderer. The interactive control tranche was rebuilt successfully on the Pentium 4 after correcting a missing `UIEvent.h` include in `Component.cpp`.
+Validated Phase 2 foundations include the backend-neutral `View`, `Component`, `Label`, `Container`, `StackPanel`, `Button`, `TextInput`, `UIEvent`, style layers, `Panel`, `MessageInputStrip`, and the Win32 component renderer. The messenger shell and double-buffered paint path have been validated on the Pentium 4 under both Windows Server 2003 and MiniXP.
 
-The current layout tranche adds a reusable styled `Panel`, start/center/end main-axis alignment for `StackPanel`, and a late-2000s messenger-inspired shell with a header, conversation surface, diagnostics sidebar, and a composite `MessageInputStrip`. The strip owns a text field plus a right-anchored Send button and exposes a configurable `submit_on_enter` boolean so Enter can submit while the text field is focused.
+Caret editing is also validated on the target. The active input tranche now adds selection, clipboard operations, mouse text hit-testing, and a MIME-tagged data boundary so the current plain-text composer can evolve toward a richer chat input without making Win32 clipboard formats part of the framework API.
 
-**Exit criterion:** core criterion achieved. The current messenger-style composition remains active until rebuilt and exercised on the target system.
+**Exit criterion:** core criterion achieved. Remaining Phase 2 work is focused on production-quality input behavior, conversation composition, and efficient repaint invalidation.
 
 ## Phase 3 — WebView and backend contract
 
@@ -102,7 +112,7 @@ remote
 Goal: implement or port reusable pieces that every web backend needs.
 
 - [ ] URL parsing / canonicalization
-- [ ] MIME handling
+- [~] MIME handling foundation (`MimeData` introduced by the UI/clipboard layer)
 - [ ] Unicode/text encoding abstraction
 - [ ] stream/buffer abstraction
 - [ ] network request/response model

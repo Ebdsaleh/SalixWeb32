@@ -5,6 +5,9 @@
 // =================================================================================
 #pragma once
 
+class Clipboard;
+class TextMetrics;
+
 class UIEvent {
     public:
         enum Type {
@@ -29,7 +32,11 @@ class UIEvent {
             key_backspace,
             key_enter,
             key_tab,
-            key_escape
+            key_escape,
+            key_a,
+            key_c,
+            key_v,
+            key_x
         };
 
         UIEvent(Type new_type)
@@ -37,7 +44,13 @@ class UIEvent {
               x(0),
               y(0),
               key_code(key_none),
-              character_code(0) {
+              character_code(0),
+              shift_down(false),
+              control_down(false),
+              alt_down(false),
+              left_button_down(false),
+              clipboard(0),
+              text_metrics(0) {
         }
 
         Type type;
@@ -45,4 +58,10 @@ class UIEvent {
         int y;
         KeyCode key_code;
         int character_code;
+        bool shift_down;
+        bool control_down;
+        bool alt_down;
+        bool left_button_down;
+        Clipboard* clipboard;
+        TextMetrics* text_metrics;
 };

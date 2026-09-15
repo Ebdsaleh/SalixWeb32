@@ -6,6 +6,7 @@
 
 #include "MessageInputStrip.h"
 #include "framework/UIEvent.h"
+#include "framework/MimeData.h"
 
 MessageInputStrip::MessageInputStrip()
     : submit_on_enter(true),
@@ -59,6 +60,14 @@ void MessageInputStrip::set_submit_on_enter(bool new_submit_on_enter) {
 
 bool MessageInputStrip::get_submit_on_enter() const {
     return submit_on_enter;
+}
+
+bool MessageInputStrip::accepts_mime_type(const char* mime_type) const {
+    return message_input.accepts_mime_type(mime_type);
+}
+
+bool MessageInputStrip::insert_mime_data(const MimeData& data) {
+    return message_input.insert_mime_data(data);
 }
 
 void MessageInputStrip::set_submit_handler(

@@ -182,18 +182,51 @@ The corrected build was revalidated successfully on both Windows Server 2003 and
 
 This remains an immediate anti-flicker correction rather than the final rendering architecture. The longer-term framework direction is explicit invalidation/dirty-region tracking so components can request repaint of only the area that changed instead of requiring periodic full-window redraws.
 
-## Current Phase 2 text-editing validation target
+## 2026-09-15 — Text cursor navigation validation
 
-The current text-input tranche adds:
+The cursor-navigation tranche was rebuilt and exercised on the Pentium 4 target.
 
-- a backend-neutral key-code vocabulary in `UIEvent`,
-- Win32 virtual-key translation inside the host rather than leaking `VK_*` constants into framework controls,
-- an explicit cursor position in `TextInput`,
-- Left/Right arrow cursor movement,
-- Home/End navigation,
-- Delete-at-cursor behavior,
-- Backspace-before-cursor behavior,
-- character insertion at the current cursor position,
-- and caret rendering at the current cursor position rather than always at the end of the text.
+Validated commit:
 
-These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.
+```text
+7273f18 Add cursor navigation to text input
+```
+
+Validated behavior:
+
+- Left/Right arrow movement operates inside the focused text field,
+- Home/End navigation operates,
+- Delete removes the character at the caret,
+- Backspace removes the character before the caret,
+- typed characters insert at the current caret position,
+- the caret renders at its actual cursor position,
+- and Enter-to-submit continues to operate after in-place editing.
+
+This validation exposed the next input-control gaps: there was no mouse or keyboard text selection and no copy/cut/paste path.
+
+## Current Phase 2 selection / clipboard validation target
+
+The current tranche adds:
+
+- selection anchor/caret state inside `TextInput`,
+- Shift+Left/Right/Home/End keyboard selection,
+- click-to-place-caret using backend-neutral text measurement,
+- click-drag mouse selection,
+- Shift+click selection extension,
+- replacement of selected text by typing, Delete, Backspace, cut, or paste,
+- Ctrl+A, Ctrl+C, Ctrl+X, and Ctrl+V,
+- native Win32 clipboard integration behind a backend-neutral `Clipboard` contract,
+- `MimeData` as a MIME-tagged clipboard/input payload rather than hard-coding clipboard text into controls,
+- `MessageInputStrip::accepts_mime_type()` and `insert_mime_data()` as the first MIME-aware composer boundary,
+- Win32 selection-highlight rendering and a real caret line,
+- and backend-neutral `TextMetrics` for precise mouse hit-testing without leaking GDI calls into `TextInput`.
+
+The current single-line control accepts `text/plain`. The MIME boundary is intentionally broader than the present control so a later rich composer can add formats such as `text/html`, URI/file payloads, or attachment/image types without changing the application-level message-strip contract.
+
+These items remain pending target-hardware validation on VC7.1 / Server 2003 and MiniXP.
+
+## Known conversation-surface limitation
+
+The messenger shell currently uses a single `Label` for submitted conversation text. Each new submission therefore replaces the previous displayed message. This is intentionally left as a known limitation while the text-input/clipboard behavior is hardened first.
+
+The next conversation-surface tranche should introduce an append-only message model and a scrollable conversation view suitable for alternating local/remote relay messages rather than mutating one display label.
