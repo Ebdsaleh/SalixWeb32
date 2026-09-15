@@ -38,15 +38,40 @@ The same built executable was launched successfully in a MiniXP environment on t
 
 This is a portability smoke test only. It does not replace testing on a clean retail Windows XP installation and does not prove the absence of redistributable runtime dependencies.
 
-## Current hardening validation
+## 2026-09-15 — Phase 1 hardening validation
 
-The next Phase 1 tranche adds:
+The runtime hardening tranche was rebuilt and exercised on the Pentium 4 target.
 
-- a concrete runtime service exercising `start/update/stop`,
-- duplicate-service protection in `ServiceRegistry`,
-- visible runtime service/update status,
-- explicit client-area resize tracking,
-- repaint-on-resize behavior,
-- additional shutdown diagnostic events.
+Validated behavior:
 
-These items remain pending target-hardware revalidation until the updated executable is rebuilt and exercised on the Pentium 4.
+- `RuntimeStatusService` starts through `ServiceRegistry`.
+- Runtime update ticks advance continuously.
+- Service count reports correctly.
+- Client-area width and height update while resizing the window.
+- Status content remains centered after resizing.
+- Normal window close continues to exit cleanly.
+- The executable continues to launch successfully from Command Prompt.
+
+An initial repaint defect was found during validation: the changing update-tick text was drawn over stale pixels because the paint path used a transparent text background without clearing the client area first.
+
+The defect was corrected by clearing the client area inside `WM_PAINT` before drawing status text. The updated build was then revalidated on the target system with the window left running and with repeated resizing. No status-text ghosting was observed after the fix.
+
+Relevant commits:
+
+```text
+5547277 Harden Phase 1 runtime lifecycle and resize handling
+0fd362e Fix Win32 status repaint ghosting
+```
+
+### Phase 1 result
+
+Phase 1 exit criteria are satisfied on the primary target:
+
+- native x86 build succeeds with Visual C++ 7.1,
+- the runtime/service lifecycle operates,
+- the Win32 host creates and maintains a responsive window,
+- resize handling is functional,
+- status rendering is stable,
+- and shutdown is clean.
+
+Phase 2 framework/presentation separation may proceed from this baseline.
