@@ -286,6 +286,12 @@ LRESULT Win32ApplicationHost::handle_message(
             return 0;
         }
 
+        case WM_ERASEBKGND:
+            // WM_PAINT owns the entire client-area background. Suppressing the
+            // separate erase pass prevents old GDI environments from exposing
+            // a blank frame between erase and redraw.
+            return 1;
+
         case WM_PAINT:
             paint_window(current_window_handle);
             return 0;
@@ -313,15 +319,78 @@ void Win32ApplicationHost::paint_window(HWND current_window_handle) {
     RECT client_rect;
     GetClientRect(current_window_handle, &client_rect);
 
-    FillRect(
-        device_context,
-        &client_rect,
-        GetSysColorBrush(COLOR_WINDOW)
-    );
+    int paint_width = client_rect.right - client_rect.left;
+    int paint_height = client_rect.bottom - client_rect.top;
 
-    if (application_view != 0) {
-        Win32ComponentRenderer component_renderer(device_context);
-        application_view->render(component_renderer);
+    if (paint_width <= 0 || paint_height <= 0) {
+        EndPaint(current_window_handle, &paint_struct);
+        return;
+    }
+
+    HDC back_buffer_context = CreateCompatibleDC(device_context);
+    HBITMAP back_buffer_bitmap = NULL;
+    HGDIOBJ previous_bitmap = NULL;
+
+    if (back_buffer_context != NULL) {
+        back_buffer_bitmap = CreateCompatibleBitmap(
+            device_context,
+            paint_width,
+            paint_height
+        );
+    }
+
+    if (back_buffer_context != NULL && back_buffer_bitmap != NULL) {
+        previous_bitmap = SelectObject(
+            back_buffer_context,
+            back_buffer_bitmap
+        );
+
+        FillRect(
+            back_buffer_context,
+            &client_rect,
+            GetSysColorBrush(COLOR_WINDOW)
+        );
+
+        if (application_view != 0) {
+            Win32ComponentRenderer component_renderer(back_buffer_context);
+            application_view->render(component_renderer);
+        }
+
+        BitBlt(
+            device_context,
+            0,
+            0,
+            paint_width,
+            paint_height,
+            back_buffer_context,
+            0,
+            0,
+            SRCCOPY
+        );
+
+        if (previous_bitmap != NULL && previous_bitmap != HGDI_ERROR) {
+            SelectObject(back_buffer_context, previous_bitmap);
+        }
+    } else {
+        // Allocation failure must not prevent the application from painting.
+        FillRect(
+            device_context,
+            &client_rect,
+            GetSysColorBrush(COLOR_WINDOW)
+        );
+
+        if (application_view != 0) {
+            Win32ComponentRenderer component_renderer(device_context);
+            application_view->render(component_renderer);
+        }
+    }
+
+    if (back_buffer_bitmap != NULL) {
+        DeleteObject(back_buffer_bitmap);
+    }
+
+    if (back_buffer_context != NULL) {
+        DeleteDC(back_buffer_context);
     }
 
     EndPaint(current_window_handle, &paint_struct);
