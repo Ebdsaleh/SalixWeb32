@@ -8,6 +8,7 @@
 #include <string>
 
 #include "Component.h"
+#include "TextSelection.h"
 
 class Clipboard;
 class UIEvent;
@@ -36,6 +37,8 @@ class Label : public Component {
         bool has_selection() const;
         int get_selection_start() const;
         int get_selection_end() const;
+        int get_selection_range_count() const;
+        bool get_selection_range(int index, int& start, int& end) const;
         void clear_selection();
         void select_all();
 
@@ -43,7 +46,6 @@ class Label : public Component {
         virtual void render(ComponentRenderer& renderer) const;
 
     private:
-        void clamp_cursor_position();
         void move_cursor(int new_cursor_position, bool extend_selection);
         int get_cursor_position_from_event(const UIEvent& event) const;
         bool copy_selection(Clipboard* clipboard) const;
@@ -52,7 +54,6 @@ class Label : public Component {
         HorizontalAlignment horizontal_alignment;
         bool is_selectable;
         bool is_focused;
-        int cursor_position;
-        int selection_anchor;
+        TextSelection selection;
         bool is_mouse_selecting;
 };

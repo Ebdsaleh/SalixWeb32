@@ -5,11 +5,13 @@
 // =================================================================================
 
 #include <string.h>
+#include <vector>
 
 #include "TextInput.h"
 #include "UIEvent.h"
 #include "Clipboard.h"
 #include "MimeData.h"
+#include "MimeTypes.h"
 #include "TextMetrics.h"
 #include "TextNavigation.h"
 #include "rendering/ComponentRenderer.h"
@@ -17,8 +19,6 @@
 TextInput::TextInput()
     : max_length(120),
       is_focused(false),
-      cursor_position(0),
-      selection_anchor(0),
       is_mouse_selecting(false),
       text_padding(6) {
 
@@ -29,8 +29,7 @@ TextInput::TextInput()
 void TextInput::set_text(const char* new_text) {
     if (new_text == 0) {
         text.clear();
-        cursor_position = 0;
-        selection_anchor = 0;
+        selection.reset(0, 0);
         return;
     }
 
@@ -40,8 +39,7 @@ void TextInput::set_text(const char* new_text) {
         text.erase(max_length);
     }
 
-    cursor_position = (int)text.length();
-    selection_anchor = cursor_position;
+    selection.reset((int)text.length(), (int)text.length());
 }
 
 const char* TextInput::get_text() const {
@@ -59,10 +57,7 @@ void TextInput::set_max_length(int new_max_length) {
         text.erase(max_length);
     }
 
-    clamp_cursor_position();
-    if (selection_anchor > (int)text.length()) {
-        selection_anchor = (int)text.length();
-    }
+    selection.clamp_to_length((int)text.length());
 }
 
 int TextInput::get_max_length() const {
@@ -71,7 +66,7 @@ int TextInput::get_max_length() const {
 
 void TextInput::set_focused(bool new_is_focused) {
     is_focused = new_is_focused;
-    clamp_cursor_position();
+    selection.clamp_to_length((int)text.length());
 
     if (!is_focused) {
         is_mouse_selecting = false;
@@ -83,42 +78,43 @@ bool TextInput::get_is_focused() const {
 }
 
 void TextInput::set_cursor_position(int new_cursor_position) {
-    cursor_position = new_cursor_position;
-    clamp_cursor_position();
-    selection_anchor = cursor_position;
+    selection.reset(new_cursor_position, (int)text.length());
 }
 
 int TextInput::get_cursor_position() const {
-    return cursor_position;
+    return selection.get_caret_position();
 }
 
 bool TextInput::has_selection() const {
-    return cursor_position != selection_anchor;
+    return selection.has_selection();
 }
 
 int TextInput::get_selection_start() const {
-    if (cursor_position < selection_anchor) {
-        return cursor_position;
-    }
-
-    return selection_anchor;
+    return selection.get_first_selection_start();
 }
 
 int TextInput::get_selection_end() const {
-    if (cursor_position > selection_anchor) {
-        return cursor_position;
-    }
+    return selection.get_last_selection_end();
+}
 
-    return selection_anchor;
+int TextInput::get_selection_range_count() const {
+    return selection.get_range_count();
+}
+
+bool TextInput::get_selection_range(
+    int index,
+    int& start,
+    int& end
+) const {
+    return selection.get_range(index, start, end);
 }
 
 void TextInput::clear_selection() {
-    selection_anchor = cursor_position;
+    selection.clear_selection();
 }
 
 void TextInput::select_all() {
-    selection_anchor = 0;
-    cursor_position = (int)text.length();
+    selection.select_all((int)text.length());
 }
 
 bool TextInput::accepts_mime_type(const char* mime_type) const {
@@ -126,15 +122,38 @@ bool TextInput::accepts_mime_type(const char* mime_type) const {
         return false;
     }
 
-    return strcmp(mime_type, "text/plain") == 0;
+    return strcmp(mime_type, MimeTypes::text_plain()) == 0 ||
+        strcmp(mime_type, MimeTypes::salix_selection_preserved()) == 0;
 }
 
 bool TextInput::insert_mime_data(const MimeData& data) {
-    if (!data.has_format("text/plain")) {
+    return insert_mime_data(data, paste_compact);
+}
+
+bool TextInput::insert_mime_data(
+    const MimeData& data,
+    PasteMode paste_mode
+) {
+    const char* inserted_text = 0;
+
+    if (
+        paste_mode == paste_keep_formatting &&
+        data.has_format(MimeTypes::salix_selection_preserved())
+    ) {
+        inserted_text = data.get_data(
+            MimeTypes::salix_selection_preserved()
+        );
+    }
+
+    if (inserted_text == 0 && data.has_format(MimeTypes::text_plain())) {
+        inserted_text = data.get_text();
+    }
+
+    if (inserted_text == 0) {
         return false;
     }
 
-    return insert_plain_text(data.get_text());
+    return insert_plain_text(inserted_text);
 }
 
 int TextInput::get_text_padding() const {
@@ -152,26 +171,80 @@ bool TextInput::handle_event(const UIEvent& event) {
 
         if (new_is_focused) {
             int new_cursor_position = get_cursor_position_from_event(event);
+            int text_length = (int)text.length();
 
-            if (event.click_count >= 3) {
-                select_all();
-                is_mouse_selecting = false;
-            } else if (event.click_count == 2) {
-                selection_anchor = TextNavigation::find_word_start(
-                    text,
-                    new_cursor_position
-                );
-                cursor_position = TextNavigation::find_word_end(
-                    text,
-                    new_cursor_position
-                );
-                is_mouse_selecting = false;
-            } else {
-                if (!event.shift_down || !is_focused) {
-                    selection_anchor = new_cursor_position;
+            if (event.control_down) {
+                if (event.click_count >= 3) {
+                    selection.select_range(
+                        TextNavigation::find_line_start(
+                            text,
+                            new_cursor_position
+                        ),
+                        TextNavigation::find_line_end(
+                            text,
+                            new_cursor_position
+                        ),
+                        text_length,
+                        true
+                    );
+                } else if (event.click_count == 2) {
+                    selection.select_range(
+                        TextNavigation::find_word_start(
+                            text,
+                            new_cursor_position
+                        ),
+                        TextNavigation::find_word_end(
+                            text,
+                            new_cursor_position
+                        ),
+                        text_length,
+                        true
+                    );
+                } else {
+                    selection.move_caret_preserving_selection(
+                        new_cursor_position,
+                        text_length
+                    );
                 }
 
-                cursor_position = new_cursor_position;
+                is_mouse_selecting = false;
+            } else if (event.click_count >= 3) {
+                selection.select_range(
+                    TextNavigation::find_line_start(
+                        text,
+                        new_cursor_position
+                    ),
+                    TextNavigation::find_line_end(
+                        text,
+                        new_cursor_position
+                    ),
+                    text_length,
+                    false
+                );
+                is_mouse_selecting = false;
+            } else if (event.click_count == 2) {
+                selection.select_range(
+                    TextNavigation::find_word_start(
+                        text,
+                        new_cursor_position
+                    ),
+                    TextNavigation::find_word_end(
+                        text,
+                        new_cursor_position
+                    ),
+                    text_length,
+                    false
+                );
+                is_mouse_selecting = false;
+            } else if (event.shift_down && is_focused) {
+                selection.move_caret(
+                    new_cursor_position,
+                    text_length,
+                    true
+                );
+                is_mouse_selecting = true;
+            } else {
+                selection.reset(new_cursor_position, text_length);
                 is_mouse_selecting = true;
             }
         } else {
@@ -188,13 +261,21 @@ bool TextInput::handle_event(const UIEvent& event) {
         is_mouse_selecting &&
         event.left_button_down
     ) {
-        cursor_position = get_cursor_position_from_event(event);
+        selection.move_caret(
+            get_cursor_position_from_event(event),
+            (int)text.length(),
+            true
+        );
         return true;
     }
 
     if (event.type == UIEvent::event_mouse_up && is_mouse_selecting) {
         if (is_focused) {
-            cursor_position = get_cursor_position_from_event(event);
+            selection.move_caret(
+                get_cursor_position_from_event(event),
+                (int)text.length(),
+                true
+            );
         }
 
         is_mouse_selecting = false;
@@ -212,7 +293,7 @@ bool TextInput::handle_event(const UIEvent& event) {
                     move_cursor(
                         TextNavigation::find_word_boundary_left(
                             text,
-                            cursor_position
+                            selection.get_caret_position()
                         ),
                         event.shift_down
                     );
@@ -222,7 +303,7 @@ bool TextInput::handle_event(const UIEvent& event) {
                     move_cursor(
                         TextNavigation::find_word_boundary_right(
                             text,
-                            cursor_position
+                            selection.get_caret_position()
                         ),
                         event.shift_down
                     );
@@ -241,7 +322,12 @@ bool TextInput::handle_event(const UIEvent& event) {
                     return true;
 
                 case UIEvent::key_v:
-                    paste_from_clipboard(event.clipboard);
+                    paste_from_clipboard(
+                        event.clipboard,
+                        event.shift_down
+                            ? paste_keep_formatting
+                            : paste_compact
+                    );
                     return true;
 
                 default:
@@ -254,7 +340,10 @@ bool TextInput::handle_event(const UIEvent& event) {
                 if (!event.shift_down && has_selection()) {
                     move_cursor(get_selection_start(), false);
                 } else {
-                    move_cursor(cursor_position - 1, event.shift_down);
+                    move_cursor(
+                        selection.get_caret_position() - 1,
+                        event.shift_down
+                    );
                 }
                 return true;
 
@@ -262,7 +351,10 @@ bool TextInput::handle_event(const UIEvent& event) {
                 if (!event.shift_down && has_selection()) {
                     move_cursor(get_selection_end(), false);
                 } else {
-                    move_cursor(cursor_position + 1, event.shift_down);
+                    move_cursor(
+                        selection.get_caret_position() + 1,
+                        event.shift_down
+                    );
                 }
                 return true;
 
@@ -277,8 +369,10 @@ bool TextInput::handle_event(const UIEvent& event) {
             case UIEvent::key_delete:
                 if (has_selection()) {
                     delete_selection();
-                } else if (cursor_position < (int)text.length()) {
-                    text.erase(cursor_position, 1);
+                } else if (
+                    selection.get_caret_position() < (int)text.length()
+                ) {
+                    text.erase(selection.get_caret_position(), 1);
                 }
                 return true;
 
@@ -294,10 +388,13 @@ bool TextInput::handle_event(const UIEvent& event) {
     if (event.character_code == 8) {
         if (has_selection()) {
             delete_selection();
-        } else if (cursor_position > 0 && !text.empty()) {
-            text.erase(cursor_position - 1, 1);
-            --cursor_position;
-            selection_anchor = cursor_position;
+        } else if (
+            selection.get_caret_position() > 0 &&
+            !text.empty()
+        ) {
+            int new_cursor_position = selection.get_caret_position() - 1;
+            text.erase(new_cursor_position, 1);
+            selection.reset(new_cursor_position, (int)text.length());
         }
         return true;
     }
@@ -324,23 +421,15 @@ void TextInput::render(ComponentRenderer& renderer) const {
     renderer.render_text_input(*this);
 }
 
-void TextInput::clamp_cursor_position() {
-    if (cursor_position < 0) {
-        cursor_position = 0;
-    }
-
-    if (cursor_position > (int)text.length()) {
-        cursor_position = (int)text.length();
-    }
-}
-
-void TextInput::move_cursor(int new_cursor_position, bool extend_selection) {
-    cursor_position = new_cursor_position;
-    clamp_cursor_position();
-
-    if (!extend_selection) {
-        selection_anchor = cursor_position;
-    }
+void TextInput::move_cursor(
+    int new_cursor_position,
+    bool extend_selection
+) {
+    selection.move_caret(
+        new_cursor_position,
+        (int)text.length(),
+        extend_selection
+    );
 }
 
 void TextInput::delete_selection() {
@@ -348,16 +437,25 @@ void TextInput::delete_selection() {
         return;
     }
 
-    int selection_start = get_selection_start();
-    int selection_end = get_selection_end();
+    std::vector<TextRange> ranges;
+    selection.get_normalized_ranges(ranges);
 
-    text.erase(
-        selection_start,
-        selection_end - selection_start
-    );
+    if (ranges.empty()) {
+        return;
+    }
 
-    cursor_position = selection_start;
-    selection_anchor = cursor_position;
+    int new_cursor_position = ranges[0].start;
+
+    for (int index = (int)ranges.size() - 1; index >= 0; --index) {
+        text.erase(
+            (std::string::size_type)ranges[index].start,
+            (std::string::size_type)(
+                ranges[index].end - ranges[index].start
+            )
+        );
+    }
+
+    selection.reset(new_cursor_position, (int)text.length());
 }
 
 bool TextInput::insert_plain_text(const char* new_text) {
@@ -365,8 +463,12 @@ bool TextInput::insert_plain_text(const char* new_text) {
         return false;
     }
 
-    if (has_selection()) {
+    if (selection.has_active_range()) {
         delete_selection();
+    } else if (selection.has_persistent_ranges()) {
+        // Ctrl+click can intentionally preserve earlier highlights while moving
+        // the caret. Typing inserts at that caret rather than deleting picks.
+        selection.clear_selection();
     }
 
     int remaining_capacity = max_length - (int)text.length();
@@ -398,17 +500,21 @@ bool TextInput::insert_plain_text(const char* new_text) {
         return true;
     }
 
+    int cursor_position = selection.get_caret_position();
+
     text.insert(
         (std::string::size_type)cursor_position,
         filtered_text
     );
 
     cursor_position += (int)filtered_text.length();
-    selection_anchor = cursor_position;
+    selection.reset(cursor_position, (int)text.length());
     return true;
 }
 
-int TextInput::get_cursor_position_from_event(const UIEvent& event) const {
+int TextInput::get_cursor_position_from_event(
+    const UIEvent& event
+) const {
     if (event.text_metrics == 0) {
         return (int)text.length();
     }
@@ -427,16 +533,17 @@ bool TextInput::copy_selection(Clipboard* clipboard) const {
         return false;
     }
 
-    int selection_start = get_selection_start();
-    int selection_end = get_selection_end();
-
-    std::string selected_text = text.substr(
-        selection_start,
-        selection_end - selection_start
-    );
+    std::string compact_text = selection.get_compact_text(text);
+    std::string preserved_text = selection.get_preserved_text(text);
 
     MimeData data;
-    data.set_text(selected_text.c_str());
+    data.set_text(compact_text.c_str());
+    data.set_data(
+        MimeTypes::salix_selection_preserved(),
+        preserved_text.c_str(),
+        (int)preserved_text.length()
+    );
+
     return clipboard->set_data(data);
 }
 
@@ -453,7 +560,10 @@ bool TextInput::cut_selection(Clipboard* clipboard) {
     return true;
 }
 
-bool TextInput::paste_from_clipboard(Clipboard* clipboard) {
+bool TextInput::paste_from_clipboard(
+    Clipboard* clipboard,
+    PasteMode paste_mode
+) {
     if (clipboard == 0) {
         return false;
     }
@@ -463,5 +573,5 @@ bool TextInput::paste_from_clipboard(Clipboard* clipboard) {
         return false;
     }
 
-    return insert_mime_data(data);
+    return insert_mime_data(data, paste_mode);
 }

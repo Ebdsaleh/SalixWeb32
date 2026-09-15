@@ -27,4 +27,14 @@ namespace TextNavigation {
         const std::string& text,
         int position
     );
+
+    int find_line_start(
+        const std::string& text,
+        int position
+    );
+
+    int find_line_end(
+        const std::string& text,
+        int position
+    );
 }

@@ -8,6 +8,7 @@
 #include <string>
 
 #include "Component.h"
+#include "TextSelection.h"
 
 class Clipboard;
 class MimeData;
@@ -15,6 +16,11 @@ class UIEvent;
 
 class TextInput : public Component {
     public:
+        enum PasteMode {
+            paste_compact = 0,
+            paste_keep_formatting
+        };
+
         TextInput();
 
         void set_text(const char* new_text);
@@ -32,11 +38,14 @@ class TextInput : public Component {
         bool has_selection() const;
         int get_selection_start() const;
         int get_selection_end() const;
+        int get_selection_range_count() const;
+        bool get_selection_range(int index, int& start, int& end) const;
         void clear_selection();
         void select_all();
 
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
+        bool insert_mime_data(const MimeData& data, PasteMode paste_mode);
 
         int get_text_padding() const;
 
@@ -44,7 +53,6 @@ class TextInput : public Component {
         virtual void render(ComponentRenderer& renderer) const;
 
     private:
-        void clamp_cursor_position();
         void move_cursor(int new_cursor_position, bool extend_selection);
         void delete_selection();
         bool insert_plain_text(const char* new_text);
@@ -52,13 +60,15 @@ class TextInput : public Component {
 
         bool copy_selection(Clipboard* clipboard) const;
         bool cut_selection(Clipboard* clipboard);
-        bool paste_from_clipboard(Clipboard* clipboard);
+        bool paste_from_clipboard(
+            Clipboard* clipboard,
+            PasteMode paste_mode
+        );
 
         std::string text;
         int max_length;
         bool is_focused;
-        int cursor_position;
-        int selection_anchor;
+        TextSelection selection;
         bool is_mouse_selecting;
         int text_padding;
 };

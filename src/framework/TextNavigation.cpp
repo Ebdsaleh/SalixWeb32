@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    framework/TextNavigation.cpp
 // Author:      Ebdsaleh
-// Description: Implements backend-neutral word-boundary cursor and selection helpers.
+// Description: Implements backend-neutral word and line cursor/selection helpers.
 // =================================================================================
 
 #include <ctype.h>
@@ -143,4 +143,41 @@ int TextNavigation::find_word_end(
     }
 
     return word_cursor;
+}
+
+int TextNavigation::find_line_start(
+    const std::string& text,
+    int position
+) {
+    int cursor = clamp_position(text, position);
+
+    while (cursor > 0) {
+        char previous_character = text[cursor - 1];
+        if (previous_character == '\r' || previous_character == '\n') {
+            break;
+        }
+
+        --cursor;
+    }
+
+    return cursor;
+}
+
+int TextNavigation::find_line_end(
+    const std::string& text,
+    int position
+) {
+    int cursor = clamp_position(text, position);
+    int text_length = (int)text.length();
+
+    while (cursor < text_length) {
+        char character = text[cursor];
+        if (character == '\r' || character == '\n') {
+            break;
+        }
+
+        ++cursor;
+    }
+
+    return cursor;
 }

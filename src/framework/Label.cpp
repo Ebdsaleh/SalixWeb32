@@ -8,6 +8,7 @@
 #include "UIEvent.h"
 #include "Clipboard.h"
 #include "MimeData.h"
+#include "MimeTypes.h"
 #include "TextMetrics.h"
 #include "TextNavigation.h"
 #include "rendering/ComponentRenderer.h"
@@ -16,22 +17,18 @@ Label::Label()
     : horizontal_alignment(align_left),
       is_selectable(false),
       is_focused(false),
-      cursor_position(0),
-      selection_anchor(0),
       is_mouse_selecting(false) {
 }
 
 void Label::set_text(const char* new_text) {
     if (new_text == 0) {
         text.clear();
-        cursor_position = 0;
-        selection_anchor = 0;
+        selection.reset(0, 0);
         return;
     }
 
     text = new_text;
-    cursor_position = (int)text.length();
-    selection_anchor = cursor_position;
+    selection.reset((int)text.length(), (int)text.length());
 }
 
 const char* Label::get_text() const {
@@ -52,7 +49,7 @@ void Label::set_selectable(bool new_is_selectable) {
     if (!is_selectable) {
         is_focused = false;
         is_mouse_selecting = false;
-        selection_anchor = cursor_position;
+        selection.clear_selection();
     }
 }
 
@@ -65,36 +62,39 @@ bool Label::get_is_focused() const {
 }
 
 int Label::get_cursor_position() const {
-    return cursor_position;
+    return selection.get_caret_position();
 }
 
 bool Label::has_selection() const {
-    return cursor_position != selection_anchor;
+    return selection.has_selection();
 }
 
 int Label::get_selection_start() const {
-    if (cursor_position < selection_anchor) {
-        return cursor_position;
-    }
-
-    return selection_anchor;
+    return selection.get_first_selection_start();
 }
 
 int Label::get_selection_end() const {
-    if (cursor_position > selection_anchor) {
-        return cursor_position;
-    }
+    return selection.get_last_selection_end();
+}
 
-    return selection_anchor;
+int Label::get_selection_range_count() const {
+    return selection.get_range_count();
+}
+
+bool Label::get_selection_range(
+    int index,
+    int& start,
+    int& end
+) const {
+    return selection.get_range(index, start, end);
 }
 
 void Label::clear_selection() {
-    selection_anchor = cursor_position;
+    selection.clear_selection();
 }
 
 void Label::select_all() {
-    selection_anchor = 0;
-    cursor_position = (int)text.length();
+    selection.select_all((int)text.length());
 }
 
 bool Label::handle_event(const UIEvent& event) {
@@ -108,26 +108,80 @@ bool Label::handle_event(const UIEvent& event) {
 
         if (new_is_focused) {
             int new_cursor_position = get_cursor_position_from_event(event);
+            int text_length = (int)text.length();
 
-            if (event.click_count >= 3) {
-                select_all();
-                is_mouse_selecting = false;
-            } else if (event.click_count == 2) {
-                selection_anchor = TextNavigation::find_word_start(
-                    text,
-                    new_cursor_position
-                );
-                cursor_position = TextNavigation::find_word_end(
-                    text,
-                    new_cursor_position
-                );
-                is_mouse_selecting = false;
-            } else {
-                if (!event.shift_down || !is_focused) {
-                    selection_anchor = new_cursor_position;
+            if (event.control_down) {
+                if (event.click_count >= 3) {
+                    selection.select_range(
+                        TextNavigation::find_line_start(
+                            text,
+                            new_cursor_position
+                        ),
+                        TextNavigation::find_line_end(
+                            text,
+                            new_cursor_position
+                        ),
+                        text_length,
+                        true
+                    );
+                } else if (event.click_count == 2) {
+                    selection.select_range(
+                        TextNavigation::find_word_start(
+                            text,
+                            new_cursor_position
+                        ),
+                        TextNavigation::find_word_end(
+                            text,
+                            new_cursor_position
+                        ),
+                        text_length,
+                        true
+                    );
+                } else {
+                    selection.move_caret_preserving_selection(
+                        new_cursor_position,
+                        text_length
+                    );
                 }
 
-                cursor_position = new_cursor_position;
+                is_mouse_selecting = false;
+            } else if (event.click_count >= 3) {
+                selection.select_range(
+                    TextNavigation::find_line_start(
+                        text,
+                        new_cursor_position
+                    ),
+                    TextNavigation::find_line_end(
+                        text,
+                        new_cursor_position
+                    ),
+                    text_length,
+                    false
+                );
+                is_mouse_selecting = false;
+            } else if (event.click_count == 2) {
+                selection.select_range(
+                    TextNavigation::find_word_start(
+                        text,
+                        new_cursor_position
+                    ),
+                    TextNavigation::find_word_end(
+                        text,
+                        new_cursor_position
+                    ),
+                    text_length,
+                    false
+                );
+                is_mouse_selecting = false;
+            } else if (event.shift_down && is_focused) {
+                selection.move_caret(
+                    new_cursor_position,
+                    text_length,
+                    true
+                );
+                is_mouse_selecting = true;
+            } else {
+                selection.reset(new_cursor_position, text_length);
                 is_mouse_selecting = true;
             }
         } else {
@@ -144,13 +198,21 @@ bool Label::handle_event(const UIEvent& event) {
         is_mouse_selecting &&
         event.left_button_down
     ) {
-        cursor_position = get_cursor_position_from_event(event);
+        selection.move_caret(
+            get_cursor_position_from_event(event),
+            (int)text.length(),
+            true
+        );
         return true;
     }
 
     if (event.type == UIEvent::event_mouse_up && is_mouse_selecting) {
         if (is_focused) {
-            cursor_position = get_cursor_position_from_event(event);
+            selection.move_caret(
+                get_cursor_position_from_event(event),
+                (int)text.length(),
+                true
+            );
         }
 
         is_mouse_selecting = false;
@@ -167,7 +229,7 @@ bool Label::handle_event(const UIEvent& event) {
                 move_cursor(
                     TextNavigation::find_word_boundary_left(
                         text,
-                        cursor_position
+                        selection.get_caret_position()
                     ),
                     event.shift_down
                 );
@@ -177,7 +239,7 @@ bool Label::handle_event(const UIEvent& event) {
                 move_cursor(
                     TextNavigation::find_word_boundary_right(
                         text,
-                        cursor_position
+                        selection.get_caret_position()
                     ),
                     event.shift_down
                 );
@@ -201,7 +263,10 @@ bool Label::handle_event(const UIEvent& event) {
             if (!event.shift_down && has_selection()) {
                 move_cursor(get_selection_start(), false);
             } else {
-                move_cursor(cursor_position - 1, event.shift_down);
+                move_cursor(
+                    selection.get_caret_position() - 1,
+                    event.shift_down
+                );
             }
             return true;
 
@@ -209,7 +274,10 @@ bool Label::handle_event(const UIEvent& event) {
             if (!event.shift_down && has_selection()) {
                 move_cursor(get_selection_end(), false);
             } else {
-                move_cursor(cursor_position + 1, event.shift_down);
+                move_cursor(
+                    selection.get_caret_position() + 1,
+                    event.shift_down
+                );
             }
             return true;
 
@@ -236,26 +304,20 @@ void Label::render(ComponentRenderer& renderer) const {
     renderer.render_label(*this);
 }
 
-void Label::clamp_cursor_position() {
-    if (cursor_position < 0) {
-        cursor_position = 0;
-    }
-
-    if (cursor_position > (int)text.length()) {
-        cursor_position = (int)text.length();
-    }
+void Label::move_cursor(
+    int new_cursor_position,
+    bool extend_selection
+) {
+    selection.move_caret(
+        new_cursor_position,
+        (int)text.length(),
+        extend_selection
+    );
 }
 
-void Label::move_cursor(int new_cursor_position, bool extend_selection) {
-    cursor_position = new_cursor_position;
-    clamp_cursor_position();
-
-    if (!extend_selection) {
-        selection_anchor = cursor_position;
-    }
-}
-
-int Label::get_cursor_position_from_event(const UIEvent& event) const {
+int Label::get_cursor_position_from_event(
+    const UIEvent& event
+) const {
     if (event.text_metrics == 0) {
         return (int)text.length();
     }
@@ -293,15 +355,16 @@ bool Label::copy_selection(Clipboard* clipboard) const {
         return false;
     }
 
-    int selection_start = get_selection_start();
-    int selection_end = get_selection_end();
-
-    std::string selected_text = text.substr(
-        selection_start,
-        selection_end - selection_start
-    );
+    std::string compact_text = selection.get_compact_text(text);
+    std::string preserved_text = selection.get_preserved_text(text);
 
     MimeData data;
-    data.set_text(selected_text.c_str());
+    data.set_text(compact_text.c_str());
+    data.set_data(
+        MimeTypes::salix_selection_preserved(),
+        preserved_text.c_str(),
+        (int)preserved_text.length()
+    );
+
     return clipboard->set_data(data);
 }

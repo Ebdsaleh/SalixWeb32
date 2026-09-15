@@ -224,18 +224,45 @@ Observed target behavior includes:
 
 The input layer also contains Ctrl+Arrow / Ctrl+Shift+Arrow word-boundary navigation, MIME-tagged clipboard payloads, and backend-neutral text hit-testing. These continue to be exercised as the text interaction surface is expanded.
 
-## Current Phase 2 multi-click selection target
+## 2026-09-15 — Multi-click selection validation
 
-The current tranche adds modern multi-click selection semantics to both editable `TextInput` and selectable/read-only `Label` components:
+The modern multi-click tranche was rebuilt and exercised successfully on the Pentium 4 target.
 
-- backend-neutral `UIEvent::click_count`,
-- Win32 click-sequence recognition using the operating system double-click timing and distance thresholds,
-- double-click selection of the whitespace-delimited word nearest the pointer,
-- triple-click selection of the complete current line,
-- shared word-range helpers in `TextNavigation`,
-- and preservation of the selected range after the corresponding mouse-up event.
+Validated commit:
 
-The present controls are single-line, so triple-click selects the complete text value. When a multiline rich-text control is introduced, the same interaction should select only the logical/visual line containing the click rather than the entire document.
+```text
+7321067 Add multi-click text selection
+```
+
+Validated behavior:
+
+- double-click selects the whitespace-delimited word nearest the pointer,
+- triple-click selects the complete single-line text value,
+- the behavior operates in the editable `TextInput`,
+- the behavior operates in the selectable/read-only conversation `Label`,
+- selected label text remains copyable,
+- and existing caret/selection behavior continues to operate.
+
+This confirms the backend-neutral click-count path and Win32 click-sequence recognition on the target hardware.
+
+## Current Phase 2 discontinuous-selection / paste-mode target
+
+The current tranche introduces a shared `TextSelection` model so text interaction is no longer limited to one contiguous anchor/caret range.
+
+Target behavior:
+
+- Ctrl+click commits the current highlight, preserves it, and moves the caret to the clicked character position,
+- Ctrl+double-click adds the clicked word as another selected range without clearing earlier ranges,
+- Ctrl+triple-click adds the clicked logical line,
+- multiple ranges render simultaneously in both `TextInput` and selectable `Label`,
+- Ctrl+C serializes selected fragments in source order,
+- the normal `text/plain` clipboard representation joins discontinuous fragments with one space (for example `quick fox`),
+- a Salix private MIME/clipboard representation preserves source spacing by replacing unselected characters between selected fragments with spaces (for example `quick       fox`),
+- Ctrl+V performs the compact/default paste,
+- Ctrl+Shift+V exercises the `paste_keep_formatting` path,
+- and the public `TextInput::PasteMode` API is intended to be reused by a future visible Paste Options UI rather than duplicating paste logic in the shell.
+
+The implementation also upgrades triple-click to use logical line-boundary helpers, so the semantics can carry forward when the composer becomes multiline/rich-text.
 
 These items remain pending target-hardware validation on VC7.1 / Server 2003 and MiniXP.
 

@@ -74,14 +74,17 @@ Goal: reproduce the useful architectural separation demonstrated by SalixTorrent
 - [x] precise text hit-testing
 - [x] Ctrl+Arrow word-boundary navigation
 - [x] selectable read-only labels
-- [~] double-click word / triple-click line selection
+- [x] double-click word / triple-click line selection
+- [~] Ctrl+click discontinuous caret/selection workflow
+- [~] compact vs preserved-spacing clipboard payloads
+- [~] paste-mode API (`Ctrl+V` compact / `Ctrl+Shift+V` keep formatting)
 - [ ] append-only conversation model
 - [ ] scrollable conversation view
 - [ ] framework dirty-region invalidation
 
 Validated Phase 2 foundations include the backend-neutral `View`, `Component`, `Label`, `Container`, `StackPanel`, `Button`, `TextInput`, `UIEvent`, style layers, `Panel`, `MessageInputStrip`, and the Win32 component renderer. The messenger shell and double-buffered paint path have been validated on the Pentium 4 under both Windows Server 2003 and MiniXP.
 
-Caret editing, mouse selection, word-wise keyboard navigation, and selectable read-only labels are operating on the target. The active input work now adds backend-neutral click-count metadata so both editable and read-only text can support modern double-click word selection and triple-click whole-line selection without exposing Win32-specific click handling to framework components.
+Caret editing, mouse selection, word-wise keyboard navigation, selectable read-only labels, double-click word selection, and triple-click line selection are operating on the target. The active input work now introduces a shared `TextSelection` model for discontinuous ranges, additive Ctrl+click/Ctrl+double-click interaction, and dual clipboard representations so ordinary paste compacts selected fragments while a keep-formatting paste can preserve their original spacing.
 
 **Exit criterion:** core criterion achieved. Remaining Phase 2 work is focused on production-quality input behavior, conversation composition, and efficient repaint invalidation.
 
