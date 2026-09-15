@@ -5,7 +5,7 @@
 // =================================================================================
 
 #include "Component.h"
-
+#include "UIEvent.h"
 Component::Component()
     : x(0),
       y(0),
