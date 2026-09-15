@@ -9,7 +9,8 @@
 StackPanel::StackPanel()
     : orientation(orientation_vertical),
       item_extent(30),
-      spacing(0) {
+      spacing(0),
+      cross_axis_extent(0) {
 }
 
 void StackPanel::set_orientation(Orientation new_orientation) {
@@ -44,6 +45,18 @@ int StackPanel::get_spacing() const {
     return spacing;
 }
 
+void StackPanel::set_cross_axis_extent(int new_cross_axis_extent) {
+    if (new_cross_axis_extent < 0) {
+        new_cross_axis_extent = 0;
+    }
+
+    cross_axis_extent = new_cross_axis_extent;
+}
+
+int StackPanel::get_cross_axis_extent() const {
+    return cross_axis_extent;
+}
+
 void StackPanel::arrange(int x, int y, int width, int height) {
     set_bounds(x, y, width, height);
 
@@ -63,14 +76,21 @@ void StackPanel::arrange_vertical() {
 
     int total_height = (child_count * item_extent) + ((child_count - 1) * spacing);
     int current_y = get_y() + ((get_height() - total_height) / 2);
+    int child_width = get_width();
+
+    if (cross_axis_extent > 0 && cross_axis_extent < child_width) {
+        child_width = cross_axis_extent;
+    }
+
+    int child_x = get_x() + ((get_width() - child_width) / 2);
 
     for (int index = 0; index < child_count; ++index) {
         Component* child = get_child(index);
         if (child != 0) {
             child->set_bounds(
-                get_x(),
+                child_x,
                 current_y,
-                get_width(),
+                child_width,
                 item_extent
             );
         }
@@ -87,15 +107,22 @@ void StackPanel::arrange_horizontal() {
 
     int total_width = (child_count * item_extent) + ((child_count - 1) * spacing);
     int current_x = get_x() + ((get_width() - total_width) / 2);
+    int child_height = get_height();
+
+    if (cross_axis_extent > 0 && cross_axis_extent < child_height) {
+        child_height = cross_axis_extent;
+    }
+
+    int child_y = get_y() + ((get_height() - child_height) / 2);
 
     for (int index = 0; index < child_count; ++index) {
         Component* child = get_child(index);
         if (child != 0) {
             child->set_bounds(
                 current_x,
-                get_y(),
+                child_y,
                 item_extent,
-                get_height()
+                child_height
             );
         }
 

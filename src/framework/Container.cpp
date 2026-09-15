@@ -5,6 +5,7 @@
 // =================================================================================
 
 #include "Container.h"
+#include "UIEvent.h"
 
 Container::Container() {
 }
@@ -65,6 +66,23 @@ const Component* Container::get_child(int index) const {
     }
 
     return children[index];
+}
+
+bool Container::handle_event(const UIEvent& event) {
+    if (!get_is_visible()) {
+        return false;
+    }
+
+    bool was_handled = false;
+
+    for (int index = (int)children.size() - 1; index >= 0; --index) {
+        Component* child = children[index];
+        if (child != 0 && child->handle_event(event)) {
+            was_handled = true;
+        }
+    }
+
+    return was_handled;
 }
 
 void Container::render(ComponentRenderer& renderer) const {

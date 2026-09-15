@@ -25,6 +25,9 @@ class StackPanel : public Container {
         void set_spacing(int new_spacing);
         int get_spacing() const;
 
+        void set_cross_axis_extent(int new_cross_axis_extent);
+        int get_cross_axis_extent() const;
+
         void arrange(int x, int y, int width, int height);
 
     private:
@@ -34,4 +37,5 @@ class StackPanel : public Container {
         Orientation orientation;
         int item_extent;
         int spacing;
+        int cross_axis_extent;
 };

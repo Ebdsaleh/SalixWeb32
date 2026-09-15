@@ -22,6 +22,7 @@ class Container : public Component {
         Component* get_child(int index);
         const Component* get_child(int index) const;
 
+        virtual bool handle_event(const UIEvent& event);
         virtual void render(ComponentRenderer& renderer) const;
 
     private:

@@ -8,6 +8,7 @@
 #include "runtime/ApplicationRuntime.h"
 #include "runtime/Diagnostics.h"
 #include "framework/View.h"
+#include "framework/UIEvent.h"
 #include "engine/renderers/win32/Win32ComponentRenderer.h"
 
 namespace {
@@ -214,6 +215,76 @@ LRESULT Win32ApplicationHost::handle_message(
             layout_application_view();
             InvalidateRect(current_window_handle, NULL, FALSE);
             return 0;
+
+        case WM_MOUSEMOVE: {
+            UIEvent event(UIEvent::event_mouse_move);
+            event.x = (int)(short)LOWORD(l_param);
+            event.y = (int)(short)HIWORD(l_param);
+
+            if (application_view != 0 && application_view->handle_event(event)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+            return 0;
+        }
+
+        case WM_LBUTTONDOWN: {
+            SetFocus(current_window_handle);
+            SetCapture(current_window_handle);
+
+            UIEvent event(UIEvent::event_mouse_down);
+            event.x = (int)(short)LOWORD(l_param);
+            event.y = (int)(short)HIWORD(l_param);
+
+            if (application_view != 0 && application_view->handle_event(event)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+            return 0;
+        }
+
+        case WM_LBUTTONUP: {
+            UIEvent event(UIEvent::event_mouse_up);
+            event.x = (int)(short)LOWORD(l_param);
+            event.y = (int)(short)HIWORD(l_param);
+
+            if (application_view != 0 && application_view->handle_event(event)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+
+            if (GetCapture() == current_window_handle) {
+                ReleaseCapture();
+            }
+            return 0;
+        }
+
+        case WM_KEYDOWN: {
+            UIEvent event(UIEvent::event_key_down);
+            event.key_code = (int)w_param;
+
+            if (application_view != 0 && application_view->handle_event(event)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+            return 0;
+        }
+
+        case WM_KEYUP: {
+            UIEvent event(UIEvent::event_key_up);
+            event.key_code = (int)w_param;
+
+            if (application_view != 0 && application_view->handle_event(event)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+            return 0;
+        }
+
+        case WM_CHAR: {
+            UIEvent event(UIEvent::event_character);
+            event.character_code = (int)w_param;
+
+            if (application_view != 0 && application_view->handle_event(event)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+            return 0;
+        }
 
         case WM_PAINT:
             paint_window(current_window_handle);
