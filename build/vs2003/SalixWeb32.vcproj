@@ -29,7 +29,7 @@
 				DebugInformationFormat="4"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
@@ -68,7 +68,7 @@
 				DebugInformationFormat="3"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"
@@ -95,9 +95,14 @@
 		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
 			<File RelativePath="..\..\src\main.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationView.cpp"/>
+			<File RelativePath="..\..\src\app\EmojiPanel.cpp"/>
+			<File RelativePath="..\..\src\app\EmoticonRegistry.cpp"/>
+			<File RelativePath="..\..\src\app\MessageComposer.cpp"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.cpp"/>
+			<File RelativePath="..\..\src\app\MessageToolbar.cpp"/>
 			<File RelativePath="..\..\src\app\StatusView.cpp"/>
 			<File RelativePath="..\..\src\framework\Button.cpp"/>
+			<File RelativePath="..\..\src\framework\ComboBox.cpp"/>
 			<File RelativePath="..\..\src\framework\Component.cpp"/>
 			<File RelativePath="..\..\src\framework\Container.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
@@ -107,23 +112,31 @@
 			<File RelativePath="..\..\src\framework\TextInput.cpp"/>
 			<File RelativePath="..\..\src\framework\TextNavigation.cpp"/>
 			<File RelativePath="..\..\src\framework\TextSelection.cpp"/>
+			<File RelativePath="..\..\src\framework\ToggleButton.cpp"/>
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.cpp"/>
 			<File RelativePath="..\..\src\runtime\Diagnostics.cpp"/>
 			<File RelativePath="..\..\src\runtime\RuntimeStatusService.cpp"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.cpp"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\app\ConversationView.h"/>
+			<File RelativePath="..\..\src\app\EmojiPanel.h"/>
+			<File RelativePath="..\..\src\app\EmoticonRegistry.h"/>
+			<File RelativePath="..\..\src\app\MessageComposer.h"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
+			<File RelativePath="..\..\src\app\MessageToolbar.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
 			<File RelativePath="..\..\src\framework\Button.h"/>
 			<File RelativePath="..\..\src\framework\Clipboard.h"/>
+			<File RelativePath="..\..\src\framework\ComboBox.h"/>
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
+			<File RelativePath="..\..\src\framework\FileDialog.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
 			<File RelativePath="..\..\src\framework\MimeData.h"/>
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>
@@ -134,6 +147,7 @@
 			<File RelativePath="..\..\src\framework\TextMetrics.h"/>
 			<File RelativePath="..\..\src\framework\TextNavigation.h"/>
 			<File RelativePath="..\..\src\framework\TextSelection.h"/>
+			<File RelativePath="..\..\src\framework\ToggleButton.h"/>
 			<File RelativePath="..\..\src\framework\UIEvent.h"/>
 			<File RelativePath="..\..\src\framework\View.h"/>
 			<File RelativePath="..\..\src\framework\rendering\ComponentRenderer.h"/>
@@ -144,6 +158,7 @@
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.h"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
 		</Filter>

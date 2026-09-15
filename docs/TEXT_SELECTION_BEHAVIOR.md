@@ -86,9 +86,15 @@ For symmetry with the existing triple-click behavior, Ctrl+Alt+triple-click remo
 
 Subtractive gestures operate in both editable `TextInput` controls and selectable/read-only `Label` controls. They change selection state only; they do not delete or edit the underlying text.
 
-## Cut modes and edit history target
+## Validated cut modes and edit history
 
-The next text-input tranche adds two explicit cut modes:
+The text editing tranche from:
+
+```text
+20e0092 Add cut modes and text undo redo
+```
+
+has been rebuilt and exercised successfully on the Pentium 4 under both Windows Server 2003 SP2 and MiniXP. This validated state is the `v0.0.2` baseline.
 
 ```text
 Ctrl+X
@@ -110,7 +116,7 @@ normal:  The  brown  jumps
 keep:    The         brown       jumps
 ```
 
-The same tranche introduces bounded undo/redo history for editable `TextInput` state:
+The same validated tranche includes bounded undo/redo history for editable `TextInput` state:
 
 - Ctrl+Z performs Undo.
 - Ctrl+Y performs Redo.
@@ -122,8 +128,6 @@ The same tranche introduces bounded undo/redo history for editable `TextInput` s
 - Repeated Backspace is grouped into one undo operation.
 - Repeated Delete is grouped into one undo operation.
 - The history is bounded to avoid unbounded memory growth on the legacy target.
-
-These cut and history behaviors are pending target validation on VC7.1 / Server 2003 and MiniXP before the `v0.0.2` baseline is tagged.
 
 ## Design boundary
 

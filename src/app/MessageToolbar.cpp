@@ -1,0 +1,401 @@
+// =================================================================================
+// Filename:    app/MessageToolbar.cpp
+// Author:      Ebdsaleh
+// Description: Implements the formatting/attachment toolbar above the message input.
+// =================================================================================
+
+#include <stdio.h>
+
+#include "MessageToolbar.h"
+#include "framework/FileDialog.h"
+#include "framework/UIEvent.h"
+
+namespace {
+    const int control_character_b = 2;
+    const int control_character_i = 9;
+    const int control_character_u = 21;
+}
+
+MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
+    : file_dialog(new_file_dialog),
+      insert_text_handler(0),
+      insert_text_context(0),
+      attachments_added_handler(0),
+      attachments_added_context(0),
+      font_size(12) {
+
+    get_style().background_color = Color(229, 240, 249);
+    get_style().border_color = Color(147, 181, 211);
+    get_style().border_width = 1;
+
+    attach_button.set_text("+");
+    attach_button.get_style().background_color = Color(238, 245, 251);
+    attach_button.get_style().foreground_color = Color(26, 68, 108);
+    attach_button.get_style().border_color = Color(132, 157, 181);
+
+    bold_button.set_text("B");
+    italic_button.set_text("I");
+    underline_button.set_text("U");
+
+    bold_button.set_unchecked_background_color(Color(238, 245, 251));
+    italic_button.set_unchecked_background_color(Color(238, 245, 251));
+    underline_button.set_unchecked_background_color(Color(238, 245, 251));
+
+    bold_button.set_checked_background_color(Color(177, 213, 239));
+    italic_button.set_checked_background_color(Color(177, 213, 239));
+    underline_button.set_checked_background_color(Color(177, 213, 239));
+
+    bold_button.get_style().foreground_color = Color(26, 68, 108);
+    italic_button.get_style().foreground_color = Color(26, 68, 108);
+    underline_button.get_style().foreground_color = Color(26, 68, 108);
+
+    bold_button.get_style().border_color = Color(132, 157, 181);
+    italic_button.get_style().border_color = Color(132, 157, 181);
+    underline_button.get_style().border_color = Color(132, 157, 181);
+
+    font_size_combo.add_item("8", 8);
+    font_size_combo.add_item("10", 10);
+    font_size_combo.add_item("12", 12);
+    font_size_combo.add_item("14", 14);
+    font_size_combo.add_item("16", 16);
+    font_size_combo.add_item("18", 18);
+    font_size_combo.add_item("20", 20);
+    font_size_combo.add_item("24", 24);
+    font_size_combo.set_selected_index(2);
+    font_size_combo.set_drop_direction(ComboBox::drop_up);
+    font_size_combo.set_selection_changed_handler(
+        MessageToolbar::on_font_size_changed,
+        this
+    );
+
+    list_button.set_text("List");
+    list_button.set_enabled(false);
+    list_button.get_style().background_color = Color(235, 235, 235);
+    list_button.get_style().foreground_color = Color(145, 145, 145);
+    list_button.get_style().border_color = Color(190, 190, 190);
+
+    emoji_button.set_text(":)");
+    emoji_button.get_style().background_color = Color(238, 245, 251);
+    emoji_button.get_style().foreground_color = Color(26, 68, 108);
+    emoji_button.get_style().border_color = Color(132, 157, 181);
+
+    attachment_status_label.set_text("");
+    attachment_status_label.set_horizontal_alignment(Label::align_left);
+    attachment_status_label.get_style().foreground_color = Color(73, 105, 133);
+
+    emoji_panel.set_emoticon_selected_handler(
+        MessageToolbar::on_emoticon_selected,
+        this
+    );
+
+    add_child(&attach_button);
+    add_child(&bold_button);
+    add_child(&italic_button);
+    add_child(&underline_button);
+    add_child(&font_size_combo);
+    add_child(&list_button);
+    add_child(&emoji_button);
+    add_child(&attachment_status_label);
+    add_child(&emoji_panel);
+}
+
+void MessageToolbar::set_file_dialog(FileDialog* new_file_dialog) {
+    file_dialog = new_file_dialog;
+}
+
+void MessageToolbar::set_insert_text_handler(
+    InsertTextHandler new_handler,
+    void* new_context
+) {
+    insert_text_handler = new_handler;
+    insert_text_context = new_context;
+}
+
+void MessageToolbar::set_attachments_added_handler(
+    AttachmentsAddedHandler new_handler,
+    void* new_context
+) {
+    attachments_added_handler = new_handler;
+    attachments_added_context = new_context;
+}
+
+void MessageToolbar::set_attachment_count(int attachment_count) {
+    if (attachment_count <= 0) {
+        attachment_status_label.set_text("");
+        return;
+    }
+
+    char status_text[64];
+    sprintf(
+        status_text,
+        "Files: %d",
+        attachment_count
+    );
+    attachment_status_label.set_text(status_text);
+}
+
+bool MessageToolbar::get_bold() const {
+    return bold_button.get_is_checked();
+}
+
+bool MessageToolbar::get_italic() const {
+    return italic_button.get_is_checked();
+}
+
+bool MessageToolbar::get_underline() const {
+    return underline_button.get_is_checked();
+}
+
+int MessageToolbar::get_font_size() const {
+    return font_size;
+}
+
+void MessageToolbar::arrange(int x, int y, int width, int height) {
+    const int padding = 4;
+    const int gap = 4;
+    const int attach_width = 30;
+    const int toggle_width = 26;
+    const int font_width = 58;
+    const int list_width = 46;
+    const int emoji_width = 38;
+    const int emoji_popup_width = 188;
+    const int emoji_popup_height = 48;
+
+    set_bounds(x, y, width, height);
+
+    int control_height = height - (padding * 2);
+    if (control_height < 0) {
+        control_height = 0;
+    }
+
+    int control_y = y + padding;
+    int cursor_x = x + padding;
+
+    attach_button.set_bounds(
+        cursor_x,
+        control_y,
+        attach_width,
+        control_height
+    );
+    cursor_x += attach_width + gap;
+
+    bold_button.set_bounds(
+        cursor_x,
+        control_y,
+        toggle_width,
+        control_height
+    );
+    cursor_x += toggle_width + gap;
+
+    italic_button.set_bounds(
+        cursor_x,
+        control_y,
+        toggle_width,
+        control_height
+    );
+    cursor_x += toggle_width + gap;
+
+    underline_button.set_bounds(
+        cursor_x,
+        control_y,
+        toggle_width,
+        control_height
+    );
+    cursor_x += toggle_width + gap;
+
+    font_size_combo.arrange(
+        cursor_x,
+        control_y,
+        font_width,
+        control_height
+    );
+    cursor_x += font_width + gap;
+
+    list_button.set_bounds(
+        cursor_x,
+        control_y,
+        list_width,
+        control_height
+    );
+    cursor_x += list_width + gap;
+
+    int emoji_x = cursor_x;
+    emoji_button.set_bounds(
+        emoji_x,
+        control_y,
+        emoji_width,
+        control_height
+    );
+    cursor_x += emoji_width + gap;
+
+    int remaining_width = x + width - padding - cursor_x;
+    if (remaining_width < 0) {
+        remaining_width = 0;
+    }
+
+    attachment_status_label.set_bounds(
+        cursor_x,
+        control_y,
+        remaining_width,
+        control_height
+    );
+
+    int popup_x = emoji_x + emoji_width - emoji_popup_width;
+    int minimum_popup_x = x + padding;
+
+    if (popup_x < minimum_popup_x) {
+        popup_x = minimum_popup_x;
+    }
+
+    emoji_panel.arrange(
+        popup_x,
+        y + height + 2,
+        emoji_popup_width,
+        emoji_popup_height
+    );
+}
+
+bool MessageToolbar::handle_event(const UIEvent& event) {
+    if (!get_is_visible()) {
+        return false;
+    }
+
+    if (
+        event.type == UIEvent::event_character &&
+        event.control_down &&
+        !event.alt_down
+    ) {
+        if (event.character_code == control_character_b) {
+            toggle_bold();
+            return true;
+        }
+
+        if (event.character_code == control_character_i) {
+            toggle_italic();
+            return true;
+        }
+
+        if (event.character_code == control_character_u) {
+            toggle_underline();
+            return true;
+        }
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_down &&
+        emoji_panel.get_is_open() &&
+        !emoji_panel.contains_point(event.x, event.y) &&
+        !emoji_button.contains_point(event.x, event.y)
+    ) {
+        emoji_panel.set_open(false);
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_down &&
+        font_size_combo.contains_point(event.x, event.y)
+    ) {
+        emoji_panel.set_open(false);
+    }
+
+    bool attach_was_pressed = attach_button.get_is_pressed();
+    bool emoji_was_pressed = emoji_button.get_is_pressed();
+
+    bool was_handled = Panel::handle_event(event);
+
+    if (event.type != UIEvent::event_mouse_up) {
+        return was_handled;
+    }
+
+    if (
+        attach_was_pressed &&
+        attach_button.contains_point(event.x, event.y)
+    ) {
+        font_size_combo.set_open(false);
+        emoji_panel.set_open(false);
+        open_attachment_dialog();
+        return true;
+    }
+
+    if (
+        emoji_was_pressed &&
+        emoji_button.contains_point(event.x, event.y)
+    ) {
+        font_size_combo.set_open(false);
+        emoji_panel.set_open(!emoji_panel.get_is_open());
+        return true;
+    }
+
+    return was_handled;
+}
+
+void MessageToolbar::on_font_size_changed(
+    ComboBox* combo_box,
+    int selected_value,
+    const char* selected_text,
+    void* context
+) {
+    (void)combo_box;
+    (void)selected_text;
+
+    MessageToolbar* toolbar = (MessageToolbar*)context;
+    if (toolbar != 0) {
+        toolbar->font_size = selected_value;
+        toolbar->emoji_panel.set_open(false);
+    }
+}
+
+void MessageToolbar::on_emoticon_selected(
+    EmojiPanel* panel,
+    const char* alias,
+    void* context
+) {
+    (void)panel;
+
+    MessageToolbar* toolbar = (MessageToolbar*)context;
+    if (
+        toolbar != 0 &&
+        toolbar->insert_text_handler != 0 &&
+        alias != 0
+    ) {
+        toolbar->insert_text_handler(
+            toolbar,
+            alias,
+            toolbar->insert_text_context
+        );
+    }
+}
+
+void MessageToolbar::toggle_bold() {
+    bold_button.set_checked(!bold_button.get_is_checked());
+}
+
+void MessageToolbar::toggle_italic() {
+    italic_button.set_checked(!italic_button.get_is_checked());
+}
+
+void MessageToolbar::toggle_underline() {
+    underline_button.set_checked(!underline_button.get_is_checked());
+}
+
+bool MessageToolbar::open_attachment_dialog() {
+    if (file_dialog == 0) {
+        return false;
+    }
+
+    std::vector<std::string> selected_paths;
+    bool did_select = file_dialog->open_files(selected_paths);
+
+    if (
+        did_select &&
+        !selected_paths.empty() &&
+        attachments_added_handler != 0
+    ) {
+        attachments_added_handler(
+            this,
+            selected_paths,
+            attachments_added_context
+        );
+    }
+
+    return did_select;
+}

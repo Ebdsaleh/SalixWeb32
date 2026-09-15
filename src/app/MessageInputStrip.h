@@ -31,6 +31,9 @@ class MessageInputStrip : public Panel {
         void set_submit_on_enter(bool new_submit_on_enter);
         bool get_submit_on_enter() const;
 
+        void set_allow_empty_submit(bool new_allow_empty_submit);
+        bool get_allow_empty_submit() const;
+
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
 
@@ -50,6 +53,7 @@ class MessageInputStrip : public Panel {
         TextInput message_input;
         Button send_button;
         bool submit_on_enter;
+        bool allow_empty_submit;
         SubmitHandler submit_handler;
         void* submit_context;
 };

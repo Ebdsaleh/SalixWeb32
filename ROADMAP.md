@@ -68,25 +68,55 @@ Goal: reproduce the useful architectural separation demonstrated by SalixTorrent
 - [x] double-buffered Win32 presentation
 - [x] text caret navigation/editing
 - [x] mouse/keyboard text selection
-- [~] copy/cut/paste
-- [~] backend-neutral clipboard contract
+- [x] copy/cut/paste
+- [x] backend-neutral clipboard contract
 - [~] MIME-aware composer payloads
 - [x] precise text hit-testing
 - [x] Ctrl+Arrow word-boundary navigation
 - [x] selectable read-only labels
 - [x] double-click word / triple-click line selection
-- [~] Ctrl+click discontinuous caret/selection workflow
-- [~] compact vs preserved-spacing clipboard payloads
-- [~] paste-mode API (`Ctrl+V` compact / `Ctrl+Shift+V` keep formatting)
-- [ ] append-only conversation model
-- [ ] scrollable conversation view
+- [x] discontinuous/additive text selection
+- [x] subtractive selection gestures
+- [x] compact vs preserved-spacing clipboard payloads
+- [x] paste modes (`Ctrl+V` compact / `Ctrl+Shift+V` keep formatting)
+- [x] compact vs keep-formatting cut modes
+- [x] bounded text undo/redo
+- [x] append-only conversation model
+- [x] scrollable conversation view
 - [ ] framework dirty-region invalidation
 
-Validated Phase 2 foundations include the backend-neutral `View`, `Component`, `Label`, `Container`, `StackPanel`, `Button`, `TextInput`, `UIEvent`, style layers, `Panel`, `MessageInputStrip`, and the Win32 component renderer. The messenger shell and double-buffered paint path have been validated on the Pentium 4 under both Windows Server 2003 and MiniXP.
+The advanced Phase 2 text/editing baseline was validated on the Pentium 4 under both Windows Server 2003 SP2 and MiniXP and tagged as:
 
-Caret editing, mouse selection, word-wise keyboard navigation, selectable read-only labels, double-click word selection, and triple-click line selection are operating on the target. The active input work now introduces a shared `TextSelection` model for discontinuous ranges, additive Ctrl+click/Ctrl+double-click interaction, and dual clipboard representations so ordinary paste compacts selected fragments while a keep-formatting paste can preserve their original spacing.
+```text
+v0.0.2
+```
 
-**Exit criterion:** core criterion achieved. Remaining Phase 2 work is focused on production-quality input behavior, conversation composition, and efficient repaint invalidation.
+The validated baseline includes discontinuous selection, additive/subtractive mouse workflows, dual clipboard representations, compact/keep-formatting cut/paste modes, and bounded Undo/Redo state restoration.
+
+### Post-v0.0.2 composer tranche
+
+The messenger shell is now expanding around a dedicated `MessageComposer` rather than growing `MessageInputStrip` into a monolithic widget.
+
+Active composer work:
+
+- [~] `MessageComposer` composition root
+- [~] `MessageToolbar`
+- [~] toggle-button primitive
+- [~] font-size combo-box primitive
+- [~] backend-neutral multi-file dialog contract
+- [~] Win32 `GetOpenFileNameA` multi-file provider
+- [~] attachment buffer/count plumbing
+- [~] Bold/Italic/Underline composer state (`Ctrl+B`, `Ctrl+I`, `Ctrl+U`)
+- [ ] rich-text run model that applies formatting state to selected/new text
+- [ ] multiline composer
+- [ ] bulleted/numbered list editing (toolbar control present but disabled until multiline rich text)
+- [~] classic text-emoticon registry
+- [~] `EmojiPanel` composite popup
+- [ ] graphical MSN/WLM-inspired emoticon rendering provider
+
+The classic emoticon registry intentionally stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content. A later renderer may replace those aliases visually while copy/paste and transport retain portable text.
+
+**Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer work continues without changing the validated baseline tag.
 
 ## Phase 3 — WebView and backend contract
 

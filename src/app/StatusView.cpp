@@ -5,16 +5,38 @@
 // =================================================================================
 
 #include <stdio.h>
+#include <string>
 
 #include "StatusView.h"
 #include "runtime/ApplicationRuntime.h"
 #include "framework/UIEvent.h"
 #include "framework/rendering/ComponentRenderer.h"
 
-StatusView::StatusView(ApplicationRuntime* new_application_runtime)
-    : application_runtime(new_application_runtime),
-      client_width(0),
-      client_height(0) {
+namespace {
+    const char* get_file_name_from_path(const char* path) {
+        if (path == 0) {
+            return "";
+        }
+
+        const char* file_name = path;
+
+        for (const char* cursor = path; *cursor != '\0'; ++cursor) {
+            if (*cursor == '\\' || *cursor == '/') {
+                file_name = cursor + 1;
+            }
+        }
+
+        return file_name;
+    }
+}
+
+StatusView::StatusView(
+    ApplicationRuntime* new_application_runtime,
+    FileDialog* file_dialog
+) : application_runtime(new_application_runtime),
+    client_width(0),
+    client_height(0),
+    message_composer(file_dialog) {
 
     header_title_label.set_text("SalixWeb32 Messenger");
     header_subtitle_label.set_text("Legacy web runtime - local framework shell");
@@ -93,10 +115,10 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     sidebar_panel.add_child(&sidebar_title_label);
     sidebar_panel.add_child(&diagnostics_stack);
 
-    message_input_strip.set_text("Hello from Pentium 4");
-    message_input_strip.set_button_text("Send");
-    message_input_strip.set_submit_on_enter(true);
-    message_input_strip.set_submit_handler(
+    message_composer.set_text("Hello from Pentium 4");
+    message_composer.set_button_text("Send");
+    message_composer.set_submit_on_enter(true);
+    message_composer.set_submit_handler(
         StatusView::on_message_submitted,
         this
     );
@@ -104,14 +126,14 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     root_panel.add_child(&header_panel);
     root_panel.add_child(&conversation_panel);
     root_panel.add_child(&sidebar_panel);
-    root_panel.add_child(&message_input_strip);
+    root_panel.add_child(&message_composer);
 }
 
 void StatusView::layout(int width, int height) {
     const int outer_padding = 8;
     const int gap = 6;
     const int header_height = 58;
-    const int composer_height = 44;
+    const int composer_height = 84;
     const int sidebar_width = 190;
 
     client_width = width;
@@ -157,7 +179,7 @@ void StatusView::layout(int width, int height) {
         body_height = 0;
     }
 
-    message_input_strip.arrange(
+    message_composer.arrange(
         outer_padding,
         composer_y,
         content_width,
@@ -237,7 +259,27 @@ void StatusView::layout(int width, int height) {
 }
 
 bool StatusView::handle_event(const UIEvent& event) {
-    return root_panel.handle_event(event);
+    // The composer may show popups above its nominal bounds. Dispatch it first
+    // and stop when handled so popup clicks cannot leak into conversation text.
+    if (message_composer.handle_event(event)) {
+        return true;
+    }
+
+    bool was_handled = false;
+
+    if (sidebar_panel.handle_event(event)) {
+        was_handled = true;
+    }
+
+    if (conversation_panel.handle_event(event)) {
+        was_handled = true;
+    }
+
+    if (header_panel.handle_event(event)) {
+        was_handled = true;
+    }
+
+    return was_handled;
 }
 
 void StatusView::render(ComponentRenderer& renderer) {
@@ -246,15 +288,13 @@ void StatusView::render(ComponentRenderer& renderer) {
 }
 
 void StatusView::on_message_submitted(
-    MessageInputStrip* input_strip,
+    MessageComposer* composer,
     const char* text,
     void* context
 ) {
-    (void)input_strip;
-
     StatusView* status_view = (StatusView*)context;
     if (status_view != 0) {
-        status_view->show_submitted_message(text);
+        status_view->show_submitted_message(composer, text);
     }
 }
 
@@ -284,10 +324,27 @@ void StatusView::update_dynamic_text() {
     client_size_label.set_text(size_text);
 }
 
-void StatusView::show_submitted_message(const char* text) {
-    if (text == 0 || text[0] == '\0') {
+void StatusView::show_submitted_message(
+    MessageComposer* composer,
+    const char* text
+) {
+    if (text != 0 && text[0] != '\0') {
+        conversation_view.append_local_message(text);
+    }
+
+    if (composer == 0) {
         return;
     }
 
-    conversation_view.append_local_message(text);
+    int attachment_count = composer->get_attachment_count();
+
+    for (int index = 0; index < attachment_count; ++index) {
+        const char* path = composer->get_attachment_path(index);
+        std::string attachment_message("Attached: ");
+        attachment_message += get_file_name_from_path(path);
+
+        conversation_view.append_system_message(
+            attachment_message.c_str()
+        );
+    }
 }

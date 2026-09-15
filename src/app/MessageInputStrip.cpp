@@ -10,6 +10,7 @@
 
 MessageInputStrip::MessageInputStrip()
     : submit_on_enter(true),
+      allow_empty_submit(false),
       submit_handler(0),
       submit_context(0) {
 
@@ -60,6 +61,14 @@ void MessageInputStrip::set_submit_on_enter(bool new_submit_on_enter) {
 
 bool MessageInputStrip::get_submit_on_enter() const {
     return submit_on_enter;
+}
+
+void MessageInputStrip::set_allow_empty_submit(bool new_allow_empty_submit) {
+    allow_empty_submit = new_allow_empty_submit;
+}
+
+bool MessageInputStrip::get_allow_empty_submit() const {
+    return allow_empty_submit;
 }
 
 bool MessageInputStrip::accepts_mime_type(const char* mime_type) const {
@@ -150,13 +159,14 @@ void MessageInputStrip::on_button_clicked(Button* button, void* context) {
 
 void MessageInputStrip::submit() {
     const char* current_text = message_input.get_text();
+    bool is_empty = current_text == 0 || current_text[0] == '\0';
 
-    if (current_text == 0 || current_text[0] == '\0') {
+    if (is_empty && !allow_empty_submit) {
         return;
     }
 
     if (submit_handler != 0) {
-        submit_handler(this, current_text, submit_context);
+        submit_handler(this, current_text == 0 ? "" : current_text, submit_context);
     }
 
     clear();

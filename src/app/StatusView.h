@@ -9,14 +9,18 @@
 #include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
-#include "MessageInputStrip.h"
+#include "MessageComposer.h"
 #include "ConversationView.h"
 
 class ApplicationRuntime;
+class FileDialog;
 
 class StatusView : public View {
     public:
-        StatusView(ApplicationRuntime* application_runtime);
+        StatusView(
+            ApplicationRuntime* application_runtime,
+            FileDialog* file_dialog
+        );
 
         virtual void layout(int width, int height);
         virtual bool handle_event(const UIEvent& event);
@@ -24,13 +28,16 @@ class StatusView : public View {
 
     private:
         static void on_message_submitted(
-            MessageInputStrip* input_strip,
+            MessageComposer* composer,
             const char* text,
             void* context
         );
 
         void update_dynamic_text();
-        void show_submitted_message(const char* text);
+        void show_submitted_message(
+            MessageComposer* composer,
+            const char* text
+        );
 
         ApplicationRuntime* application_runtime;
         int client_width;
@@ -56,5 +63,5 @@ class StatusView : public View {
         Label runtime_status_label;
         Label client_size_label;
 
-        MessageInputStrip message_input_strip;
+        MessageComposer message_composer;
 };

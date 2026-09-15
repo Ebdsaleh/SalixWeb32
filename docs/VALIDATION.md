@@ -202,8 +202,6 @@ Validated behavior:
 - the caret renders at its actual cursor position,
 - and Enter-to-submit continues to operate after in-place editing.
 
-This validation exposed the next input-control gaps: there was no mouse or keyboard text selection and no copy/cut/paste path.
-
 ## 2026-09-15 — Selection, clipboard, and selectable-label validation
 
 The selection/clipboard tranche and subsequent selectable-label tranche were exercised on the Pentium 4 target.
@@ -213,61 +211,56 @@ Relevant commits:
 ```text
 b38835b Add text selection clipboard and MIME input foundation
 3247a81 Add word navigation and selectable read-only labels
+7321067 Add multi-click text selection
+ad147f1 Add discontinuous text selection and paste modes
+0cc832e Add subtractive text selection gestures
+20e0092 Add cut modes and text undo redo
 ```
 
-Observed target behavior includes:
+Validated behavior across Windows Server 2003 SP2 and MiniXP includes:
 
 - mouse text selection inside framework text controls,
 - selectable read-only conversation-label text,
 - copying selected label text through the framework clipboard path,
-- and successfully pasting the copied text outside the control.
+- Ctrl+Arrow / Ctrl+Shift+Arrow word-boundary navigation,
+- double-click word selection and triple-click line selection,
+- discontinuous additive selection with preserved ranges,
+- Ctrl+Alt drag/word subtraction from highlighted ranges,
+- compact and preserved-spacing clipboard representations,
+- compact and keep-formatting paste modes,
+- compact and keep-formatting cut modes,
+- bounded Undo/Redo history,
+- restoration of text, caret, and discontinuous selection state,
+- and successful external clipboard interoperability.
 
-The input layer also contains Ctrl+Arrow / Ctrl+Shift+Arrow word-boundary navigation, MIME-tagged clipboard payloads, and backend-neutral text hit-testing. These continue to be exercised as the text interaction surface is expanded.
-
-## 2026-09-15 — Multi-click selection validation
-
-The modern multi-click tranche was rebuilt and exercised successfully on the Pentium 4 target.
-
-Validated commit:
+The final advanced text/editing state is tagged:
 
 ```text
-7321067 Add multi-click text selection
+v0.0.2
 ```
 
-Validated behavior:
+## 2026-09-15 — Append-only conversation history validation
 
-- double-click selects the whitespace-delimited word nearest the pointer,
-- triple-click selects the complete single-line text value,
-- the behavior operates in the editable `TextInput`,
-- the behavior operates in the selectable/read-only conversation `Label`,
-- selected label text remains copyable,
-- and existing caret/selection behavior continues to operate.
+The previous single-message conversation label has been replaced by an append-only `ConversationView`. Historical messages remain present instead of being overwritten. Individual message labels retain read-only text-selection behavior and the view can move through older/newer content when the visible message capacity is exceeded.
 
-This confirms the backend-neutral click-count path and Win32 click-sequence recognition on the target hardware.
+## Current post-v0.0.2 composer-toolbar target
 
-## Current Phase 2 discontinuous-selection / paste-mode target
+The next tranche moves the bottom application surface from a single `MessageInputStrip` to a composed `MessageComposer` containing a toolbar and the existing input strip.
 
-The current tranche introduces a shared `TextSelection` model so text interaction is no longer limited to one contiguous anchor/caret range.
+Target behaviors to validate on the Pentium 4:
 
-Target behavior:
+- `[+]` opens the native Win32 multi-file picker,
+- multiple selected files enter the composer attachment buffer,
+- attachment count is shown in the toolbar,
+- attachment-only submissions are permitted,
+- submitted attachments are represented in conversation history,
+- `[B]`, `[I]`, and `[U]` are toggleable toolbar-state controls,
+- Ctrl+B, Ctrl+I, and Ctrl+U toggle the same states,
+- the font-size combo box selects a composer font-size state and opens upward to remain usable near the bottom of the window,
+- the list control is visibly disabled while the composer remains single-line,
+- the classic emoticon button opens a dedicated `EmojiPanel` beneath it,
+- classic aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, `:O`, `<3`, and `<:` can be inserted at the current text caret,
+- toolbar popups render above the message input and consume pointer input before underlying text/conversation surfaces,
+- existing text selection, clipboard, Undo/Redo, Enter-to-submit, resize, and double-buffer rendering behavior remains intact.
 
-- Ctrl+click commits the current highlight, preserves it, and moves the caret to the clicked character position,
-- Ctrl+double-click adds the clicked word as another selected range without clearing earlier ranges,
-- Ctrl+triple-click adds the clicked logical line,
-- multiple ranges render simultaneously in both `TextInput` and selectable `Label`,
-- Ctrl+C serializes selected fragments in source order,
-- the normal `text/plain` clipboard representation joins discontinuous fragments with one space (for example `quick fox`),
-- a Salix private MIME/clipboard representation preserves source spacing by replacing unselected characters between selected fragments with spaces (for example `quick       fox`),
-- Ctrl+V performs the compact/default paste,
-- Ctrl+Shift+V exercises the `paste_keep_formatting` path,
-- and the public `TextInput::PasteMode` API is intended to be reused by a future visible Paste Options UI rather than duplicating paste logic in the shell.
-
-The implementation also upgrades triple-click to use logical line-boundary helpers, so the semantics can carry forward when the composer becomes multiline/rich-text.
-
-These items remain pending target-hardware validation on VC7.1 / Server 2003 and MiniXP.
-
-## Known conversation-surface limitation
-
-The messenger shell still uses a single `Label` for submitted conversation text. Each new submission therefore replaces the previous displayed message. The label is read-only/selectable, but persistence is intentionally left for the next conversation-surface tranche.
-
-The next conversation-surface tranche should introduce an append-only message model and a scrollable conversation view suitable for alternating local/remote relay messages rather than mutating one display label.
+Formatting controls in this tranche intentionally establish composer state only. Applying mixed Bold/Italic/Underline/font-size runs to selected or newly typed text is reserved for the upcoming rich-text document/input model rather than being bolted onto the current single-style `TextInput` string.

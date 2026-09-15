@@ -20,6 +20,9 @@ class Button : public Component {
 
         void set_click_handler(ClickHandler new_click_handler, void* new_context);
 
+        void set_enabled(bool new_is_enabled);
+        bool get_is_enabled() const;
+
         bool get_is_pressed() const;
         bool get_is_hovered() const;
 
@@ -28,6 +31,7 @@ class Button : public Component {
 
     private:
         std::string text;
+        bool is_enabled;
         bool is_pressed;
         bool is_hovered;
         ClickHandler click_handler;

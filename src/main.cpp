@@ -10,6 +10,7 @@
 #include "runtime/Diagnostics.h"
 #include "app/StatusView.h"
 #include "engine/application_hosts/Win32ApplicationHost.h"
+#include "engine/platform/win32/Win32FileDialog.h"
 
 int APIENTRY WinMain(
     HINSTANCE instance_handle,
@@ -18,7 +19,8 @@ int APIENTRY WinMain(
     int show_command
 ) {
     ApplicationRuntime application_runtime;
-    StatusView status_view(&application_runtime);
+    Win32FileDialog file_dialog;
+    StatusView status_view(&application_runtime, &file_dialog);
     Win32ApplicationHost application_host;
 
     (void)previous_instance_handle;

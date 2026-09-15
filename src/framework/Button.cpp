@@ -9,7 +9,8 @@
 #include "rendering/ComponentRenderer.h"
 
 Button::Button()
-    : is_pressed(false),
+    : is_enabled(true),
+      is_pressed(false),
       is_hovered(false),
       click_handler(0),
       click_context(0) {
@@ -36,6 +37,19 @@ void Button::set_click_handler(ClickHandler new_click_handler, void* new_context
     click_context = new_context;
 }
 
+void Button::set_enabled(bool new_is_enabled) {
+    is_enabled = new_is_enabled;
+
+    if (!is_enabled) {
+        is_pressed = false;
+        is_hovered = false;
+    }
+}
+
+bool Button::get_is_enabled() const {
+    return is_enabled;
+}
+
 bool Button::get_is_pressed() const {
     return is_pressed;
 }
@@ -45,7 +59,7 @@ bool Button::get_is_hovered() const {
 }
 
 bool Button::handle_event(const UIEvent& event) {
-    if (!get_is_visible()) {
+    if (!get_is_visible() || !is_enabled) {
         return false;
     }
 
