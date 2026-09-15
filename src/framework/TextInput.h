@@ -22,11 +22,17 @@ class TextInput : public Component {
         void set_focused(bool new_is_focused);
         bool get_is_focused() const;
 
+        void set_cursor_position(int new_cursor_position);
+        int get_cursor_position() const;
+
         virtual bool handle_event(const UIEvent& event);
         virtual void render(ComponentRenderer& renderer) const;
 
     private:
+        void clamp_cursor_position();
+
         std::string text;
         int max_length;
         bool is_focused;
+        int cursor_position;
 };

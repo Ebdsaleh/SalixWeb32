@@ -235,7 +235,20 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
 
     std::string display_text = text_input.get_text();
     if (text_input.get_is_focused()) {
-        display_text += "|";
+        int cursor_position = text_input.get_cursor_position();
+
+        if (cursor_position < 0) {
+            cursor_position = 0;
+        }
+
+        if (cursor_position > (int)display_text.length()) {
+            cursor_position = (int)display_text.length();
+        }
+
+        display_text.insert(
+            (std::string::size_type)cursor_position,
+            "|"
+        );
     }
 
     COLORREF old_text_color = SetTextColor(

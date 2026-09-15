@@ -150,31 +150,22 @@ Validated behavior:
 
 This validates the core Phase 2 interaction path on VC7.1 and the Server 2003 target.
 
-## Current Phase 2 layout validation target
+## 2026-09-15 — Messenger layout and double-buffer validation
 
-The current messenger-style layout tranche adds:
+The messenger-style shell was rebuilt and exercised on both the primary Windows Server 2003 environment and MiniXP on the Pentium 4.
 
-- a styled backend-neutral `Panel` component,
-- Win32 rendering for panel backgrounds and borders,
-- start/center/end main-axis alignment for `StackPanel`,
-- a reusable application-level `MessageInputStrip`,
-- a text field that expands to consume available width,
-- a Send button anchored at the right edge of the strip,
-- a configurable `bool submit_on_enter` property with getter/setter,
-- Enter-to-submit when the text field is focused,
-- automatic clearing of the composer after submission,
-- a late-2000s messenger-inspired shell with header, conversation surface, diagnostics sidebar, and bottom composer,
-- responsive sidebar hiding when the window becomes too narrow.
+Validated layout behavior:
 
-These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.
+- the reusable `MessageInputStrip` renders with an expanding text field and right-anchored Send button,
+- Enter-to-submit and button-click submission both operate,
+- submitted text updates the conversation area,
+- the composer clears after submission,
+- the diagnostics sidebar participates in the responsive layout,
+- and normal shutdown remains functional.
 
-## 2026-09-15 — MiniXP repaint-flicker regression
+MiniXP exposed a repaint defect that was not apparent in the primary Server 2003 environment: the entire client area visibly flashed whenever the periodic runtime-status repaint occurred. The host was clearing and repainting the complete client area directly to the visible window, allowing the intermediate cleared frame to become visible.
 
-The messenger-style shell launched successfully under MiniXP on the Pentium 4, but the target exposed a repaint defect that was not apparent in the primary Server 2003 environment: the entire client area visibly flashed whenever the periodic runtime-status repaint occurred.
-
-The cause is architectural rather than a control-specific bug. The Win32 host periodically invalidates the full client area so dynamic runtime status can refresh, and the existing paint path clears and redraws the full window directly to the screen. MiniXP makes the intermediate cleared frame visible.
-
-A corrective rendering tranche was pushed in:
+The corrective rendering commit is:
 
 ```text
 dd880eb Double-buffer Win32 painting to prevent flicker
@@ -187,6 +178,22 @@ The Win32 host now:
 - copies the completed frame to the real window DC with one `BitBlt`,
 - and retains a direct-render fallback if a back-buffer allocation fails.
 
-This is an immediate anti-flicker correction. The longer-term framework rendering direction is to add explicit invalidation/dirty-region tracking so dynamic components can request repaint of only the area that changed instead of requiring periodic full-window invalidation.
+The corrected build was revalidated successfully on both Windows Server 2003 and MiniXP. The periodic runtime tick repaint no longer produces visible flashing in either environment.
 
-The double-buffered build remains pending MiniXP revalidation.
+This remains an immediate anti-flicker correction rather than the final rendering architecture. The longer-term framework direction is explicit invalidation/dirty-region tracking so components can request repaint of only the area that changed instead of requiring periodic full-window redraws.
+
+## Current Phase 2 text-editing validation target
+
+The current text-input tranche adds:
+
+- a backend-neutral key-code vocabulary in `UIEvent`,
+- Win32 virtual-key translation inside the host rather than leaking `VK_*` constants into framework controls,
+- an explicit cursor position in `TextInput`,
+- Left/Right arrow cursor movement,
+- Home/End navigation,
+- Delete-at-cursor behavior,
+- Backspace-before-cursor behavior,
+- character insertion at the current cursor position,
+- and caret rendering at the current cursor position rather than always at the end of the text.
+
+These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.

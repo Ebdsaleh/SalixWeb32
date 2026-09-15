@@ -15,6 +15,45 @@ namespace {
     const char* window_class_name = "SalixWeb32WindowClass";
     const UINT runtime_timer_id = 1;
     const UINT runtime_timer_interval_ms = 16;
+
+    UIEvent::KeyCode translate_key_code(WPARAM key_code) {
+        switch ((int)key_code) {
+            case VK_LEFT:
+                return UIEvent::key_left;
+
+            case VK_RIGHT:
+                return UIEvent::key_right;
+
+            case VK_UP:
+                return UIEvent::key_up;
+
+            case VK_DOWN:
+                return UIEvent::key_down;
+
+            case VK_HOME:
+                return UIEvent::key_home;
+
+            case VK_END:
+                return UIEvent::key_end;
+
+            case VK_DELETE:
+                return UIEvent::key_delete;
+
+            case VK_BACK:
+                return UIEvent::key_backspace;
+
+            case VK_RETURN:
+                return UIEvent::key_enter;
+
+            case VK_TAB:
+                return UIEvent::key_tab;
+
+            case VK_ESCAPE:
+                return UIEvent::key_escape;
+        }
+
+        return UIEvent::key_none;
+    }
 }
 
 Win32ApplicationHost::Win32ApplicationHost()
@@ -258,7 +297,7 @@ LRESULT Win32ApplicationHost::handle_message(
 
         case WM_KEYDOWN: {
             UIEvent event(UIEvent::event_key_down);
-            event.key_code = (int)w_param;
+            event.key_code = translate_key_code(w_param);
 
             if (application_view != 0 && application_view->handle_event(event)) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
@@ -268,7 +307,7 @@ LRESULT Win32ApplicationHost::handle_message(
 
         case WM_KEYUP: {
             UIEvent event(UIEvent::event_key_up);
-            event.key_code = (int)w_param;
+            event.key_code = translate_key_code(w_param);
 
             if (application_view != 0 && application_view->handle_event(event)) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
