@@ -36,14 +36,16 @@ This prevents the shell from reconstructing a message after submit and gives a f
 
 Conversation labels are still selectable/read-only. Formatted text measurement is used for caret placement and selection hit-testing so larger or bold text does not break pointer-to-character mapping.
 
-Conversation rows now derive their height from the largest font used by each message rather than assuming that every message fits a fixed 24-pixel row.
+Conversation rows derive their height from the largest font used by each message rather than assuming that every message fits a fixed 24-pixel row.
 
-## Canonical emoticon aliases
+## Canonical and graphical emoticons
 
 Classic aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, `<3`, and `<:` remain canonical text in `FormattedText` and `MessageDraft`. This keeps copy/paste and future transport interoperable.
 
-Graphical MSN/WLM-inspired rendering remains a presentation concern and should not replace the underlying aliases in stored message content.
+The Win32 presentation layer may now replace those aliases visually with original classic-messenger-inspired GDI drawings while the underlying characters remain untouched. The composer and conversation history share the same framework registry and formatted hit-testing path.
+
+See `docs/EMOTICON_RENDERING.md` for the rendering, selection, alias, and target-validation contract.
 
 ## Validation state
 
-This composer/rich-message tranche is not yet recorded as target-validated. Visual C++ 7.1 builds and runtime behavior on Windows Server 2003 SP2 and MiniXP remain authoritative.
+The composer/rich-message and graphical-emoticon tranche is not yet recorded as target-validated. Visual C++ 7.1 builds and runtime behavior on Windows Server 2003 SP2 and MiniXP remain authoritative.

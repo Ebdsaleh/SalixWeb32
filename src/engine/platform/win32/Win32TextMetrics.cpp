@@ -6,6 +6,7 @@
 
 #include "Win32TextMetrics.h"
 #include "framework/TextFormat.h"
+#include "framework/EmoticonRegistry.h"
 
 namespace {
     HFONT create_text_font(HDC device_context, const TextFormat& format) {
@@ -36,6 +37,18 @@ namespace {
             DEFAULT_PITCH | FF_DONTCARE,
             "Tahoma"
         );
+    }
+
+    TextFormat get_format_at(
+        const TextFormat* formats,
+        int format_count,
+        int index
+    ) {
+        if (formats != 0 && index >= 0 && index < format_count) {
+            return formats[index];
+        }
+
+        return TextFormat();
     }
 
     int measure_character(
@@ -169,23 +182,28 @@ int Win32TextMetrics::measure_formatted_text_width(
         return 0;
     }
 
-    if (formats == 0 || format_count <= 0) {
-        return measure_text_width(text, text_length);
-    }
-
     int width = 0;
+    int position = 0;
 
-    for (int index = 0; index < text_length; ++index) {
-        TextFormat format;
-        if (index < format_count) {
-            format = formats[index];
+    while (position < text_length) {
+        EmoticonRegistry::EmoticonId emoticon_id;
+        int alias_length = 0;
+        TextFormat format = get_format_at(formats, format_count, position);
+
+        if (EmoticonRegistry::match_at(
+                text,
+                text_length,
+                position,
+                emoticon_id,
+                alias_length
+            )) {
+            width += EmoticonRegistry::get_visual_size(format.font_size);
+            position += alias_length;
+            continue;
         }
 
-        width += measure_character(
-            device_context,
-            text + index,
-            format
-        );
+        width += measure_character(device_context, text + position, format);
+        ++position;
     }
 
     return width;
@@ -207,30 +225,51 @@ int Win32TextMetrics::get_formatted_character_index_at_x(
         return 0;
     }
 
-    if (formats == 0 || format_count <= 0) {
-        return get_character_index_at_x(text, text_length, pixel_x);
-    }
-
     int current_x = 0;
+    int position = 0;
 
-    for (int index = 0; index < text_length; ++index) {
-        TextFormat format;
-        if (index < format_count) {
-            format = formats[index];
+    while (position < text_length) {
+        EmoticonRegistry::EmoticonId emoticon_id;
+        int alias_length = 0;
+        TextFormat format = get_format_at(formats, format_count, position);
+
+        if (EmoticonRegistry::match_at(
+                text,
+                text_length,
+                position,
+                emoticon_id,
+                alias_length
+            )) {
+            int visual_width = EmoticonRegistry::get_visual_size(
+                format.font_size
+            );
+            int midpoint = current_x + visual_width / 2;
+            int right = current_x + visual_width;
+
+            if (pixel_x < right) {
+                return pixel_x < midpoint
+                    ? position
+                    : position + alias_length;
+            }
+
+            current_x = right;
+            position += alias_length;
+            continue;
         }
 
         int character_width = measure_character(
             device_context,
-            text + index,
+            text + position,
             format
         );
+        int midpoint = current_x + character_width / 2;
 
-        int midpoint = current_x + (character_width / 2);
         if (pixel_x < midpoint) {
-            return index;
+            return position;
         }
 
         current_x += character_width;
+        ++position;
     }
 
     return text_length;

@@ -106,6 +106,7 @@
 			<File RelativePath="..\..\src\framework\ComboBox.cpp"/>
 			<File RelativePath="..\..\src\framework\Component.cpp"/>
 			<File RelativePath="..\..\src\framework\Container.cpp"/>
+			<File RelativePath="..\..\src\framework\EmoticonRegistry.cpp"/>
 			<File RelativePath="..\..\src\framework\FormattedText.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
 			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
@@ -125,6 +126,8 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
+			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.cpp"/>
+			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\app\ConversationView.h"/>
@@ -140,6 +143,7 @@
 			<File RelativePath="..\..\src\framework\ComboBox.h"/>
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
+			<File RelativePath="..\..\src\framework\EmoticonRegistry.h"/>
 			<File RelativePath="..\..\src\framework\FileDialog.h"/>
 			<File RelativePath="..\..\src\framework\FormattedText.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
@@ -169,6 +173,8 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
+			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.h"/>
+			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.h"/>
 		</Filter>
 	</Files>
 	<Globals>
