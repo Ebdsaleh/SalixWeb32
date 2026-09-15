@@ -38,9 +38,12 @@ class Win32ApplicationHost {
         );
 
         void paint_window(HWND window_handle);
+        void update_client_size(HWND window_handle);
 
         HINSTANCE instance_handle;
         HWND window_handle;
         ApplicationRuntime* application_runtime;
+        int client_width;
+        int client_height;
         bool is_initialized;
 };

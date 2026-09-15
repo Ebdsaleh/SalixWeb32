@@ -19,6 +19,7 @@ class ServiceRegistry {
         void stop_all();
 
         int get_count() const;
+        bool get_is_started() const;
 
     private:
         Service* services[max_services];

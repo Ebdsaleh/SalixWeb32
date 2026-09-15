@@ -96,12 +96,14 @@
 			<File RelativePath="..\..\src\main.cpp"/>
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.cpp"/>
 			<File RelativePath="..\..\src\runtime\Diagnostics.cpp"/>
+			<File RelativePath="..\..\src\runtime\RuntimeStatusService.cpp"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.cpp"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.h"/>
 			<File RelativePath="..\..\src\runtime\Diagnostics.h"/>
+			<File RelativePath="..\..\src\runtime\RuntimeStatusService.h"/>
 			<File RelativePath="..\..\src\runtime\Service.h"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.h"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>

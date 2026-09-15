@@ -18,9 +18,9 @@ Status legend:
 - [x] Define native/Gecko/translator/remote backend families
 - [x] Record hardware/toolchain constraints
 - [x] Create public architecture and roadmap documentation
-- [ ] Create initial Git repository
+- [x] Create initial Git repository
 - [ ] Select license
-- [ ] Establish coding conventions
+- [x] Establish coding conventions
 - [ ] Add first tagged baseline once skeleton builds
 
 **Exit criterion:** repository exists with documentation and agreed source layout.
@@ -29,17 +29,21 @@ Status legend:
 
 Goal: prove the Salix architecture without any browser engine.
 
-- [ ] Create VS.NET 2003-compatible solution/project
-- [ ] Native `WinMain`
-- [ ] `ApplicationRuntime`
-- [ ] service lifecycle (`start/update/stop`)
-- [ ] `ServiceRegistry`
-- [ ] diagnostics/logging foundation
-- [ ] `Win32ApplicationHost`
-- [ ] main window creation
-- [ ] resize handling
-- [ ] clean shutdown
-- [ ] basic status reporting
+- [x] Create VS.NET 2003-compatible solution/project
+- [x] Native `WinMain`
+- [x] `ApplicationRuntime`
+- [~] service lifecycle (`start/update/stop`)
+- [~] `ServiceRegistry`
+- [x] diagnostics/logging foundation
+- [x] `Win32ApplicationHost`
+- [x] main window creation
+- [~] resize handling
+- [x] clean shutdown
+- [x] basic status reporting
+
+The initial native skeleton has been validated on the target Pentium 4 under Windows Server 2003 SP2 x86 and has also passed a MiniXP smoke test. Service lifecycle instrumentation and explicit resize-state handling are the current hardening tranche and must be revalidated on target hardware before being marked complete.
+
+See `docs/VALIDATION.md` for target-hardware results.
 
 **Exit criterion:** a native x86 executable runs correctly on Server 2003 SP2 and cleanly opens/closes a window.
 
@@ -272,7 +276,7 @@ Parallel investigation:
 ## Phase 13 — Portability / productization
 
 - [ ] Windows XP x86 testing
-- [ ] Windows Server 2003 variants
+- [~] Windows Server 2003 variants
 - [ ] Windows 2000 feasibility
 - [ ] newer Win32 testing
 - [ ] installer/portable package

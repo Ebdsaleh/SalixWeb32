@@ -48,19 +48,23 @@ A future `WebPlatformBackend` boundary will allow the application to use differe
 
 - CPU: Pentium 4 class, SSE2-era hardware
 - RAM: 2 GB
-- OS: Windows Server 2003 Standard R2 / SP2, x86
+- OS: Windows Server 2003 Standard / SP2, x86
 - Toolchain currently available: Visual Studio .NET 2003 / Visual C++ 7.1, Visual Studio 6, multiple Windows DDK/WDK environments
 - Runtime goal: native Win32 first
 - Python: optional future scripting/plugin capability, never a mandatory runtime dependency
 
 ## Current state
 
-Architecture and roadmap are defined. No production implementation has been committed yet.
+The Phase 1 native Win32 skeleton is running on the target Pentium 4 hardware. The same executable has been smoke-tested successfully on Windows Server 2003 SP2 x86 and a MiniXP environment.
+
+Current development is hardening the native runtime foundation: service lifecycle dispatch, runtime status instrumentation, resize handling, diagnostics, and clean shutdown behavior.
 
 See:
 
 - `ROADMAP.md`
 - `ARCHITECTURE.md`
+- `docs/CODING_STYLE.md`
+- `docs/VALIDATION.md`
 - `docs/WEB_PLATFORM_CAPABILITIES.md`
 - `docs/BUILD_ENVIRONMENT.md`
 - `docs/DECISIONS.md`

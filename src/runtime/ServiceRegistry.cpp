@@ -20,6 +20,12 @@ bool ServiceRegistry::add_service(Service* service) {
         return false;
     }
 
+    for (int index = 0; index < service_count; ++index) {
+        if (services[index] == service) {
+            return false;
+        }
+    }
+
     services[service_count] = service;
     ++service_count;
     return true;
@@ -67,4 +73,8 @@ void ServiceRegistry::stop_all() {
 
 int ServiceRegistry::get_count() const {
     return service_count;
+}
+
+bool ServiceRegistry::get_is_started() const {
+    return is_started;
 }

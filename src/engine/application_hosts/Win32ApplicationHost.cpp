@@ -12,12 +12,35 @@ namespace {
     const char* window_class_name = "SalixWeb32WindowClass";
     const UINT runtime_timer_id = 1;
     const UINT runtime_timer_interval_ms = 16;
+
+    void draw_centered_line(
+        HDC device_context,
+        const RECT& client_rect,
+        int y_offset,
+        const char* text
+    ) {
+        RECT line_rect = client_rect;
+        int center_y = (client_rect.top + client_rect.bottom) / 2;
+
+        line_rect.top = center_y + y_offset - 15;
+        line_rect.bottom = center_y + y_offset + 15;
+
+        DrawTextA(
+            device_context,
+            text,
+            -1,
+            &line_rect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE
+        );
+    }
 }
 
 Win32ApplicationHost::Win32ApplicationHost()
     : instance_handle(NULL),
       window_handle(NULL),
       application_runtime(0),
+      client_width(0),
+      client_height(0),
       is_initialized(false) {
 }
 
@@ -72,6 +95,8 @@ bool Win32ApplicationHost::initialize(
         return false;
     }
 
+    update_client_size(window_handle);
+
     if (SetTimer(
             window_handle,
             runtime_timer_id,
@@ -125,6 +150,9 @@ void Win32ApplicationHost::shutdown() {
     }
 
     window_handle = NULL;
+    client_width = 0;
+    client_height = 0;
+
     UnregisterClassA(window_class_name, instance_handle);
 
     application_runtime = 0;
@@ -182,7 +210,17 @@ LRESULT Win32ApplicationHost::handle_message(
         case WM_TIMER:
             if (w_param == runtime_timer_id && application_runtime != 0) {
                 application_runtime->update();
+
+                if ((application_runtime->get_update_count() % 60UL) == 0UL) {
+                    InvalidateRect(current_window_handle, NULL, FALSE);
+                }
             }
+            return 0;
+
+        case WM_SIZE:
+            client_width = (int)LOWORD(l_param);
+            client_height = (int)HIWORD(l_param);
+            InvalidateRect(current_window_handle, NULL, FALSE);
             return 0;
 
         case WM_PAINT:
@@ -190,10 +228,12 @@ LRESULT Win32ApplicationHost::handle_message(
             return 0;
 
         case WM_CLOSE:
+            Diagnostics::write_line("Win32ApplicationHost: close requested.");
             DestroyWindow(current_window_handle);
             return 0;
 
         case WM_DESTROY:
+            Diagnostics::write_line("Win32ApplicationHost: window destroyed.");
             KillTimer(current_window_handle, runtime_timer_id);
             window_handle = NULL;
             PostQuitMessage(0);
@@ -215,42 +255,75 @@ void Win32ApplicationHost::paint_window(HWND current_window_handle) {
 
     SetBkMode(device_context, TRANSPARENT);
 
-    RECT title_rect = client_rect;
-    title_rect.bottom = client_rect.bottom / 2;
-    title_rect.top = title_rect.bottom - 50;
+    char service_text[128];
+    char size_text[128];
 
-    DrawTextA(
-        device_context,
-        "SalixWeb32 runtime operational",
-        -1,
-        &title_rect,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE
+    if (application_runtime != 0) {
+        wsprintfA(
+            service_text,
+            "Runtime services: %d | update ticks: %lu",
+            application_runtime->get_service_count(),
+            application_runtime->get_update_count()
+        );
+    } else {
+        lstrcpyA(service_text, "Runtime services unavailable");
+    }
+
+    wsprintfA(
+        size_text,
+        "Client area: %d x %d",
+        client_width,
+        client_height
     );
 
-    RECT backend_rect = client_rect;
-    backend_rect.top = client_rect.bottom / 2;
-    backend_rect.bottom = backend_rect.top + 30;
-
-    DrawTextA(
+    draw_centered_line(
         device_context,
-        "Win32 application host operational",
-        -1,
-        &backend_rect,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE
+        client_rect,
+        -60,
+        "SalixWeb32 runtime operational"
     );
 
-    RECT web_rect = client_rect;
-    web_rect.top = backend_rect.bottom;
-    web_rect.bottom = web_rect.top + 30;
-
-    DrawTextA(
+    draw_centered_line(
         device_context,
-        "Web platform backend: not loaded",
-        -1,
-        &web_rect,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE
+        client_rect,
+        -30,
+        "Win32 application host operational"
+    );
+
+    draw_centered_line(
+        device_context,
+        client_rect,
+        0,
+        "Web platform backend: not loaded"
+    );
+
+    draw_centered_line(
+        device_context,
+        client_rect,
+        30,
+        service_text
+    );
+
+    draw_centered_line(
+        device_context,
+        client_rect,
+        60,
+        size_text
     );
 
     SelectObject(device_context, old_font);
     EndPaint(current_window_handle, &paint_struct);
+}
+
+void Win32ApplicationHost::update_client_size(HWND current_window_handle) {
+    RECT client_rect;
+
+    if (!GetClientRect(current_window_handle, &client_rect)) {
+        client_width = 0;
+        client_height = 0;
+        return;
+    }
+
+    client_width = client_rect.right - client_rect.left;
+    client_height = client_rect.bottom - client_rect.top;
 }
