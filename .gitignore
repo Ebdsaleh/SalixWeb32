@@ -1,0 +1,56 @@
+# Visual Studio / MSVC
+*.obj
+*.pch
+*.pdb
+*.idb
+*.ilk
+*.ncb
+*.opt
+*.plg
+*.aps
+*.res
+*.suo
+*.user
+Debug/
+Release/
+debug/
+release/
+
+# Build output
+bin/
+obj/
+out/
+dist/
+
+# Logs / temp
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+
+# Archives / downloaded third-party sources
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# Python experiments
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local machine configuration
+.local/
+*.local
+
+# Private development continuity (never commit)
+.private/
+private/
+HANDOFF*.md
+*_HANDOFF.md
+*_PRIVATE_HANDOFF.md
