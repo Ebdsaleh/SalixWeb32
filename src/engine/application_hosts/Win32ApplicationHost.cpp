@@ -18,6 +18,66 @@ namespace {
     const UINT runtime_timer_id = 1;
     const UINT runtime_timer_interval_ms = 16;
 
+    struct LeftClickSequence {
+        LeftClickSequence()
+            : last_click_time(0),
+              last_x(0),
+              last_y(0),
+              click_count(0) {
+        }
+
+        DWORD last_click_time;
+        int last_x;
+        int last_y;
+        int click_count;
+    };
+
+    int absolute_distance(int first_value, int second_value) {
+        int difference = first_value - second_value;
+        return difference < 0 ? -difference : difference;
+    }
+
+    int get_left_click_count(int x, int y) {
+        static LeftClickSequence sequence;
+
+        DWORD current_time = GetTickCount();
+        DWORD elapsed_time = current_time - sequence.last_click_time;
+        UINT double_click_time = GetDoubleClickTime();
+
+        int horizontal_tolerance = GetSystemMetrics(SM_CXDOUBLECLK) / 2;
+        int vertical_tolerance = GetSystemMetrics(SM_CYDOUBLECLK) / 2;
+
+        if (horizontal_tolerance < 1) {
+            horizontal_tolerance = 1;
+        }
+
+        if (vertical_tolerance < 1) {
+            vertical_tolerance = 1;
+        }
+
+        bool continues_sequence =
+            sequence.last_click_time != 0 &&
+            elapsed_time <= double_click_time &&
+            absolute_distance(x, sequence.last_x) <= horizontal_tolerance &&
+            absolute_distance(y, sequence.last_y) <= vertical_tolerance;
+
+        if (continues_sequence) {
+            ++sequence.click_count;
+
+            if (sequence.click_count > 3) {
+                sequence.click_count = 1;
+            }
+        } else {
+            sequence.click_count = 1;
+        }
+
+        sequence.last_click_time = current_time;
+        sequence.last_x = x;
+        sequence.last_y = y;
+
+        return sequence.click_count;
+    }
+
     UIEvent::KeyCode translate_key_code(WPARAM key_code) {
         switch ((int)key_code) {
             case VK_LEFT:
@@ -307,6 +367,7 @@ LRESULT Win32ApplicationHost::handle_message(
             event.x = (int)(short)LOWORD(l_param);
             event.y = (int)(short)HIWORD(l_param);
             event.left_button_down = true;
+            event.click_count = get_left_click_count(event.x, event.y);
             populate_modifier_state(event);
 
             HDC metrics_context = GetDC(current_window_handle);

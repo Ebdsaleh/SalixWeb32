@@ -67,20 +67,21 @@ Goal: reproduce the useful architectural separation demonstrated by SalixTorrent
 - [x] messenger-style shell layout
 - [x] double-buffered Win32 presentation
 - [x] text caret navigation/editing
-- [~] mouse/keyboard text selection
+- [x] mouse/keyboard text selection
 - [~] copy/cut/paste
 - [~] backend-neutral clipboard contract
 - [~] MIME-aware composer payloads
-- [~] precise text hit-testing
-- [~] Ctrl+Arrow word-boundary navigation
-- [~] selectable read-only labels
+- [x] precise text hit-testing
+- [x] Ctrl+Arrow word-boundary navigation
+- [x] selectable read-only labels
+- [~] double-click word / triple-click line selection
 - [ ] append-only conversation model
 - [ ] scrollable conversation view
 - [ ] framework dirty-region invalidation
 
 Validated Phase 2 foundations include the backend-neutral `View`, `Component`, `Label`, `Container`, `StackPanel`, `Button`, `TextInput`, `UIEvent`, style layers, `Panel`, `MessageInputStrip`, and the Win32 component renderer. The messenger shell and double-buffered paint path have been validated on the Pentium 4 under both Windows Server 2003 and MiniXP.
 
-Caret editing is also validated on the target. The active input work now adds selection, clipboard operations, mouse text hit-testing, MIME-tagged payloads, Ctrl+Arrow / Ctrl+Shift+Arrow word navigation, and optional selectable/read-only labels so displayed conversation text can be copied without becoming editable.
+Caret editing, mouse selection, word-wise keyboard navigation, and selectable read-only labels are operating on the target. The active input work now adds backend-neutral click-count metadata so both editable and read-only text can support modern double-click word selection and triple-click whole-line selection without exposing Win32-specific click handling to framework components.
 
 **Exit criterion:** core criterion achieved. Remaining Phase 2 work is focused on production-quality input behavior, conversation composition, and efficient repaint invalidation.
 

@@ -109,12 +109,27 @@ bool Label::handle_event(const UIEvent& event) {
         if (new_is_focused) {
             int new_cursor_position = get_cursor_position_from_event(event);
 
-            if (!event.shift_down || !is_focused) {
-                selection_anchor = new_cursor_position;
-            }
+            if (event.click_count >= 3) {
+                select_all();
+                is_mouse_selecting = false;
+            } else if (event.click_count == 2) {
+                selection_anchor = TextNavigation::find_word_start(
+                    text,
+                    new_cursor_position
+                );
+                cursor_position = TextNavigation::find_word_end(
+                    text,
+                    new_cursor_position
+                );
+                is_mouse_selecting = false;
+            } else {
+                if (!event.shift_down || !is_focused) {
+                    selection_anchor = new_cursor_position;
+                }
 
-            cursor_position = new_cursor_position;
-            is_mouse_selecting = true;
+                cursor_position = new_cursor_position;
+                is_mouse_selecting = true;
+            }
         } else {
             is_mouse_selecting = false;
         }

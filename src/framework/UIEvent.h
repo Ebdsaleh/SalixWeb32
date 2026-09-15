@@ -49,6 +49,7 @@ class UIEvent {
               control_down(false),
               alt_down(false),
               left_button_down(false),
+              click_count(1),
               clipboard(0),
               text_metrics(0) {
         }
@@ -62,6 +63,7 @@ class UIEvent {
         bool control_down;
         bool alt_down;
         bool left_button_down;
+        int click_count;
         Clipboard* clipboard;
         TextMetrics* text_metrics;
 };
