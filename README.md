@@ -57,7 +57,9 @@ A future `WebPlatformBackend` boundary will allow the application to use differe
 
 Phase 1 is complete and validated on the target Pentium 4 under Windows Server 2003 SP2 x86. The same executable has also passed a MiniXP smoke test.
 
-Phase 2 is now introducing framework/presentation separation. The first tranche moves the status screen behind backend-neutral `View`, `Component`, `Label`, and `ComponentRenderer` contracts, with Win32 rendering supplied by a concrete presentation backend.
+Phase 2 framework/presentation separation is now largely target-validated. The application uses backend-neutral views, components, containers, stack layout, labels, buttons, text input, event dispatch, and style primitives, with Win32 drawing isolated behind `Win32ComponentRenderer`.
+
+The current layout pass is moving the shell toward a late-2000s messenger-style composition: a header, conversation surface, diagnostics sidebar, and reusable `MessageInputStrip` with an expanding text field, right-anchored Send button, and configurable `submit_on_enter` behavior.
 
 See:
 
