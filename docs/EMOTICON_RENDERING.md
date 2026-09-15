@@ -23,9 +23,9 @@ A few familiar colon-dash spellings such as `:-)`, `:-D`, `;-)`, `:-P`, `:-O`, a
 
 ## Framework registry
 
-The alias catalogue now lives in `framework/EmoticonRegistry` so editable text, selectable labels, platform text metrics, the picker, and renderers can share one source of truth without making the Win32 renderer depend on application-layer code.
+The alias catalogue lives in `framework/EmoticonRegistry` so editable text, selectable labels, platform text metrics, the picker, and renderers can share one source of truth without making the Win32 renderer depend on application-layer code.
 
-The old `app/EmoticonRegistry` files remain only as a compatibility include/translation unit while existing application includes migrate to the framework location.
+There is intentionally only one compiled `EmoticonRegistry.cpp` translation unit. Visual C++ 7.1 writes object files by source basename into the shared intermediate directory, so keeping both an application-layer and framework-layer `EmoticonRegistry.cpp` caused the framework implementation to be omitted from the VC7.1 build and produced unresolved linker symbols. `EmojiPanel` now includes `framework/EmoticonRegistry.h` directly.
 
 ## Win32 presentation
 

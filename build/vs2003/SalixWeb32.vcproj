@@ -96,7 +96,6 @@
 			<File RelativePath="..\..\src\main.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationView.cpp"/>
 			<File RelativePath="..\..\src\app\EmojiPanel.cpp"/>
-			<File RelativePath="..\..\src\app\EmoticonRegistry.cpp"/>
 			<File RelativePath="..\..\src\app\MessageComposer.cpp"/>
 			<File RelativePath="..\..\src\app\MessageDraft.cpp"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.cpp"/>
@@ -132,7 +131,6 @@
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\app\ConversationView.h"/>
 			<File RelativePath="..\..\src\app\EmojiPanel.h"/>
-			<File RelativePath="..\..\src\app\EmoticonRegistry.h"/>
 			<File RelativePath="..\..\src\app\MessageComposer.h"/>
 			<File RelativePath="..\..\src\app\MessageDraft.h"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>

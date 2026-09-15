@@ -5,7 +5,7 @@
 // =================================================================================
 
 #include "EmojiPanel.h"
-#include "EmoticonRegistry.h"
+#include "framework/EmoticonRegistry.h"
 
 EmojiPanel::EmojiPanel()
     : selected_handler(0),
