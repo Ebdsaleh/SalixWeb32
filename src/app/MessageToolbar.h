@@ -14,6 +14,7 @@
 #include "framework/ComboBox.h"
 #include "framework/Label.h"
 #include "EmojiPanel.h"
+#include "ListPanel.h"
 
 class FileDialog;
 class NativeControlHost;
@@ -41,6 +42,12 @@ class MessageToolbar : public Panel {
             void* context
         );
 
+        typedef void (*ListRequestedHandler)(
+            MessageToolbar* toolbar,
+            ListPanel::ListStyle style,
+            void* context
+        );
+
         MessageToolbar(FileDialog* file_dialog);
         virtual ~MessageToolbar();
 
@@ -61,6 +68,11 @@ class MessageToolbar : public Panel {
 
         void set_format_changed_handler(
             FormatChangedHandler new_handler,
+            void* new_context
+        );
+
+        void set_list_requested_handler(
+            ListRequestedHandler new_handler,
             void* new_context
         );
 
@@ -91,6 +103,12 @@ class MessageToolbar : public Panel {
             void* context
         );
 
+        static void on_list_selected(
+            ListPanel* panel,
+            ListPanel::ListStyle style,
+            void* context
+        );
+
         void toggle_bold();
         void toggle_italic();
         void toggle_underline();
@@ -105,6 +123,8 @@ class MessageToolbar : public Panel {
         void* attachments_added_context;
         FormatChangedHandler format_changed_handler;
         void* format_changed_context;
+        ListRequestedHandler list_requested_handler;
+        void* list_requested_context;
 
         Button attach_button;
         ToggleButton bold_button;
@@ -115,6 +135,7 @@ class MessageToolbar : public Panel {
         Button emoji_button;
         Label attachment_status_label;
         EmojiPanel emoji_panel;
+        ListPanel list_panel;
 
         int font_size;
 };

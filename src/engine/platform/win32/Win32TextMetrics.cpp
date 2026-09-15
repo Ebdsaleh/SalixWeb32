@@ -51,14 +51,19 @@ namespace {
         return TextFormat();
     }
 
-    int measure_character(
+    void measure_character(
         HDC device_context,
         const char* character,
-        const TextFormat& format
+        const TextFormat& format,
+        int& width,
+        int& height
     ) {
+        width = 0;
+        height = 0;
+
         HFONT font = create_text_font(device_context, format);
         if (font == NULL) {
-            return 0;
+            return;
         }
 
         HGDIOBJ previous_font = SelectObject(device_context, font);
@@ -68,12 +73,224 @@ namespace {
         text_size.cy = 0;
         GetTextExtentPoint32A(device_context, character, 1, &text_size);
 
+        width = text_size.cx;
+        height = text_size.cy;
+
         if (previous_font != NULL && previous_font != HGDI_ERROR) {
             SelectObject(device_context, previous_font);
         }
 
         DeleteObject(font);
-        return text_size.cx;
+    }
+
+    int get_default_line_height(
+        HDC device_context,
+        const TextFormat* formats,
+        int format_count,
+        int source_index
+    ) {
+        TextFormat format = get_format_at(formats, format_count, source_index);
+        int width = 0;
+        int height = 0;
+        char sample = 'M';
+        measure_character(device_context, &sample, format, width, height);
+
+        if (height <= 0) {
+            height = format.font_size + 6;
+        }
+
+        if (height < 16) {
+            height = 16;
+        }
+
+        return height;
+    }
+
+    int find_line_end(
+        const char* text,
+        int text_length,
+        int line_start
+    ) {
+        int position = line_start;
+
+        while (position < text_length && text[position] != '\n') {
+            ++position;
+        }
+
+        return position;
+    }
+
+    int measure_line_height(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const TextFormat* formats,
+        int format_count,
+        int line_start,
+        int line_end
+    ) {
+        int height = get_default_line_height(
+            device_context,
+            formats,
+            format_count,
+            line_start
+        );
+
+        int position = line_start;
+
+        while (position < line_end && position < text_length) {
+            TextFormat format = get_format_at(formats, format_count, position);
+            EmoticonRegistry::EmoticonId emoticon_id;
+            int alias_length = 0;
+
+            if (EmoticonRegistry::match_at(
+                    text,
+                    text_length,
+                    position,
+                    emoticon_id,
+                    alias_length
+                ) && position + alias_length <= line_end) {
+                int visual_size = EmoticonRegistry::get_visual_size(
+                    format.font_size
+                );
+                if (visual_size > height) {
+                    height = visual_size;
+                }
+                position += alias_length;
+                continue;
+            }
+
+            int character_width = 0;
+            int character_height = 0;
+            measure_character(
+                device_context,
+                text + position,
+                format,
+                character_width,
+                character_height
+            );
+
+            if (character_height > height) {
+                height = character_height;
+            }
+
+            ++position;
+        }
+
+        return height;
+    }
+
+    int measure_line_width(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const TextFormat* formats,
+        int format_count,
+        int line_start,
+        int line_end
+    ) {
+        int width = 0;
+        int position = line_start;
+
+        while (position < line_end && position < text_length) {
+            TextFormat format = get_format_at(formats, format_count, position);
+            EmoticonRegistry::EmoticonId emoticon_id;
+            int alias_length = 0;
+
+            if (EmoticonRegistry::match_at(
+                    text,
+                    text_length,
+                    position,
+                    emoticon_id,
+                    alias_length
+                ) && position + alias_length <= line_end) {
+                width += EmoticonRegistry::get_visual_size(format.font_size);
+                position += alias_length;
+                continue;
+            }
+
+            int character_width = 0;
+            int character_height = 0;
+            measure_character(
+                device_context,
+                text + position,
+                format,
+                character_width,
+                character_height
+            );
+            width += character_width;
+            ++position;
+        }
+
+        return width;
+    }
+
+    int get_index_at_x_range(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const TextFormat* formats,
+        int format_count,
+        int line_start,
+        int line_end,
+        int pixel_x
+    ) {
+        if (pixel_x <= 0) {
+            return line_start;
+        }
+
+        int current_x = 0;
+        int position = line_start;
+
+        while (position < line_end && position < text_length) {
+            TextFormat format = get_format_at(formats, format_count, position);
+            EmoticonRegistry::EmoticonId emoticon_id;
+            int alias_length = 0;
+
+            if (EmoticonRegistry::match_at(
+                    text,
+                    text_length,
+                    position,
+                    emoticon_id,
+                    alias_length
+                ) && position + alias_length <= line_end) {
+                int visual_width = EmoticonRegistry::get_visual_size(
+                    format.font_size
+                );
+                int midpoint = current_x + visual_width / 2;
+                int right = current_x + visual_width;
+
+                if (pixel_x < right) {
+                    return pixel_x < midpoint
+                        ? position
+                        : position + alias_length;
+                }
+
+                current_x = right;
+                position += alias_length;
+                continue;
+            }
+
+            int character_width = 0;
+            int character_height = 0;
+            measure_character(
+                device_context,
+                text + position,
+                format,
+                character_width,
+                character_height
+            );
+
+            int midpoint = current_x + character_width / 2;
+            if (pixel_x < midpoint) {
+                return position;
+            }
+
+            current_x += character_width;
+            ++position;
+        }
+
+        return line_end;
     }
 }
 
@@ -182,31 +399,33 @@ int Win32TextMetrics::measure_formatted_text_width(
         return 0;
     }
 
-    int width = 0;
-    int position = 0;
+    int maximum_width = 0;
+    int line_start = 0;
 
-    while (position < text_length) {
-        EmoticonRegistry::EmoticonId emoticon_id;
-        int alias_length = 0;
-        TextFormat format = get_format_at(formats, format_count, position);
+    while (line_start <= text_length) {
+        int line_end = find_line_end(text, text_length, line_start);
+        int width = measure_line_width(
+            device_context,
+            text,
+            text_length,
+            formats,
+            format_count,
+            line_start,
+            line_end
+        );
 
-        if (EmoticonRegistry::match_at(
-                text,
-                text_length,
-                position,
-                emoticon_id,
-                alias_length
-            )) {
-            width += EmoticonRegistry::get_visual_size(format.font_size);
-            position += alias_length;
-            continue;
+        if (width > maximum_width) {
+            maximum_width = width;
         }
 
-        width += measure_character(device_context, text + position, format);
-        ++position;
+        if (line_end >= text_length) {
+            break;
+        }
+
+        line_start = line_end + 1;
     }
 
-    return width;
+    return maximum_width;
 }
 
 int Win32TextMetrics::get_formatted_character_index_at_x(
@@ -219,57 +438,126 @@ int Win32TextMetrics::get_formatted_character_index_at_x(
     if (
         device_context == NULL ||
         text == 0 ||
-        text_length <= 0 ||
-        pixel_x <= 0
+        text_length <= 0
     ) {
         return 0;
     }
 
-    int current_x = 0;
-    int position = 0;
+    int line_end = find_line_end(text, text_length, 0);
+    return get_index_at_x_range(
+        device_context,
+        text,
+        text_length,
+        formats,
+        format_count,
+        0,
+        line_end,
+        pixel_x
+    );
+}
 
-    while (position < text_length) {
-        EmoticonRegistry::EmoticonId emoticon_id;
-        int alias_length = 0;
-        TextFormat format = get_format_at(formats, format_count, position);
+int Win32TextMetrics::measure_formatted_text_height(
+    const char* text,
+    int text_length,
+    const TextFormat* formats,
+    int format_count,
+    int line_spacing
+) {
+    if (device_context == NULL) {
+        return 0;
+    }
 
-        if (EmoticonRegistry::match_at(
+    if (line_spacing < 0) {
+        line_spacing = 0;
+    }
+
+    if (text == 0) {
+        text = "";
+        text_length = 0;
+    }
+
+    int total_height = 0;
+    int line_start = 0;
+    bool first_line = true;
+
+    while (line_start <= text_length) {
+        int line_end = find_line_end(text, text_length, line_start);
+        int line_height = measure_line_height(
+            device_context,
+            text,
+            text_length,
+            formats,
+            format_count,
+            line_start,
+            line_end
+        );
+
+        if (!first_line) {
+            total_height += line_spacing;
+        }
+
+        total_height += line_height;
+        first_line = false;
+
+        if (line_end >= text_length) {
+            break;
+        }
+
+        line_start = line_end + 1;
+    }
+
+    return total_height;
+}
+
+int Win32TextMetrics::get_formatted_character_index_at_point(
+    const char* text,
+    int text_length,
+    const TextFormat* formats,
+    int format_count,
+    int pixel_x,
+    int pixel_y,
+    int line_spacing
+) {
+    if (device_context == NULL || text == 0 || text_length < 0) {
+        return 0;
+    }
+
+    if (line_spacing < 0) {
+        line_spacing = 0;
+    }
+
+    int line_start = 0;
+    int current_y = 0;
+
+    while (line_start <= text_length) {
+        int line_end = find_line_end(text, text_length, line_start);
+        int line_height = measure_line_height(
+            device_context,
+            text,
+            text_length,
+            formats,
+            format_count,
+            line_start,
+            line_end
+        );
+
+        int line_bottom = current_y + line_height;
+
+        if (pixel_y < line_bottom + line_spacing || line_end >= text_length) {
+            return get_index_at_x_range(
+                device_context,
                 text,
                 text_length,
-                position,
-                emoticon_id,
-                alias_length
-            )) {
-            int visual_width = EmoticonRegistry::get_visual_size(
-                format.font_size
+                formats,
+                format_count,
+                line_start,
+                line_end,
+                pixel_x
             );
-            int midpoint = current_x + visual_width / 2;
-            int right = current_x + visual_width;
-
-            if (pixel_x < right) {
-                return pixel_x < midpoint
-                    ? position
-                    : position + alias_length;
-            }
-
-            current_x = right;
-            position += alias_length;
-            continue;
         }
 
-        int character_width = measure_character(
-            device_context,
-            text + position,
-            format
-        );
-        int midpoint = current_x + character_width / 2;
-
-        if (pixel_x < midpoint) {
-            return position;
-        }
-
-        current_x += character_width;
-        ++position;
+        current_y = line_bottom + line_spacing;
+        line_start = line_end + 1;
     }
 
     return text_length;

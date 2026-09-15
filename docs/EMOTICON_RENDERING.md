@@ -1,6 +1,6 @@
 # Graphical Emoticon Rendering
 
-This document records the post-`v0.0.2` graphical emoticon tranche. Target validation on Visual C++ 7.1 / Windows Server 2003 SP2 / MiniXP is still pending.
+This document records the post-`v0.0.2` graphical emoticon tranche. The corrected VC7.1 build now links and the Pentium 4 target has successfully displayed graphical emoticons in the composer toolbar and sent conversation history. Full cross-environment validation, including a separate MiniXP pass for this tranche, remains pending.
 
 ## Canonical message content
 
@@ -72,6 +72,17 @@ Existing picker buttons retain their alias text internally. The Win32 button ren
 ## Legacy constraints
 
 The implementation uses GDI only. It does not require GDI+, Direct2D, a modern emoji font, PNG decoding, SVG, or a new runtime dependency. This keeps the first graphical implementation suitable for the Pentium 4 / NT 5.x target.
+
+## Validation status
+
+Observed on the real Pentium 4 target after the VC7.1 linker fix:
+
+- the project builds and links successfully,
+- graphical emoticons render in sent conversation messages,
+- the toolbar emoticon button renders graphically,
+- and the application remains operational with the existing messenger shell.
+
+The detailed interaction checklist below still needs to be completed before this tranche is marked fully validated across both target environments.
 
 ## Validation checklist
 

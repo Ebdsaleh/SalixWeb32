@@ -4,7 +4,7 @@
 // Description: Implements formatted text and inline-emoticon painting on Win32.
 // =================================================================================
 
-#include <string>
+#include <string.h>
 
 #include "Win32TextPainter.h"
 #include "Win32EmoticonPainter.h"
@@ -131,21 +131,7 @@ namespace {
             return false;
         }
 
-        int range_count = label->get_selection_range_count();
-        for (int index = 0; index < range_count; ++index) {
-            int start = 0;
-            int end = 0;
-
-            if (!label->get_selection_range(index, start, end)) {
-                continue;
-            }
-
-            if (character_index >= start && character_index < end) {
-                return true;
-            }
-        }
-
-        return false;
+        return label->is_character_selected(character_index);
     }
 
     bool is_input_character_selected(const void* context, int character_index) {
@@ -172,26 +158,34 @@ namespace {
         return false;
     }
 
-    int measure_visual_width(
+    int find_line_end(
+        const char* text,
+        int text_length,
+        int line_start
+    ) {
+        int position = line_start;
+
+        while (position < text_length && text[position] != '\n') {
+            ++position;
+        }
+
+        return position;
+    }
+
+    int measure_line_width(
         HDC device_context,
         const char* text,
         int text_length,
         const void* context,
         FormatGetter format_getter,
-        int end_index
+        int line_start,
+        int line_end
     ) {
-        if (text == 0 || text_length <= 0 || end_index <= 0) {
-            return 0;
-        }
-
-        if (end_index > text_length) {
-            end_index = text_length;
-        }
-
         int width = 0;
-        int position = 0;
+        int position = line_start;
 
-        while (position < end_index) {
+        while (position < line_end) {
+            TextFormat format = format_getter(context, position);
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
@@ -201,19 +195,8 @@ namespace {
                     position,
                     emoticon_id,
                     alias_length
-                )) {
-                TextFormat format = format_getter(context, position);
-                int visual_size = EmoticonRegistry::get_visual_size(
-                    format.font_size
-                );
-
-                if (position + alias_length <= end_index) {
-                    width += visual_size;
-                } else {
-                    int consumed = end_index - position;
-                    width += (visual_size * consumed) / alias_length;
-                }
-
+                ) && position + alias_length <= line_end) {
+                width += EmoticonRegistry::get_visual_size(format.font_size);
                 position += alias_length;
                 continue;
             }
@@ -221,13 +204,119 @@ namespace {
             width += measure_character(
                 device_context,
                 text[position],
-                format_getter(context, position),
+                format,
                 0
             );
             ++position;
         }
 
         return width;
+    }
+
+    int measure_line_height(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const void* context,
+        FormatGetter format_getter,
+        int line_start,
+        int line_end
+    ) {
+        TextFormat base_format = format_getter(context, line_start);
+        int sample_height = 0;
+        measure_character(
+            device_context,
+            'M',
+            base_format,
+            &sample_height
+        );
+
+        int height = sample_height;
+        if (height < 16) {
+            height = 16;
+        }
+
+        int position = line_start;
+
+        while (position < line_end) {
+            TextFormat format = format_getter(context, position);
+            EmoticonRegistry::EmoticonId emoticon_id;
+            int alias_length = 0;
+
+            if (EmoticonRegistry::match_at(
+                    text,
+                    text_length,
+                    position,
+                    emoticon_id,
+                    alias_length
+                ) && position + alias_length <= line_end) {
+                int visual_size = EmoticonRegistry::get_visual_size(
+                    format.font_size
+                );
+                if (visual_size > height) {
+                    height = visual_size;
+                }
+                position += alias_length;
+                continue;
+            }
+
+            int character_height = 0;
+            measure_character(
+                device_context,
+                text[position],
+                format,
+                &character_height
+            );
+
+            if (character_height > height) {
+                height = character_height;
+            }
+
+            ++position;
+        }
+
+        return height;
+    }
+
+    int measure_block_height(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const void* context,
+        FormatGetter format_getter,
+        int line_spacing
+    ) {
+        int total_height = 0;
+        int line_start = 0;
+        bool first_line = true;
+
+        while (line_start <= text_length) {
+            int line_end = find_line_end(text, text_length, line_start);
+            int line_height = measure_line_height(
+                device_context,
+                text,
+                text_length,
+                context,
+                format_getter,
+                line_start,
+                line_end
+            );
+
+            if (!first_line) {
+                total_height += line_spacing;
+            }
+
+            total_height += line_height;
+            first_line = false;
+
+            if (line_end >= text_length) {
+                break;
+            }
+
+            line_start = line_end + 1;
+        }
+
+        return total_height;
     }
 
     void draw_caret(
@@ -257,7 +346,35 @@ namespace {
         DeleteObject(pen);
     }
 
-    void draw_formatted_line(
+    int measure_prefix_width(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const void* context,
+        FormatGetter format_getter,
+        int line_start,
+        int end_index
+    ) {
+        if (end_index < line_start) {
+            end_index = line_start;
+        }
+
+        if (end_index > text_length) {
+            end_index = text_length;
+        }
+
+        return measure_line_width(
+            device_context,
+            text,
+            text_length,
+            context,
+            format_getter,
+            line_start,
+            end_index
+        );
+    }
+
+    void draw_line(
         HDC device_context,
         const char* text,
         int text_length,
@@ -269,17 +386,14 @@ namespace {
         SelectionGetter selection_getter,
         bool draw_selection,
         bool draw_text_caret,
-        int caret_position
+        int caret_position,
+        int line_start,
+        int line_end
     ) {
-        if (text == 0) {
-            text = "";
-            text_length = 0;
-        }
-
         int x = text_x;
-        int position = 0;
+        int position = line_start;
 
-        while (position < text_length) {
+        while (position < line_end) {
             TextFormat format = format_getter(context, position);
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
@@ -290,7 +404,7 @@ namespace {
                     position,
                     emoticon_id,
                     alias_length
-                )) {
+                ) && position + alias_length <= line_end) {
                 int visual_size = EmoticonRegistry::get_visual_size(
                     format.font_size
                 );
@@ -358,9 +472,9 @@ namespace {
             if (selected) {
                 RECT selection_rect;
                 selection_rect.left = x;
-                selection_rect.top = line_rect.top + 2;
+                selection_rect.top = line_rect.top + 1;
                 selection_rect.right = x + character_size.cx;
-                selection_rect.bottom = line_rect.bottom - 2;
+                selection_rect.bottom = line_rect.bottom - 1;
 
                 if (selection_rect.right <= selection_rect.left) {
                     selection_rect.right = selection_rect.left + 1;
@@ -405,30 +519,124 @@ namespace {
             ++position;
         }
 
-        if (draw_text_caret) {
-            if (caret_position < 0) {
-                caret_position = 0;
-            }
-
-            if (caret_position > text_length) {
-                caret_position = text_length;
-            }
-
-            int caret_x = text_x + measure_visual_width(
+        if (
+            draw_text_caret &&
+            caret_position >= line_start &&
+            caret_position <= line_end
+        ) {
+            int caret_x = text_x + measure_prefix_width(
                 device_context,
                 text,
                 text_length,
                 context,
                 format_getter,
+                line_start,
                 caret_position
             );
 
             draw_caret(
                 device_context,
                 caret_x,
-                line_rect.top + 3,
-                line_rect.bottom - 3
+                line_rect.top + 2,
+                line_rect.bottom - 2
             );
+        }
+    }
+
+    void draw_text_block(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const RECT& text_rect,
+        COLORREF normal_text_color,
+        const void* context,
+        FormatGetter format_getter,
+        SelectionGetter selection_getter,
+        bool draw_selection,
+        bool draw_text_caret,
+        int caret_position,
+        int horizontal_alignment,
+        int line_spacing,
+        bool top_aligned
+    ) {
+        int total_height = measure_block_height(
+            device_context,
+            text,
+            text_length,
+            context,
+            format_getter,
+            line_spacing
+        );
+
+        int y = text_rect.top;
+        if (!top_aligned) {
+            y += ((text_rect.bottom - text_rect.top) - total_height) / 2;
+            if (y < text_rect.top) {
+                y = text_rect.top;
+            }
+        }
+
+        int line_start = 0;
+
+        while (line_start <= text_length) {
+            int line_end = find_line_end(text, text_length, line_start);
+            int line_height = measure_line_height(
+                device_context,
+                text,
+                text_length,
+                context,
+                format_getter,
+                line_start,
+                line_end
+            );
+            int line_width = measure_line_width(
+                device_context,
+                text,
+                text_length,
+                context,
+                format_getter,
+                line_start,
+                line_end
+            );
+
+            int text_x = text_rect.left;
+
+            if (horizontal_alignment == 1) {
+                text_x += ((text_rect.right - text_rect.left) - line_width) / 2;
+            } else if (horizontal_alignment == 2) {
+                text_x += (text_rect.right - text_rect.left) - line_width;
+            }
+
+            RECT line_rect;
+            line_rect.left = text_rect.left;
+            line_rect.right = text_rect.right;
+            line_rect.top = y;
+            line_rect.bottom = y + line_height;
+
+            draw_line(
+                device_context,
+                text,
+                text_length,
+                line_rect,
+                text_x,
+                normal_text_color,
+                context,
+                format_getter,
+                selection_getter,
+                draw_selection,
+                draw_text_caret,
+                caret_position,
+                line_start,
+                line_end
+            );
+
+            y += line_height + line_spacing;
+
+            if (line_end >= text_length) {
+                break;
+            }
+
+            line_start = line_end + 1;
         }
     }
 }
@@ -462,31 +670,16 @@ void Win32TextPainter::render_label(
     );
 
     const char* text = label.get_text();
-    int text_length = text == 0 ? 0 : (int)strlen(text);
+    if (text == 0) {
+        text = "";
+    }
+    int text_length = (int)strlen(text);
 
-    int text_width = measure_visual_width(
-        device_context,
-        text,
-        text_length,
-        &label,
-        get_label_format,
-        text_length
-    );
-
-    int text_x = label_rect.left;
-
-    switch (label.get_horizontal_alignment()) {
-        case Label::align_center:
-            text_x += (label.get_width() - text_width) / 2;
-            break;
-
-        case Label::align_right:
-            text_x += label.get_width() - text_width;
-            break;
-
-        case Label::align_left:
-        default:
-            break;
+    int alignment = 0;
+    if (label.get_horizontal_alignment() == Label::align_center) {
+        alignment = 1;
+    } else if (label.get_horizontal_alignment() == Label::align_right) {
+        alignment = 2;
     }
 
     COLORREF old_text_color = SetTextColor(
@@ -494,19 +687,23 @@ void Win32TextPainter::render_label(
         to_color_ref(label.get_style().foreground_color)
     );
 
-    draw_formatted_line(
+    bool is_multiline = strchr(text, '\n') != 0;
+
+    draw_text_block(
         device_context,
         text,
         text_length,
         label_rect,
-        text_x,
         to_color_ref(label.get_style().foreground_color),
         &label,
         get_label_format,
         is_label_character_selected,
         label.has_selection(),
         label.get_is_selectable() && label.get_is_focused(),
-        label.get_cursor_position()
+        label.get_cursor_position(),
+        alignment,
+        2,
+        is_multiline
     );
 
     SetTextColor(device_context, old_text_color);
@@ -557,8 +754,17 @@ void Win32TextPainter::render_text_input(
     text_rect.left += text_input.get_text_padding();
     text_rect.right -= text_input.get_text_padding();
 
+    if (text_input.get_is_multiline()) {
+        text_rect.top += text_input.get_text_padding();
+        text_rect.bottom -= text_input.get_text_padding();
+    }
+
     if (text_rect.right < text_rect.left) {
         text_rect.right = text_rect.left;
+    }
+
+    if (text_rect.bottom < text_rect.top) {
+        text_rect.bottom = text_rect.top;
     }
 
     int saved_state = SaveDC(device_context);
@@ -571,26 +777,31 @@ void Win32TextPainter::render_text_input(
     );
 
     const char* text = text_input.get_text();
-    int text_length = text == 0 ? 0 : (int)strlen(text);
+    if (text == 0) {
+        text = "";
+    }
+    int text_length = (int)strlen(text);
 
     COLORREF old_text_color = SetTextColor(
         device_context,
         to_color_ref(text_input.get_style().foreground_color)
     );
 
-    draw_formatted_line(
+    draw_text_block(
         device_context,
         text,
         text_length,
         text_rect,
-        text_rect.left,
         to_color_ref(text_input.get_style().foreground_color),
         &text_input,
         get_input_format,
         is_input_character_selected,
         text_input.get_is_focused() && text_input.has_selection(),
         text_input.get_is_focused(),
-        text_input.get_cursor_position()
+        text_input.get_cursor_position(),
+        0,
+        text_input.get_line_spacing(),
+        text_input.get_is_multiline()
     );
 
     SetTextColor(device_context, old_text_color);

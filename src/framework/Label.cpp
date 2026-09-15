@@ -203,14 +203,8 @@ bool Label::handle_event(const UIEvent& event) {
 
                 if (event.click_count >= 3) {
                     selection.remove_range(
-                        TextNavigation::find_line_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_line_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_line_start(text, new_cursor_position),
+                        TextNavigation::find_line_end(text, new_cursor_position),
                         text_length
                     );
                     selection.move_caret_preserving_selection(
@@ -220,14 +214,8 @@ bool Label::handle_event(const UIEvent& event) {
                     is_mouse_deselecting = false;
                 } else if (event.click_count == 2) {
                     selection.remove_range(
-                        TextNavigation::find_word_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_word_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_word_start(text, new_cursor_position),
+                        TextNavigation::find_word_end(text, new_cursor_position),
                         text_length
                     );
                     selection.move_caret_preserving_selection(
@@ -248,27 +236,15 @@ bool Label::handle_event(const UIEvent& event) {
             } else if (event.control_down) {
                 if (event.click_count >= 3) {
                     selection.select_range(
-                        TextNavigation::find_line_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_line_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_line_start(text, new_cursor_position),
+                        TextNavigation::find_line_end(text, new_cursor_position),
                         text_length,
                         true
                     );
                 } else if (event.click_count == 2) {
                     selection.select_range(
-                        TextNavigation::find_word_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_word_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_word_start(text, new_cursor_position),
+                        TextNavigation::find_word_end(text, new_cursor_position),
                         text_length,
                         true
                     );
@@ -283,14 +259,8 @@ bool Label::handle_event(const UIEvent& event) {
                 is_mouse_deselecting = false;
             } else if (event.click_count >= 3) {
                 selection.select_range(
-                    TextNavigation::find_line_start(
-                        text,
-                        new_cursor_position
-                    ),
-                    TextNavigation::find_line_end(
-                        text,
-                        new_cursor_position
-                    ),
+                    TextNavigation::find_line_start(text, new_cursor_position),
+                    TextNavigation::find_line_end(text, new_cursor_position),
                     text_length,
                     false
                 );
@@ -298,25 +268,15 @@ bool Label::handle_event(const UIEvent& event) {
                 is_mouse_deselecting = false;
             } else if (event.click_count == 2) {
                 selection.select_range(
-                    TextNavigation::find_word_start(
-                        text,
-                        new_cursor_position
-                    ),
-                    TextNavigation::find_word_end(
-                        text,
-                        new_cursor_position
-                    ),
+                    TextNavigation::find_word_start(text, new_cursor_position),
+                    TextNavigation::find_word_end(text, new_cursor_position),
                     text_length,
                     false
                 );
                 is_mouse_selecting = false;
                 is_mouse_deselecting = false;
             } else if (event.shift_down && is_focused) {
-                selection.move_caret(
-                    new_cursor_position,
-                    text_length,
-                    true
-                );
+                selection.move_caret(new_cursor_position, text_length, true);
                 is_mouse_selecting = true;
                 is_mouse_deselecting = false;
             } else {
@@ -354,10 +314,7 @@ bool Label::handle_event(const UIEvent& event) {
         return true;
     }
 
-    if (
-        event.type == UIEvent::event_mouse_up &&
-        is_mouse_deselecting
-    ) {
+    if (event.type == UIEvent::event_mouse_up && is_mouse_deselecting) {
         if (is_focused) {
             int new_cursor_position = get_cursor_position_from_event(event);
             int text_length = (int)text.length();
@@ -430,6 +387,14 @@ bool Label::handle_event(const UIEvent& event) {
                 );
                 return true;
 
+            case UIEvent::key_home:
+                move_cursor(0, event.shift_down);
+                return true;
+
+            case UIEvent::key_end:
+                move_cursor((int)text.length(), event.shift_down);
+                return true;
+
             case UIEvent::key_a:
                 select_all();
                 return true;
@@ -466,12 +431,65 @@ bool Label::handle_event(const UIEvent& event) {
             }
             return true;
 
+        case UIEvent::key_up:
+        case UIEvent::key_down: {
+            int caret = selection.get_caret_position();
+            int current_start = TextNavigation::find_line_start(text, caret);
+            int current_end = TextNavigation::find_line_end(text, caret);
+            int column = caret - current_start;
+            int target = caret;
+
+            if (event.key_code == UIEvent::key_up) {
+                if (current_start > 0) {
+                    int previous_end = current_start - 1;
+                    int previous_start = TextNavigation::find_line_start(
+                        text,
+                        previous_end
+                    );
+                    int previous_length = previous_end - previous_start;
+                    if (column > previous_length) {
+                        column = previous_length;
+                    }
+                    target = previous_start + column;
+                } else {
+                    target = 0;
+                }
+            } else {
+                if (current_end < (int)text.length()) {
+                    int next_start = current_end + 1;
+                    int next_end = TextNavigation::find_line_end(text, next_start);
+                    int next_length = next_end - next_start;
+                    if (column > next_length) {
+                        column = next_length;
+                    }
+                    target = next_start + column;
+                } else {
+                    target = (int)text.length();
+                }
+            }
+
+            move_cursor(target, event.shift_down);
+            return true;
+        }
+
         case UIEvent::key_home:
-            move_cursor(0, event.shift_down);
+            move_cursor(
+                TextNavigation::find_line_start(
+                    text,
+                    selection.get_caret_position()
+                ),
+                event.shift_down
+            );
             return true;
 
         case UIEvent::key_end:
-            move_cursor((int)text.length(), event.shift_down);
+            move_cursor(
+                TextNavigation::find_line_end(
+                    text,
+                    selection.get_caret_position()
+                ),
+                event.shift_down
+            );
             return true;
 
         default:
@@ -505,6 +523,20 @@ int Label::get_cursor_position_from_event(
 ) const {
     if (event.text_metrics == 0) {
         return (int)text.length();
+    }
+
+    bool is_multiline = text.find('\n') != std::string::npos;
+
+    if (is_multiline && horizontal_alignment == align_left) {
+        return event.text_metrics->get_formatted_character_index_at_point(
+            text.c_str(),
+            (int)text.length(),
+            get_format_data(),
+            get_format_count(),
+            event.x - get_x(),
+            event.y - get_y(),
+            2
+        );
     }
 
     int text_width = event.text_metrics->measure_formatted_text_width(

@@ -102,19 +102,25 @@ Active composer work:
 - [~] `MessageComposer` composition root
 - [~] `MessageToolbar`
 - [~] toggle-button primitive
-- [~] font-size combo-box primitive
+- [~] native-backed font-size combo-box primitive
 - [~] backend-neutral multi-file dialog contract
 - [~] Win32 `GetOpenFileNameA` multi-file provider
 - [~] attachment buffer/count plumbing
 - [~] Bold/Italic/Underline composer state (`Ctrl+B`, `Ctrl+I`, `Ctrl+U`)
-- [ ] rich-text run model that applies formatting state to selected/new text
-- [ ] multiline composer
-- [ ] bulleted/numbered list editing (toolbar control present but disabled until multiline rich text)
+- [~] formatted text model and formatted sent-message preservation
+- [~] multiline composer with explicit line-break rendering/hit-testing
+- [~] bulleted/numbered list editing and dedicated `ListPanel`
 - [~] classic text-emoticon registry
 - [~] `EmojiPanel` composite popup
-- [ ] graphical MSN/WLM-inspired emoticon rendering provider
+- [~] graphical classic-messenger-inspired emoticon rendering provider
+- [ ] automatic word wrapping / multiline composer viewport scrolling
+- [ ] attachment chips/cards and removal controls
 
-The classic emoticon registry intentionally stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content. A later renderer may replace those aliases visually while copy/paste and transport retain portable text.
+The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Copy/paste and future transport continue to retain portable text aliases.
+
+The real Pentium 4 target has successfully built and displayed the graphical-emoticon tranche after a VC7.1 basename/object collision was corrected. The newer multiline/list tranche remains pending target validation.
+
+See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, and `docs/MULTILINE_COMPOSER.md` for the current contracts and validation checklists.
 
 **Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer work continues without changing the validated baseline tag.
 

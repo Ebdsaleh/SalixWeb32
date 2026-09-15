@@ -19,7 +19,9 @@ MessageInputStrip::MessageInputStrip()
     get_style().border_color = Color(147, 181, 211);
     get_style().border_width = 1;
 
-    message_input.set_max_length(180);
+    message_input.set_multiline(true);
+    message_input.set_line_spacing(2);
+    message_input.set_max_length(1200);
     message_input.get_style().background_color = Color(255, 255, 255);
     message_input.get_style().border_color = Color(132, 157, 181);
 
@@ -97,6 +99,10 @@ void MessageInputStrip::set_text_format(
     );
 }
 
+bool MessageInputStrip::apply_list_style(TextInput::ListStyle style) {
+    return message_input.apply_list_style(style);
+}
+
 bool MessageInputStrip::accepts_mime_type(const char* mime_type) const {
     return message_input.accepts_mime_type(mime_type);
 }
@@ -148,11 +154,18 @@ void MessageInputStrip::arrange(int x, int y, int width, int height) {
         inner_height
     );
 
+    int send_height = inner_height;
+    if (send_height > 38) {
+        send_height = 38;
+    }
+
+    int send_y = y + padding + inner_height - send_height;
+
     send_button.set_bounds(
         button_x,
-        y + padding,
+        send_y,
         button_width,
-        inner_height
+        send_height
     );
 }
 
@@ -165,7 +178,8 @@ bool MessageInputStrip::handle_event(const UIEvent& event) {
         submit_on_enter &&
         event.type == UIEvent::event_character &&
         event.character_code == 13 &&
-        message_input.get_is_focused()
+        message_input.get_is_focused() &&
+        !event.shift_down
     ) {
         submit();
         return true;

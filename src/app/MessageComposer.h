@@ -85,6 +85,12 @@ class MessageComposer : public Panel {
             void* context
         );
 
+        static void on_toolbar_list_requested(
+            MessageToolbar* toolbar,
+            ListPanel::ListStyle style,
+            void* context
+        );
+
         void build_draft(MessageDraft& draft) const;
         void add_attachments(const std::vector<std::string>& paths);
         void clear_attachments();

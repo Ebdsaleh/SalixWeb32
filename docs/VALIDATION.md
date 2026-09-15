@@ -243,24 +243,38 @@ v0.0.2
 
 The previous single-message conversation label has been replaced by an append-only `ConversationView`. Historical messages remain present instead of being overwritten. Individual message labels retain read-only text-selection behavior and the view can move through older/newer content when the visible message capacity is exceeded.
 
-## Current post-v0.0.2 composer-toolbar target
+## Post-v0.0.2 composer and graphical-emoticon progress
 
-The next tranche moves the bottom application surface from a single `MessageInputStrip` to a composed `MessageComposer` containing a toolbar and the existing input strip.
+The bottom application surface now uses a composed `MessageComposer` containing a toolbar and `MessageInputStrip`. The post-baseline work includes native multi-file attachment selection, B/I/U formatting, a native-backed Win32 font-size combo box, formatted message preservation, and a dedicated `EmojiPanel`.
+
+The graphical-emoticon tranche initially exposed a VC7.1 linker failure because both application-layer and framework-layer source files were named `EmoticonRegistry.cpp`. Visual C++ 7.1 emitted both sources toward the same intermediate `EmoticonRegistry.obj` basename. The compatibility translation unit was removed and the framework registry became the single compiled implementation.
+
+After that correction, the real Pentium 4 target successfully rebuilt and displayed graphical emoticons in the messenger shell and sent conversation history. Full detailed graphical-emoticon interaction validation across both Windows Server 2003 SP2 and MiniXP is still tracked in `docs/EMOTICON_RENDERING.md`.
+
+## Current multiline composer / list-editing target
+
+The next target-validation tranche converts the message editor from a single-line input into a multiline formatted composer while preserving the existing selection, clipboard, formatting, emoticon and Undo/Redo models.
 
 Target behaviors to validate on the Pentium 4:
 
-- `[+]` opens the native Win32 multi-file picker,
-- multiple selected files enter the composer attachment buffer,
-- attachment count is shown in the toolbar,
-- attachment-only submissions are permitted,
-- submitted attachments are represented in conversation history,
-- `[B]`, `[I]`, and `[U]` are toggleable toolbar-state controls,
-- Ctrl+B, Ctrl+I, and Ctrl+U toggle the same states,
-- the font-size combo box selects a composer font-size state and opens upward to remain usable near the bottom of the window,
-- the list control is visibly disabled while the composer remains single-line,
-- the classic emoticon button opens a dedicated `EmojiPanel` beneath it,
-- classic aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, `:O`, `<3`, and `<:` can be inserted at the current text caret,
-- toolbar popups render above the message input and consume pointer input before underlying text/conversation surfaces,
-- existing text selection, clipboard, Undo/Redo, Enter-to-submit, resize, and double-buffer rendering behavior remains intact.
+- `Enter` submits the current draft while `Shift+Enter` inserts an explicit line break,
+- several logical lines render inside the expanded composer surface,
+- Up/Down and Shift+Up/Shift+Down navigate/select between logical lines,
+- Home/End operate on the current logical line while Ctrl+Home/Ctrl+End operate on the whole draft,
+- Bold/Italic/Underline and font-size formatting continue across multiple lines,
+- graphical emoticons render and hit-test correctly on different lines,
+- the previously disabled `List` control is now active and opens a dedicated `ListPanel`,
+- `Bullets` applies canonical `* ` prefixes to the current/touched lines,
+- `Numbered` applies sequential `1. `, `2. `, `3. ` prefixes,
+- applying the same list style again toggles the recognized prefixes off,
+- switching between bullet and numbered styles replaces prefixes rather than stacking them,
+- list transformations participate in bounded Undo/Redo as one edit transaction,
+- sent multiline messages retain explicit line breaks and inline formatting,
+- conversation rows allocate enough height for multiline messages,
+- selectable read-only multiline history remains mouse/keyboard selectable and copyable,
+- existing attachments, graphical emoticons, discontinuous selection and subtractive-selection behavior remain intact,
+- and resize/double-buffer rendering behavior does not regress.
 
-Formatting controls in this tranche intentionally establish composer state only. Applying mixed Bold/Italic/Underline/font-size runs to selected or newly typed text is reserved for the upcoming rich-text document/input model rather than being bolted onto the current single-style `TextInput` string.
+Automatic word wrapping and an internal composer viewport scrollbar are intentionally deferred. This tranche validates explicit multiline editing and paragraph/list semantics first.
+
+See `docs/MULTILINE_COMPOSER.md` for the detailed behavior contract and test sequence.

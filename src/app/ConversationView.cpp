@@ -304,12 +304,32 @@ void ConversationView::clamp_first_visible_index() {
 }
 
 int ConversationView::calculate_entry_height(const Label& label) const {
-    int row_height = label.get_max_font_size() + 12;
-    if (row_height < 24) {
-        row_height = 24;
+    int maximum_font_size = label.get_max_font_size();
+    int line_count = 1;
+    const char* text = label.get_text();
+
+    if (text != 0) {
+        for (int index = 0; text[index] != '\0'; ++index) {
+            if (text[index] == '\n') {
+                ++line_count;
+            }
+        }
     }
 
-    return row_height;
+    if (line_count <= 1) {
+        int row_height = maximum_font_size + 12;
+        if (row_height < 24) {
+            row_height = 24;
+        }
+        return row_height;
+    }
+
+    int line_height = maximum_font_size + 8;
+    if (line_height < 20) {
+        line_height = 20;
+    }
+
+    return (line_count * line_height) + ((line_count - 1) * 2) + 8;
 }
 
 int ConversationView::calculate_first_index_for_bottom() const {

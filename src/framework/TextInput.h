@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    framework/TextInput.h
 // Author:      Ebdsaleh
-// Description: Declares a backend-neutral single-line formatted text input.
+// Description: Declares a backend-neutral formatted text input.
 // =================================================================================
 #pragma once
 
@@ -28,6 +28,12 @@ class TextInput : public Component {
             cut_keep_formatting
         };
 
+        enum ListStyle {
+            list_clear = 0,
+            list_bulleted,
+            list_numbered
+        };
+
         TextInput();
 
         void set_text(const char* new_text);
@@ -35,6 +41,11 @@ class TextInput : public Component {
 
         void set_max_length(int new_max_length);
         int get_max_length() const;
+
+        void set_multiline(bool new_is_multiline);
+        bool get_is_multiline() const;
+        void set_line_spacing(int new_line_spacing);
+        int get_line_spacing() const;
 
         void set_focused(bool new_is_focused);
         bool get_is_focused() const;
@@ -61,6 +72,8 @@ class TextInput : public Component {
         TextFormat get_character_format(int index) const;
         const TextFormat* get_format_data() const;
         int get_format_count() const;
+
+        bool apply_list_style(ListStyle style);
 
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
@@ -92,11 +105,18 @@ class TextInput : public Component {
         };
 
         void move_cursor(int new_cursor_position, bool extend_selection);
+        void move_cursor_vertical(int direction, bool extend_selection);
         void delete_selection();
         void blank_selection_with_spaces();
         bool insert_plain_text(const char* new_text, EditKind edit_kind);
         int get_cursor_position_from_event(const UIEvent& event) const;
         void ensure_format_length();
+
+        int get_line_start(int position) const;
+        int get_line_end(int position) const;
+        int get_list_prefix_length(int line_start) const;
+        bool line_matches_list_style(int line_start, ListStyle style) const;
+        void collect_target_line_starts(std::vector<int>& line_starts) const;
 
         bool copy_selection(Clipboard* clipboard) const;
         bool cut_selection(Clipboard* clipboard, CutMode cut_mode);
@@ -117,6 +137,8 @@ class TextInput : public Component {
         std::vector<TextFormat> character_formats;
         TextFormat typing_format;
         int max_length;
+        bool is_multiline;
+        int line_spacing;
         bool is_focused;
         TextSelection selection;
         bool is_mouse_selecting;

@@ -26,6 +26,8 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
       attachments_added_context(0),
       format_changed_handler(0),
       format_changed_context(0),
+      list_requested_handler(0),
+      list_requested_context(0),
       font_size(12) {
 
     get_style().background_color = Color(229, 240, 249);
@@ -73,10 +75,10 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     );
 
     list_button.set_text("List");
-    list_button.set_enabled(false);
-    list_button.get_style().background_color = Color(235, 235, 235);
-    list_button.get_style().foreground_color = Color(145, 145, 145);
-    list_button.get_style().border_color = Color(190, 190, 190);
+    list_button.set_enabled(true);
+    list_button.get_style().background_color = Color(238, 245, 251);
+    list_button.get_style().foreground_color = Color(26, 68, 108);
+    list_button.get_style().border_color = Color(132, 157, 181);
 
     emoji_button.set_text(":)");
     emoji_button.get_style().background_color = Color(238, 245, 251);
@@ -92,6 +94,11 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
         this
     );
 
+    list_panel.set_list_selected_handler(
+        MessageToolbar::on_list_selected,
+        this
+    );
+
     add_child(&attach_button);
     add_child(&bold_button);
     add_child(&italic_button);
@@ -100,6 +107,7 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     add_child(&list_button);
     add_child(&emoji_button);
     add_child(&attachment_status_label);
+    add_child(&list_panel);
     add_child(&emoji_panel);
 }
 
@@ -158,6 +166,14 @@ void MessageToolbar::set_format_changed_handler(
     format_changed_context = new_context;
 }
 
+void MessageToolbar::set_list_requested_handler(
+    ListRequestedHandler new_handler,
+    void* new_context
+) {
+    list_requested_handler = new_handler;
+    list_requested_context = new_context;
+}
+
 void MessageToolbar::set_attachment_count(int attachment_count) {
     if (attachment_count <= 0) {
         attachment_status_label.set_text("");
@@ -165,11 +181,7 @@ void MessageToolbar::set_attachment_count(int attachment_count) {
     }
 
     char status_text[64];
-    sprintf(
-        status_text,
-        "Files: %d",
-        attachment_count
-    );
+    sprintf(status_text, "Files: %d", attachment_count);
     attachment_status_label.set_text(status_text);
 }
 
@@ -190,10 +202,11 @@ int MessageToolbar::get_font_size() const {
 }
 
 bool MessageToolbar::contains_popup_point(int x, int y) const {
-    if (
-        emoji_panel.get_is_open() &&
-        emoji_panel.contains_point(x, y)
-    ) {
+    if (list_panel.get_is_open() && list_panel.contains_point(x, y)) {
+        return true;
+    }
+
+    if (emoji_panel.get_is_open() && emoji_panel.contains_point(x, y)) {
         return true;
     }
 
@@ -208,8 +221,10 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     const int font_width = 58;
     const int list_width = 46;
     const int emoji_width = 38;
+    const int list_popup_width = 128;
+    const int list_popup_height = 82;
     const int emoji_popup_width = 188;
-    const int emoji_popup_height = 48;
+    const int emoji_popup_height = 58;
 
     set_bounds(x, y, width, height);
 
@@ -241,7 +256,8 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
 
     cursor_x += font_width + gap;
 
-    list_button.set_bounds(cursor_x, control_y, list_width, control_height);
+    int list_x = cursor_x;
+    list_button.set_bounds(list_x, control_y, list_width, control_height);
     cursor_x += list_width + gap;
 
     int emoji_x = cursor_x;
@@ -258,6 +274,22 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
         control_y,
         remaining_width,
         control_height
+    );
+
+    int list_popup_x = list_x;
+    int maximum_list_x = x + width - padding - list_popup_width;
+    if (list_popup_x > maximum_list_x) {
+        list_popup_x = maximum_list_x;
+    }
+    if (list_popup_x < x + padding) {
+        list_popup_x = x + padding;
+    }
+
+    list_panel.arrange(
+        list_popup_x,
+        y + height + 2,
+        list_popup_width,
+        list_popup_height
     );
 
     int popup_x = emoji_x + emoji_width - emoji_popup_width;
@@ -301,24 +333,34 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         }
     }
 
-    if (
-        event.type == UIEvent::event_mouse_down &&
-        emoji_panel.get_is_open() &&
-        !emoji_panel.contains_point(event.x, event.y) &&
-        !emoji_button.contains_point(event.x, event.y)
-    ) {
-        emoji_panel.set_open(false);
-    }
+    if (event.type == UIEvent::event_mouse_down) {
+        if (
+            list_panel.get_is_open() &&
+            !list_panel.contains_point(event.x, event.y) &&
+            !list_button.contains_point(event.x, event.y)
+        ) {
+            list_panel.set_open(false);
+        }
 
-    if (
-        event.type == UIEvent::event_mouse_down &&
-        !font_size_combo.get_native_peer_active() &&
-        font_size_combo.contains_point(event.x, event.y)
-    ) {
-        emoji_panel.set_open(false);
+        if (
+            emoji_panel.get_is_open() &&
+            !emoji_panel.contains_point(event.x, event.y) &&
+            !emoji_button.contains_point(event.x, event.y)
+        ) {
+            emoji_panel.set_open(false);
+        }
+
+        if (
+            !font_size_combo.get_native_peer_active() &&
+            font_size_combo.contains_point(event.x, event.y)
+        ) {
+            list_panel.set_open(false);
+            emoji_panel.set_open(false);
+        }
     }
 
     bool attach_was_pressed = attach_button.get_is_pressed();
+    bool list_was_pressed = list_button.get_is_pressed();
     bool emoji_was_pressed = emoji_button.get_is_pressed();
     bool bold_was_checked = bold_button.get_is_checked();
     bool italic_was_checked = italic_button.get_is_checked();
@@ -344,8 +386,19 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         attach_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        list_panel.set_open(false);
         emoji_panel.set_open(false);
         open_attachment_dialog();
+        return true;
+    }
+
+    if (
+        list_was_pressed &&
+        list_button.contains_point(event.x, event.y)
+    ) {
+        font_size_combo.set_open(false);
+        emoji_panel.set_open(false);
+        list_panel.set_open(!list_panel.get_is_open());
         return true;
     }
 
@@ -354,6 +407,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         emoji_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        list_panel.set_open(false);
         emoji_panel.set_open(!emoji_panel.get_is_open());
         return true;
     }
@@ -373,6 +427,7 @@ void MessageToolbar::on_font_size_changed(
     MessageToolbar* toolbar = (MessageToolbar*)context;
     if (toolbar != 0) {
         toolbar->font_size = selected_value;
+        toolbar->list_panel.set_open(false);
         toolbar->emoji_panel.set_open(false);
         toolbar->notify_format_changed();
     }
@@ -395,6 +450,26 @@ void MessageToolbar::on_emoticon_selected(
             toolbar,
             alias,
             toolbar->insert_text_context
+        );
+    }
+}
+
+void MessageToolbar::on_list_selected(
+    ListPanel* panel,
+    ListPanel::ListStyle style,
+    void* context
+) {
+    (void)panel;
+
+    MessageToolbar* toolbar = (MessageToolbar*)context;
+    if (
+        toolbar != 0 &&
+        toolbar->list_requested_handler != 0
+    ) {
+        toolbar->list_requested_handler(
+            toolbar,
+            style,
+            toolbar->list_requested_context
         );
     }
 }

@@ -36,6 +36,10 @@ MessageComposer::MessageComposer(FileDialog* file_dialog)
         MessageComposer::on_toolbar_format_changed,
         this
     );
+    message_toolbar.set_list_requested_handler(
+        MessageComposer::on_toolbar_list_requested,
+        this
+    );
 
     add_child(&message_input_strip);
     add_child(&message_toolbar);
@@ -236,6 +240,29 @@ void MessageComposer::on_toolbar_format_changed(
         underline,
         font_size
     );
+}
+
+void MessageComposer::on_toolbar_list_requested(
+    MessageToolbar* toolbar,
+    ListPanel::ListStyle style,
+    void* context
+) {
+    (void)toolbar;
+
+    MessageComposer* composer = (MessageComposer*)context;
+    if (composer == 0) {
+        return;
+    }
+
+    TextInput::ListStyle input_style = TextInput::list_clear;
+
+    if (style == ListPanel::list_bulleted) {
+        input_style = TextInput::list_bulleted;
+    } else if (style == ListPanel::list_numbered) {
+        input_style = TextInput::list_numbered;
+    }
+
+    composer->message_input_strip.apply_list_style(input_style);
 }
 
 void MessageComposer::build_draft(MessageDraft& draft) const {

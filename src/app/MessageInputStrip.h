@@ -43,6 +43,8 @@ class MessageInputStrip : public Panel {
             int font_size
         );
 
+        bool apply_list_style(TextInput::ListStyle style);
+
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
 

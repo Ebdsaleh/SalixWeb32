@@ -1,9 +1,10 @@
 // =================================================================================
 // Filename:    framework/TextInput.cpp
 // Author:      Ebdsaleh
-// Description: Implements a backend-neutral single-line formatted text input.
+// Description: Implements a backend-neutral formatted text input.
 // =================================================================================
 
+#include <stdio.h>
 #include <string.h>
 #include <vector>
 
@@ -19,10 +20,41 @@
 namespace {
     const int control_character_y = 25;
     const int control_character_z = 26;
+
+    bool contains_line_start(
+        const std::vector<int>& line_starts,
+        int value
+    ) {
+        for (int index = 0; index < (int)line_starts.size(); ++index) {
+            if (line_starts[index] == value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void append_text_with_format(
+        std::string& destination_text,
+        std::vector<TextFormat>& destination_formats,
+        const char* source_text,
+        const TextFormat& format
+    ) {
+        if (source_text == 0) {
+            return;
+        }
+
+        for (int index = 0; source_text[index] != '\0'; ++index) {
+            destination_text += source_text[index];
+            destination_formats.push_back(format);
+        }
+    }
 }
 
 TextInput::TextInput()
     : max_length(120),
+      is_multiline(false),
+      line_spacing(2),
       is_focused(false),
       is_mouse_selecting(false),
       is_mouse_deselecting(false),
@@ -46,6 +78,23 @@ void TextInput::set_text(const char* new_text) {
     }
 
     text = new_text;
+
+    if (!is_multiline) {
+        for (int index = 0; index < (int)text.length(); ++index) {
+            if (text[index] == '\r' || text[index] == '\n' || text[index] == '\t') {
+                text[index] = ' ';
+            }
+        }
+    } else {
+        for (int index = 0; index < (int)text.length(); ++index) {
+            if (text[index] == '\r') {
+                text.erase(index, 1);
+                --index;
+            } else if (text[index] == '\t') {
+                text[index] = ' ';
+            }
+        }
+    }
 
     if ((int)text.length() > max_length) {
         text.erase(max_length);
@@ -85,6 +134,42 @@ void TextInput::set_max_length(int new_max_length) {
 
 int TextInput::get_max_length() const {
     return max_length;
+}
+
+void TextInput::set_multiline(bool new_is_multiline) {
+    if (is_multiline == new_is_multiline) {
+        return;
+    }
+
+    is_multiline = new_is_multiline;
+    end_edit_group();
+
+    if (!is_multiline) {
+        for (int index = 0; index < (int)text.length(); ++index) {
+            if (text[index] == '\r' || text[index] == '\n' || text[index] == '\t') {
+                text[index] = ' ';
+            }
+        }
+        clear_history();
+    }
+
+    selection.clamp_to_length((int)text.length());
+}
+
+bool TextInput::get_is_multiline() const {
+    return is_multiline;
+}
+
+void TextInput::set_line_spacing(int new_line_spacing) {
+    if (new_line_spacing < 0) {
+        new_line_spacing = 0;
+    }
+
+    line_spacing = new_line_spacing;
+}
+
+int TextInput::get_line_spacing() const {
+    return line_spacing;
 }
 
 void TextInput::set_focused(bool new_is_focused) {
@@ -212,7 +297,9 @@ void TextInput::set_text_format(
         }
 
         for (int position = start; position < end; ++position) {
-            character_formats[position] = new_format;
+            if (text[position] != '\n') {
+                character_formats[position] = new_format;
+            }
         }
     }
 
@@ -241,6 +328,134 @@ const TextFormat* TextInput::get_format_data() const {
 
 int TextInput::get_format_count() const {
     return (int)character_formats.size();
+}
+
+bool TextInput::apply_list_style(ListStyle style) {
+    if (!is_multiline) {
+        return false;
+    }
+
+    std::vector<int> line_starts;
+    collect_target_line_starts(line_starts);
+
+    if (line_starts.empty()) {
+        return false;
+    }
+
+    ListStyle effective_style = style;
+
+    if (style != list_clear) {
+        bool all_match = true;
+
+        for (int index = 0; index < (int)line_starts.size(); ++index) {
+            if (!line_matches_list_style(line_starts[index], style)) {
+                all_match = false;
+                break;
+            }
+        }
+
+        if (all_match) {
+            effective_style = list_clear;
+        }
+    }
+
+    ensure_format_length();
+
+    std::string new_text;
+    std::vector<TextFormat> new_formats;
+    int old_caret = selection.get_caret_position();
+    int mapped_caret = -1;
+    int line_start = 0;
+    int list_number = 1;
+    int text_length = (int)text.length();
+
+    while (line_start <= text_length) {
+        int line_end = get_line_end(line_start);
+        bool is_target = contains_line_start(line_starts, line_start);
+        int old_prefix_length = is_target
+            ? get_list_prefix_length(line_start)
+            : 0;
+
+        std::string prefix;
+
+        if (is_target && effective_style == list_bulleted) {
+            prefix = "* ";
+        } else if (is_target && effective_style == list_numbered) {
+            char number_text[32];
+            sprintf(number_text, "%d. ", list_number);
+            prefix = number_text;
+            ++list_number;
+        }
+
+        int new_line_start = (int)new_text.length();
+
+        if (!prefix.empty()) {
+            append_text_with_format(
+                new_text,
+                new_formats,
+                prefix.c_str(),
+                typing_format
+            );
+        }
+
+        int copy_start = line_start + old_prefix_length;
+        if (copy_start > line_end) {
+            copy_start = line_end;
+        }
+
+        for (int position = copy_start; position < line_end; ++position) {
+            new_text += text[position];
+            new_formats.push_back(character_formats[position]);
+        }
+
+        if (old_caret >= line_start && old_caret <= line_end) {
+            if (is_target && old_caret <= line_start + old_prefix_length) {
+                mapped_caret = new_line_start + (int)prefix.length();
+            } else {
+                int source_body_start = is_target
+                    ? line_start + old_prefix_length
+                    : line_start;
+                int relative_position = old_caret - source_body_start;
+                if (relative_position < 0) {
+                    relative_position = 0;
+                }
+
+                mapped_caret = new_line_start + (int)prefix.length() +
+                    relative_position;
+            }
+        }
+
+        if (line_end < text_length) {
+            new_text += '\n';
+
+            if (line_end < (int)character_formats.size()) {
+                new_formats.push_back(character_formats[line_end]);
+            } else {
+                new_formats.push_back(typing_format);
+            }
+
+            line_start = line_end + 1;
+        } else {
+            break;
+        }
+    }
+
+    if ((int)new_text.length() > max_length) {
+        return false;
+    }
+
+    begin_edit(edit_none);
+    text = new_text;
+    character_formats = new_formats;
+    ensure_format_length();
+
+    if (mapped_caret < 0) {
+        mapped_caret = (int)text.length();
+    }
+
+    selection.reset(mapped_caret, (int)text.length());
+    end_edit_group();
+    return true;
 }
 
 bool TextInput::accepts_mime_type(const char* mime_type) const {
@@ -346,14 +561,8 @@ bool TextInput::handle_event(const UIEvent& event) {
 
                 if (event.click_count >= 3) {
                     selection.remove_range(
-                        TextNavigation::find_line_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_line_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_line_start(text, new_cursor_position),
+                        TextNavigation::find_line_end(text, new_cursor_position),
                         text_length
                     );
                     selection.move_caret_preserving_selection(
@@ -363,14 +572,8 @@ bool TextInput::handle_event(const UIEvent& event) {
                     is_mouse_deselecting = false;
                 } else if (event.click_count == 2) {
                     selection.remove_range(
-                        TextNavigation::find_word_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_word_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_word_start(text, new_cursor_position),
+                        TextNavigation::find_word_end(text, new_cursor_position),
                         text_length
                     );
                     selection.move_caret_preserving_selection(
@@ -391,27 +594,15 @@ bool TextInput::handle_event(const UIEvent& event) {
             } else if (event.control_down) {
                 if (event.click_count >= 3) {
                     selection.select_range(
-                        TextNavigation::find_line_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_line_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_line_start(text, new_cursor_position),
+                        TextNavigation::find_line_end(text, new_cursor_position),
                         text_length,
                         true
                     );
                 } else if (event.click_count == 2) {
                     selection.select_range(
-                        TextNavigation::find_word_start(
-                            text,
-                            new_cursor_position
-                        ),
-                        TextNavigation::find_word_end(
-                            text,
-                            new_cursor_position
-                        ),
+                        TextNavigation::find_word_start(text, new_cursor_position),
+                        TextNavigation::find_word_end(text, new_cursor_position),
                         text_length,
                         true
                     );
@@ -426,14 +617,8 @@ bool TextInput::handle_event(const UIEvent& event) {
                 is_mouse_deselecting = false;
             } else if (event.click_count >= 3) {
                 selection.select_range(
-                    TextNavigation::find_line_start(
-                        text,
-                        new_cursor_position
-                    ),
-                    TextNavigation::find_line_end(
-                        text,
-                        new_cursor_position
-                    ),
+                    TextNavigation::find_line_start(text, new_cursor_position),
+                    TextNavigation::find_line_end(text, new_cursor_position),
                     text_length,
                     false
                 );
@@ -441,25 +626,15 @@ bool TextInput::handle_event(const UIEvent& event) {
                 is_mouse_deselecting = false;
             } else if (event.click_count == 2) {
                 selection.select_range(
-                    TextNavigation::find_word_start(
-                        text,
-                        new_cursor_position
-                    ),
-                    TextNavigation::find_word_end(
-                        text,
-                        new_cursor_position
-                    ),
+                    TextNavigation::find_word_start(text, new_cursor_position),
+                    TextNavigation::find_word_end(text, new_cursor_position),
                     text_length,
                     false
                 );
                 is_mouse_selecting = false;
                 is_mouse_deselecting = false;
             } else if (event.shift_down && is_focused) {
-                selection.move_caret(
-                    new_cursor_position,
-                    text_length,
-                    true
-                );
+                selection.move_caret(new_cursor_position, text_length, true);
                 is_mouse_selecting = true;
                 is_mouse_deselecting = false;
             } else {
@@ -497,10 +672,7 @@ bool TextInput::handle_event(const UIEvent& event) {
         return true;
     }
 
-    if (
-        event.type == UIEvent::event_mouse_up &&
-        is_mouse_deselecting
-    ) {
+    if (event.type == UIEvent::event_mouse_up && is_mouse_deselecting) {
         if (is_focused) {
             int new_cursor_position = get_cursor_position_from_event(event);
             int text_length = (int)text.length();
@@ -576,6 +748,16 @@ bool TextInput::handle_event(const UIEvent& event) {
                     );
                     return true;
 
+                case UIEvent::key_home:
+                    end_edit_group();
+                    move_cursor(0, event.shift_down);
+                    return true;
+
+                case UIEvent::key_end:
+                    end_edit_group();
+                    move_cursor((int)text.length(), event.shift_down);
+                    return true;
+
                 case UIEvent::key_a:
                     select_all();
                     return true;
@@ -633,14 +815,40 @@ bool TextInput::handle_event(const UIEvent& event) {
                 }
                 return true;
 
+            case UIEvent::key_up:
+                if (is_multiline) {
+                    end_edit_group();
+                    move_cursor_vertical(-1, event.shift_down);
+                    return true;
+                }
+                break;
+
+            case UIEvent::key_down:
+                if (is_multiline) {
+                    end_edit_group();
+                    move_cursor_vertical(1, event.shift_down);
+                    return true;
+                }
+                break;
+
             case UIEvent::key_home:
                 end_edit_group();
-                move_cursor(0, event.shift_down);
+                move_cursor(
+                    is_multiline
+                        ? get_line_start(selection.get_caret_position())
+                        : 0,
+                    event.shift_down
+                );
                 return true;
 
             case UIEvent::key_end:
                 end_edit_group();
-                move_cursor((int)text.length(), event.shift_down);
+                move_cursor(
+                    is_multiline
+                        ? get_line_end(selection.get_caret_position())
+                        : (int)text.length(),
+                    event.shift_down
+                );
                 return true;
 
             case UIEvent::key_delete:
@@ -712,6 +920,13 @@ bool TextInput::handle_event(const UIEvent& event) {
         return true;
     }
 
+    if (event.character_code == 13) {
+        if (is_multiline) {
+            insert_plain_text("\n", edit_typing);
+        }
+        return true;
+    }
+
     if (
         event.character_code >= 32 &&
         event.character_code <= 126
@@ -743,6 +958,45 @@ void TextInput::move_cursor(
         (int)text.length(),
         extend_selection
     );
+}
+
+void TextInput::move_cursor_vertical(
+    int direction,
+    bool extend_selection
+) {
+    int caret = selection.get_caret_position();
+    int current_start = get_line_start(caret);
+    int current_end = get_line_end(caret);
+    int column = caret - current_start;
+    int target_position = caret;
+
+    if (direction < 0) {
+        if (current_start <= 0) {
+            target_position = 0;
+        } else {
+            int previous_end = current_start - 1;
+            int previous_start = get_line_start(previous_end);
+            int previous_length = previous_end - previous_start;
+            if (column > previous_length) {
+                column = previous_length;
+            }
+            target_position = previous_start + column;
+        }
+    } else if (direction > 0) {
+        if (current_end >= (int)text.length()) {
+            target_position = (int)text.length();
+        } else {
+            int next_start = current_end + 1;
+            int next_end = get_line_end(next_start);
+            int next_length = next_end - next_start;
+            if (column > next_length) {
+                column = next_length;
+            }
+            target_position = next_start + column;
+        }
+    }
+
+    move_cursor(target_position, extend_selection);
 }
 
 void TextInput::delete_selection() {
@@ -817,7 +1071,9 @@ void TextInput::blank_selection_with_spaces() {
         }
 
         for (int position = start; position < end; ++position) {
-            text[position] = ' ';
+            if (text[position] != '\n') {
+                text[position] = ' ';
+            }
         }
     }
 
@@ -841,7 +1097,11 @@ bool TextInput::insert_plain_text(
             continue;
         }
 
-        if (character == '\n' || character == '\t') {
+        if (character == '\n') {
+            if (!is_multiline) {
+                character = ' ';
+            }
+        } else if (character == '\t') {
             character = ' ';
         }
 
@@ -858,10 +1118,7 @@ bool TextInput::insert_plain_text(
 
     bool will_delete_selection = selection.has_active_range();
 
-    if (
-        !will_delete_selection &&
-        (int)text.length() >= max_length
-    ) {
+    if (!will_delete_selection && (int)text.length() >= max_length) {
         return true;
     }
 
@@ -911,12 +1168,26 @@ int TextInput::get_cursor_position_from_event(
 
     int relative_x = event.x - get_x() - text_padding;
 
-    return event.text_metrics->get_formatted_character_index_at_x(
+    if (!is_multiline) {
+        return event.text_metrics->get_formatted_character_index_at_x(
+            text.c_str(),
+            (int)text.length(),
+            get_format_data(),
+            get_format_count(),
+            relative_x
+        );
+    }
+
+    int relative_y = event.y - get_y() - text_padding;
+
+    return event.text_metrics->get_formatted_character_index_at_point(
         text.c_str(),
         (int)text.length(),
         get_format_data(),
         get_format_count(),
-        relative_x
+        relative_x,
+        relative_y,
+        line_spacing
     );
 }
 
@@ -928,6 +1199,154 @@ void TextInput::ensure_format_length() {
             character_formats.begin() + text.length(),
             character_formats.end()
         );
+    }
+}
+
+int TextInput::get_line_start(int position) const {
+    if (position < 0) {
+        position = 0;
+    }
+
+    if (position > (int)text.length()) {
+        position = (int)text.length();
+    }
+
+    return TextNavigation::find_line_start(text, position);
+}
+
+int TextInput::get_line_end(int position) const {
+    if (position < 0) {
+        position = 0;
+    }
+
+    if (position > (int)text.length()) {
+        position = (int)text.length();
+    }
+
+    return TextNavigation::find_line_end(text, position);
+}
+
+int TextInput::get_list_prefix_length(int line_start) const {
+    int text_length = (int)text.length();
+
+    if (line_start < 0 || line_start >= text_length) {
+        return 0;
+    }
+
+    if (
+        line_start + 1 < text_length &&
+        (text[line_start] == '*' || text[line_start] == '-') &&
+        text[line_start + 1] == ' '
+    ) {
+        return 2;
+    }
+
+    int position = line_start;
+    bool found_digit = false;
+
+    while (
+        position < text_length &&
+        text[position] >= '0' &&
+        text[position] <= '9'
+    ) {
+        found_digit = true;
+        ++position;
+    }
+
+    if (
+        found_digit &&
+        position + 1 < text_length &&
+        text[position] == '.' &&
+        text[position + 1] == ' '
+    ) {
+        return position + 2 - line_start;
+    }
+
+    return 0;
+}
+
+bool TextInput::line_matches_list_style(
+    int line_start,
+    ListStyle style
+) const {
+    if (style == list_clear) {
+        return get_list_prefix_length(line_start) == 0;
+    }
+
+    if (line_start < 0 || line_start >= (int)text.length()) {
+        return false;
+    }
+
+    if (style == list_bulleted) {
+        return line_start + 1 < (int)text.length() &&
+            (text[line_start] == '*' || text[line_start] == '-') &&
+            text[line_start + 1] == ' ';
+    }
+
+    if (style == list_numbered) {
+        int position = line_start;
+        bool found_digit = false;
+
+        while (
+            position < (int)text.length() &&
+            text[position] >= '0' &&
+            text[position] <= '9'
+        ) {
+            found_digit = true;
+            ++position;
+        }
+
+        return found_digit &&
+            position + 1 < (int)text.length() &&
+            text[position] == '.' &&
+            text[position + 1] == ' ';
+    }
+
+    return false;
+}
+
+void TextInput::collect_target_line_starts(
+    std::vector<int>& line_starts
+) const {
+    line_starts.clear();
+
+    if (!has_selection()) {
+        line_starts.push_back(get_line_start(selection.get_caret_position()));
+        return;
+    }
+
+    std::vector<TextRange> ranges;
+    selection.get_normalized_ranges(ranges);
+
+    for (int range_index = 0; range_index < (int)ranges.size(); ++range_index) {
+        int range_start = ranges[range_index].start;
+        int range_end = ranges[range_index].end;
+
+        if (range_start < 0) {
+            range_start = 0;
+        }
+
+        if (range_end > (int)text.length()) {
+            range_end = (int)text.length();
+        }
+
+        int last_position = range_end > range_start
+            ? range_end - 1
+            : range_start;
+        int current_start = get_line_start(range_start);
+
+        while (current_start <= last_position) {
+            if (!contains_line_start(line_starts, current_start)) {
+                line_starts.push_back(current_start);
+            }
+
+            int current_end = get_line_end(current_start);
+            if (current_end >= (int)text.length()) {
+                break;
+            }
+
+            current_start = current_end + 1;
+        }
     }
 }
 

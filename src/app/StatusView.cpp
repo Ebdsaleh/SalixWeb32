@@ -143,7 +143,7 @@ void StatusView::layout(int width, int height) {
     const int outer_padding = 8;
     const int gap = 6;
     const int header_height = 58;
-    const int composer_height = 84;
+    const int composer_height = 132;
     const int sidebar_width = 190;
 
     client_width = width;

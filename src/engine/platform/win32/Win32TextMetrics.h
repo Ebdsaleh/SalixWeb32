@@ -39,6 +39,24 @@ class Win32TextMetrics : public TextMetrics {
             int pixel_x
         );
 
+        virtual int measure_formatted_text_height(
+            const char* text,
+            int text_length,
+            const TextFormat* formats,
+            int format_count,
+            int line_spacing
+        );
+
+        virtual int get_formatted_character_index_at_point(
+            const char* text,
+            int text_length,
+            const TextFormat* formats,
+            int format_count,
+            int pixel_x,
+            int pixel_y,
+            int line_spacing
+        );
+
     private:
         HDC device_context;
 };
