@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    app/StatusView.cpp
 // Author:      Ebdsaleh
-// Description: Implements the first backend-neutral SalixWeb32 application view.
+// Description: Implements the backend-neutral SalixWeb32 status view.
 // =================================================================================
 
 #include <stdio.h>
@@ -24,38 +24,28 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     web_backend_label.set_horizontal_alignment(Label::align_center);
     runtime_status_label.set_horizontal_alignment(Label::align_center);
     client_size_label.set_horizontal_alignment(Label::align_center);
+
+    status_stack.set_orientation(StackPanel::orientation_vertical);
+    status_stack.set_item_extent(30);
+    status_stack.set_spacing(0);
+
+    status_stack.add_child(&runtime_label);
+    status_stack.add_child(&host_label);
+    status_stack.add_child(&web_backend_label);
+    status_stack.add_child(&runtime_status_label);
+    status_stack.add_child(&client_size_label);
 }
 
 void StatusView::layout(int width, int height) {
     client_width = width;
     client_height = height;
 
-    layout_label(runtime_label, -60);
-    layout_label(host_label, -30);
-    layout_label(web_backend_label, 0);
-    layout_label(runtime_status_label, 30);
-    layout_label(client_size_label, 60);
+    status_stack.arrange(0, 0, client_width, client_height);
 }
 
 void StatusView::render(ComponentRenderer& renderer) {
     update_dynamic_text();
-
-    runtime_label.render(renderer);
-    host_label.render(renderer);
-    web_backend_label.render(renderer);
-    runtime_status_label.render(renderer);
-    client_size_label.render(renderer);
-}
-
-void StatusView::layout_label(Label& label, int y_offset) {
-    int center_y = client_height / 2;
-
-    label.set_bounds(
-        0,
-        center_y + y_offset - 15,
-        client_width,
-        30
-    );
+    status_stack.render(renderer);
 }
 
 void StatusView::update_dynamic_text() {

@@ -74,4 +74,43 @@ Phase 1 exit criteria are satisfied on the primary target:
 - status rendering is stable,
 - and shutdown is clean.
 
-Phase 2 framework/presentation separation may proceed from this baseline.
+The validated Phase 1 baseline is tagged:
+
+```text
+v0.0.1
+```
+
+## 2026-09-15 — Phase 2 presentation-separation validation
+
+The first Phase 2 tranche was rebuilt and run on the Pentium 4 target.
+
+Validated commit:
+
+```text
+c3a3406 Begin Phase 2 framework presentation separation
+```
+
+Validated behavior:
+
+- Visual C++ 7.1 accepts the new framework/presentation split.
+- `StatusView` renders through the backend-neutral `View` contract.
+- status text is represented by framework `Label` components.
+- Win32-specific text drawing is isolated behind `Win32ComponentRenderer`.
+- live runtime service/update status continues to refresh correctly.
+- client-area dimensions continue to track resizing correctly.
+- repaint behavior remains clean without ghosted text.
+
+This confirms that the application view can be separated from Win32 drawing calls without changing the visible behavior on the target machine.
+
+## Current Phase 2 validation target
+
+The current tranche adds:
+
+- a backend-neutral `Container`,
+- non-owning child registration/removal,
+- ordered child rendering,
+- `StackPanel` vertical and horizontal layout modes,
+- automatic centered row/column arrangement,
+- migration of the status screen from manual label positioning to the stack layout.
+
+These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.

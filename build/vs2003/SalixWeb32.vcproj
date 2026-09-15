@@ -96,7 +96,9 @@
 			<File RelativePath="..\..\src\main.cpp"/>
 			<File RelativePath="..\..\src\app\StatusView.cpp"/>
 			<File RelativePath="..\..\src\framework\Component.cpp"/>
+			<File RelativePath="..\..\src\framework\Container.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
+			<File RelativePath="..\..\src\framework\StackPanel.cpp"/>
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.cpp"/>
 			<File RelativePath="..\..\src\runtime\Diagnostics.cpp"/>
 			<File RelativePath="..\..\src\runtime\RuntimeStatusService.cpp"/>
@@ -107,7 +109,9 @@
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\app\StatusView.h"/>
 			<File RelativePath="..\..\src\framework\Component.h"/>
+			<File RelativePath="..\..\src\framework\Container.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
+			<File RelativePath="..\..\src\framework\StackPanel.h"/>
 			<File RelativePath="..\..\src\framework\View.h"/>
 			<File RelativePath="..\..\src\framework\rendering\ComponentRenderer.h"/>
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.h"/>

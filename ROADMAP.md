@@ -21,7 +21,7 @@ Status legend:
 - [x] Create initial Git repository
 - [ ] Select license
 - [x] Establish coding conventions
-- [ ] Add first tagged baseline once skeleton builds
+- [x] Add first tagged baseline once skeleton builds (`v0.0.1`)
 
 **Exit criterion:** repository exists with documentation and agreed source layout.
 
@@ -51,17 +51,21 @@ See `docs/VALIDATION.md` for target-hardware results.
 
 Goal: reproduce the useful architectural separation demonstrated by SalixTorrent.
 
-- [ ] semantic `Component` base
-- [ ] container component
-- [ ] label
+- [x] semantic `Component` base
+- [~] container component
+- [x] label
 - [ ] button
 - [ ] text input
-- [ ] basic row/column layout concepts
+- [~] basic row/column layout concepts
 - [ ] event dispatch
 - [ ] styling primitives
-- [ ] `ComponentRenderer` contract
-- [ ] Win32 component renderer
-- [ ] application view independent of Win32 calls
+- [x] `ComponentRenderer` contract
+- [x] Win32 component renderer
+- [x] application view independent of Win32 calls
+
+The first Phase 2 tranche (`c3a3406`) has been validated on the Pentium 4 target. The status screen now travels through backend-neutral `View`, `Component`, and `Label` objects and a `ComponentRenderer` contract, while Win32-specific drawing remains inside `Win32ComponentRenderer`.
+
+The current tranche introduces a backend-neutral `Container` plus `StackPanel` row/column layout. These remain active until rebuilt and exercised on the target system.
 
 **Exit criterion:** application UI is described through framework components and rendered by the Win32 backend.
 
