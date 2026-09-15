@@ -55,9 +55,9 @@ A future `WebPlatformBackend` boundary will allow the application to use differe
 
 ## Current state
 
-The Phase 1 native Win32 skeleton is running on the target Pentium 4 hardware. The same executable has been smoke-tested successfully on Windows Server 2003 SP2 x86 and a MiniXP environment.
+Phase 1 is complete and validated on the target Pentium 4 under Windows Server 2003 SP2 x86. The same executable has also passed a MiniXP smoke test.
 
-Current development is hardening the native runtime foundation: service lifecycle dispatch, runtime status instrumentation, resize handling, diagnostics, and clean shutdown behavior.
+Phase 2 is now introducing framework/presentation separation. The first tranche moves the status screen behind backend-neutral `View`, `Component`, `Label`, and `ComponentRenderer` contracts, with Win32 rendering supplied by a concrete presentation backend.
 
 See:
 

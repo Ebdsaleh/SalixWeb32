@@ -8,6 +8,7 @@
 
 #include "runtime/ApplicationRuntime.h"
 #include "runtime/Diagnostics.h"
+#include "app/StatusView.h"
 #include "engine/application_hosts/Win32ApplicationHost.h"
 
 int APIENTRY WinMain(
@@ -17,6 +18,7 @@ int APIENTRY WinMain(
     int show_command
 ) {
     ApplicationRuntime application_runtime;
+    StatusView status_view(&application_runtime);
     Win32ApplicationHost application_host;
 
     (void)previous_instance_handle;
@@ -37,7 +39,8 @@ int APIENTRY WinMain(
     if (!application_host.initialize(
             instance_handle,
             show_command,
-            &application_runtime
+            &application_runtime,
+            &status_view
         )) {
         MessageBoxA(
             NULL,

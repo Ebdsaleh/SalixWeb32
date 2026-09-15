@@ -8,6 +8,7 @@
 #include <windows.h>
 
 class ApplicationRuntime;
+class View;
 
 class Win32ApplicationHost {
     public:
@@ -16,7 +17,8 @@ class Win32ApplicationHost {
         bool initialize(
             HINSTANCE instance_handle,
             int show_command,
-            ApplicationRuntime* application_runtime
+            ApplicationRuntime* application_runtime,
+            View* application_view
         );
 
         int run();
@@ -39,10 +41,12 @@ class Win32ApplicationHost {
 
         void paint_window(HWND window_handle);
         void update_client_size(HWND window_handle);
+        void layout_application_view();
 
         HINSTANCE instance_handle;
         HWND window_handle;
         ApplicationRuntime* application_runtime;
+        View* application_view;
         int client_width;
         int client_height;
         bool is_initialized;
