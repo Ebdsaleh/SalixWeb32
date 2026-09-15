@@ -102,15 +102,41 @@ Validated behavior:
 
 This confirms that the application view can be separated from Win32 drawing calls without changing the visible behavior on the target machine.
 
+## 2026-09-15 — Phase 2 container/layout validation
+
+The container and stack-layout tranche was rebuilt and run on the Pentium 4 target.
+
+Validated commit:
+
+```text
+01892b6 Add container and stack layout framework
+```
+
+Validated behavior:
+
+- Visual C++ 7.1 accepts the new `Container` and `StackPanel` classes.
+- the status screen renders through the container child hierarchy.
+- vertical stack layout reproduces the previous status presentation.
+- live status updates continue to render correctly.
+- resizing keeps the component stack centered.
+- normal shutdown remains functional.
+
+The visible output remained intentionally identical to the pre-container build, confirming that layout responsibility moved into the framework without changing application behavior.
+
 ## Current Phase 2 validation target
 
-The current tranche adds:
+The current interactive framework tranche adds:
 
-- a backend-neutral `Container`,
-- non-owning child registration/removal,
-- ordered child rendering,
-- `StackPanel` vertical and horizontal layout modes,
-- automatic centered row/column arrangement,
-- migration of the status screen from manual label positioning to the stack layout.
+- backend-neutral `UIEvent` mouse, keyboard, and character events,
+- event dispatch through `View`, `Container`, and framework components,
+- backend-neutral `Button` and `TextInput` components,
+- button hover/pressed state and click callbacks,
+- text-input focus, printable character entry, and backspace handling,
+- backend-neutral `Color` and `ComponentStyle` primitives,
+- Win32 rendering for styled labels, buttons, and text inputs,
+- Win32 mouse/keyboard translation into framework events,
+- mouse capture during button interactions,
+- a bounded cross-axis extent for `StackPanel`,
+- an interactive status-screen test that accepts text and applies it through a framework button.
 
 These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.
