@@ -123,20 +123,47 @@ Validated behavior:
 
 The visible output remained intentionally identical to the pre-container build, confirming that layout responsibility moved into the framework without changing application behavior.
 
-## Current Phase 2 validation target
+## 2026-09-15 — Phase 2 interactive-control validation
 
-The current interactive framework tranche adds:
+The interactive framework tranche was rebuilt and exercised on the target Pentium 4.
 
-- backend-neutral `UIEvent` mouse, keyboard, and character events,
-- event dispatch through `View`, `Container`, and framework components,
-- backend-neutral `Button` and `TextInput` components,
-- button hover/pressed state and click callbacks,
-- text-input focus, printable character entry, and backspace handling,
-- backend-neutral `Color` and `ComponentStyle` primitives,
-- Win32 rendering for styled labels, buttons, and text inputs,
-- Win32 mouse/keyboard translation into framework events,
-- mouse capture during button interactions,
-- a bounded cross-axis extent for `StackPanel`,
-- an interactive status-screen test that accepts text and applies it through a framework button.
+Relevant commits:
+
+```text
+e574395 Add interactive framework controls and event dispatch
+93b54f0 Fixed missing 'UIEvent.h' include directive
+```
+
+The first rebuild exposed one compile error: `Component.cpp` used `UIEvent` without including its definition. The missing `#include "UIEvent.h"` directive was added and pushed from the target machine. The corrected build then compiled, linked, and ran successfully.
+
+Validated behavior:
+
+- backend-neutral `Button` renders and reacts to pointer interaction,
+- backend-neutral `TextInput` accepts focus and text entry,
+- printable character input and Backspace operate,
+- framework events travel from Win32 messages through `View` and `Container`,
+- button callbacks update application state,
+- style primitives render through the Win32 backend,
+- the interactive controls remain responsive while runtime status continues updating,
+- resize behavior remains functional,
+- and normal shutdown remains clean.
+
+This validates the core Phase 2 interaction path on VC7.1 and the Server 2003 target.
+
+## Current Phase 2 layout validation target
+
+The current messenger-style layout tranche adds:
+
+- a styled backend-neutral `Panel` component,
+- Win32 rendering for panel backgrounds and borders,
+- start/center/end main-axis alignment for `StackPanel`,
+- a reusable application-level `MessageInputStrip`,
+- a text field that expands to consume available width,
+- a Send button anchored at the right edge of the strip,
+- a configurable `bool submit_on_enter` property with getter/setter,
+- Enter-to-submit when the text field is focused,
+- automatic clearing of the composer after submission,
+- a late-2000s messenger-inspired shell with header, conversation surface, diagnostics sidebar, and bottom composer,
+- responsive sidebar hiding when the window becomes too narrow.
 
 These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.
