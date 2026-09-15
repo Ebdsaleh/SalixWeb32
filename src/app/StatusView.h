@@ -6,7 +6,6 @@
 #pragma once
 
 #include "framework/View.h"
-#include "framework/Container.h"
 #include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
@@ -36,7 +35,7 @@ class StatusView : public View {
         int client_width;
         int client_height;
 
-        Container root_container;
+        Panel root_panel;
 
         Panel header_panel;
         Label header_title_label;
