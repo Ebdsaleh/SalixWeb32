@@ -204,9 +204,9 @@ Validated behavior:
 
 This validation exposed the next input-control gaps: there was no mouse or keyboard text selection and no copy/cut/paste path.
 
-## Current Phase 2 selection / clipboard validation target
+## Current Phase 2 selection / clipboard / word-navigation target
 
-The current tranche adds:
+The current input tranche now includes:
 
 - selection anchor/caret state inside `TextInput`,
 - Shift+Left/Right/Home/End keyboard selection,
@@ -219,14 +219,22 @@ The current tranche adds:
 - `MimeData` as a MIME-tagged clipboard/input payload rather than hard-coding clipboard text into controls,
 - `MessageInputStrip::accepts_mime_type()` and `insert_mime_data()` as the first MIME-aware composer boundary,
 - Win32 selection-highlight rendering and a real caret line,
-- and backend-neutral `TextMetrics` for precise mouse hit-testing without leaking GDI calls into `TextInput`.
+- backend-neutral `TextMetrics` for precise mouse hit-testing without leaking GDI calls into controls,
+- shared backend-neutral `TextNavigation` word-boundary helpers,
+- Ctrl+Left / Ctrl+Right word-boundary movement,
+- Ctrl+Shift+Left / Ctrl+Shift+Right stacked word selection,
+- optional selectable/read-only `Label` behavior,
+- mouse character selection and keyboard selection inside selectable labels,
+- and Ctrl+A / Ctrl+C for read-only label text.
 
-The current single-line control accepts `text/plain`. The MIME boundary is intentionally broader than the present control so a later rich composer can add formats such as `text/html`, URI/file payloads, or attachment/image types without changing the application-level message-strip contract.
+The current single-line input accepts `text/plain`. The MIME boundary is intentionally broader than the present control so a later rich composer can add formats such as `text/html`, URI/file payloads, or attachment/image types without changing the application-level message-strip contract.
+
+The conversation message label is now configured as selectable while remaining read-only. It is intended to prove the interaction model before the single-label conversation surface is replaced by a proper message-history view.
 
 These items remain pending target-hardware validation on VC7.1 / Server 2003 and MiniXP.
 
 ## Known conversation-surface limitation
 
-The messenger shell currently uses a single `Label` for submitted conversation text. Each new submission therefore replaces the previous displayed message. This is intentionally left as a known limitation while the text-input/clipboard behavior is hardened first.
+The messenger shell still uses a single `Label` for submitted conversation text. Each new submission therefore replaces the previous displayed message. The label is now read-only/selectable, but persistence is intentionally left for the next conversation-surface tranche.
 
 The next conversation-surface tranche should introduce an append-only message model and a scrollable conversation view suitable for alternating local/remote relay messages rather than mutating one display label.

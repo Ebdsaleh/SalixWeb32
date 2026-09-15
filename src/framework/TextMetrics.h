@@ -9,6 +9,11 @@ class TextMetrics {
     public:
         virtual ~TextMetrics() {}
 
+        virtual int measure_text_width(
+            const char* text,
+            int text_length
+        ) = 0;
+
         virtual int get_character_index_at_x(
             const char* text,
             int text_length,

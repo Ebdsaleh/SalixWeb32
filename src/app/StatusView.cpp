@@ -44,6 +44,8 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     runtime_status_label.set_horizontal_alignment(Label::align_left);
     client_size_label.set_horizontal_alignment(Label::align_left);
 
+    conversation_message_label.set_selectable(true);
+
     root_panel.get_style().background_color = Color(232, 241, 249);
     root_panel.get_style().border_width = 0;
 

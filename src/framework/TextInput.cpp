@@ -11,6 +11,7 @@
 #include "Clipboard.h"
 #include "MimeData.h"
 #include "TextMetrics.h"
+#include "TextNavigation.h"
 #include "rendering/ComponentRenderer.h"
 
 TextInput::TextInput()
@@ -192,6 +193,26 @@ bool TextInput::handle_event(const UIEvent& event) {
     if (event.type == UIEvent::event_key_down) {
         if (event.control_down) {
             switch (event.key_code) {
+                case UIEvent::key_left:
+                    move_cursor(
+                        TextNavigation::find_word_boundary_left(
+                            text,
+                            cursor_position
+                        ),
+                        event.shift_down
+                    );
+                    return true;
+
+                case UIEvent::key_right:
+                    move_cursor(
+                        TextNavigation::find_word_boundary_right(
+                            text,
+                            cursor_position
+                        ),
+                        event.shift_down
+                    );
+                    return true;
+
                 case UIEvent::key_a:
                     select_all();
                     return true;

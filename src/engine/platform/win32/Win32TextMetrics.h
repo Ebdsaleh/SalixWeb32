@@ -13,6 +13,11 @@ class Win32TextMetrics : public TextMetrics {
     public:
         Win32TextMetrics(HDC device_context);
 
+        virtual int measure_text_width(
+            const char* text,
+            int text_length
+        );
+
         virtual int get_character_index_at_x(
             const char* text,
             int text_length,

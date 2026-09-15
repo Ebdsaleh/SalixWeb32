@@ -10,6 +10,41 @@ Win32TextMetrics::Win32TextMetrics(HDC new_device_context)
     : device_context(new_device_context) {
 }
 
+int Win32TextMetrics::measure_text_width(
+    const char* text,
+    int text_length
+) {
+    if (
+        device_context == NULL ||
+        text == 0 ||
+        text_length <= 0
+    ) {
+        return 0;
+    }
+
+    HFONT gui_font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    HGDIOBJ previous_font = SelectObject(device_context, gui_font);
+
+    SIZE text_size;
+    text_size.cx = 0;
+    text_size.cy = 0;
+
+    if (!GetTextExtentPoint32A(
+            device_context,
+            text,
+            text_length,
+            &text_size
+        )) {
+        text_size.cx = 0;
+    }
+
+    if (previous_font != NULL && previous_font != HGDI_ERROR) {
+        SelectObject(device_context, previous_font);
+    }
+
+    return text_size.cx;
+}
+
 int Win32TextMetrics::get_character_index_at_x(
     const char* text,
     int text_length,
