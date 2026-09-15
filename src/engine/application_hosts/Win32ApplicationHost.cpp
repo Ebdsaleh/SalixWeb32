@@ -250,6 +250,15 @@ void Win32ApplicationHost::paint_window(HWND current_window_handle) {
     RECT client_rect;
     GetClientRect(current_window_handle, &client_rect);
 
+    // WM_TIMER invalidates the window without requesting a background erase.
+    // Clear the client area here so changing status text cannot accumulate
+    // stale glyphs between paint cycles.
+    FillRect(
+        device_context,
+        &client_rect,
+        GetSysColorBrush(COLOR_WINDOW)
+    );
+
     HFONT gui_font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     HFONT old_font = (HFONT)SelectObject(device_context, gui_font);
 
