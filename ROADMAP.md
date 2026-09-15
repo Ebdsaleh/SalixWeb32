@@ -52,20 +52,20 @@ See `docs/VALIDATION.md` for target-hardware results.
 Goal: reproduce the useful architectural separation demonstrated by SalixTorrent.
 
 - [x] semantic `Component` base
-- [~] container component
+- [x] container component
 - [x] label
-- [ ] button
-- [ ] text input
-- [~] basic row/column layout concepts
-- [ ] event dispatch
-- [ ] styling primitives
+- [~] button
+- [~] text input
+- [x] basic row/column layout concepts
+- [~] event dispatch
+- [~] styling primitives
 - [x] `ComponentRenderer` contract
 - [x] Win32 component renderer
 - [x] application view independent of Win32 calls
 
-The first Phase 2 tranche (`c3a3406`) has been validated on the Pentium 4 target. The status screen now travels through backend-neutral `View`, `Component`, and `Label` objects and a `ComponentRenderer` contract, while Win32-specific drawing remains inside `Win32ComponentRenderer`.
+Validated Phase 2 foundations now include the backend-neutral `View`, `Component`, `Label`, `Container`, and `StackPanel` layers plus the Win32 component renderer. The status screen has been rebuilt successfully on the Pentium 4 through both the presentation-separation and container/layout tranches.
 
-The current tranche introduces a backend-neutral `Container` plus `StackPanel` row/column layout. These remain active until rebuilt and exercised on the target system.
+The current interactive tranche introduces `UIEvent`, `Button`, `TextInput`, backend-neutral style primitives, Win32 mouse/keyboard translation, and a live input/button test in `StatusView`. These remain active until rebuilt and exercised on the target system.
 
 **Exit criterion:** application UI is described through framework components and rendered by the Win32 backend.
 
