@@ -9,8 +9,6 @@
 
 #include "framework/rendering/ComponentRenderer.h"
 
-class Color;
-
 class Win32ComponentRenderer : public ComponentRenderer {
     public:
         Win32ComponentRenderer(HDC device_context);
