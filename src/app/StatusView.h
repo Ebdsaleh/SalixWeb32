@@ -10,6 +10,7 @@
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
 #include "MessageInputStrip.h"
+#include "ConversationView.h"
 
 class ApplicationRuntime;
 
@@ -44,7 +45,7 @@ class StatusView : public View {
         Panel conversation_panel;
         Label conversation_title_label;
         Label conversation_hint_label;
-        Label conversation_message_label;
+        ConversationView conversation_view;
 
         Panel sidebar_panel;
         Label sidebar_title_label;

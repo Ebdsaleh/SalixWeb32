@@ -94,6 +94,7 @@
 	<Files>
 		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
 			<File RelativePath="..\..\src\main.cpp"/>
+			<File RelativePath="..\..\src\app\ConversationView.cpp"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.cpp"/>
 			<File RelativePath="..\..\src\app\StatusView.cpp"/>
 			<File RelativePath="..\..\src\framework\Button.cpp"/>
@@ -116,6 +117,7 @@
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
+			<File RelativePath="..\..\src\app\ConversationView.h"/>
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
 			<File RelativePath="..\..\src\framework\Button.h"/>

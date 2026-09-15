@@ -10,7 +10,7 @@ The discontinuous-selection and paste-mode implementation from:
 ad147f1 Add discontinuous text selection and paste modes
 ```
 
-was rebuilt and exercised successfully on the Pentium 4 / Windows Server 2003 target with Visual C++ 7.1.
+was rebuilt and exercised successfully on the Pentium 4 with Visual C++ 7.1 under both Windows Server 2003 SP2 x86 and MiniXP.
 
 Observed behavior:
 

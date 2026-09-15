@@ -23,9 +23,6 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     conversation_hint_label.set_text(
         "Web backend not loaded - local UI messages are shown below."
     );
-    conversation_message_label.set_text(
-        "System: Framework components online."
-    );
 
     sidebar_title_label.set_text("Connection");
     runtime_label.set_text("Runtime: operational");
@@ -36,15 +33,12 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
     header_subtitle_label.set_horizontal_alignment(Label::align_left);
     conversation_title_label.set_horizontal_alignment(Label::align_left);
     conversation_hint_label.set_horizontal_alignment(Label::align_left);
-    conversation_message_label.set_horizontal_alignment(Label::align_left);
     sidebar_title_label.set_horizontal_alignment(Label::align_left);
     runtime_label.set_horizontal_alignment(Label::align_left);
     host_label.set_horizontal_alignment(Label::align_left);
     web_backend_label.set_horizontal_alignment(Label::align_left);
     runtime_status_label.set_horizontal_alignment(Label::align_left);
     client_size_label.set_horizontal_alignment(Label::align_left);
-
-    conversation_message_label.set_selectable(true);
 
     root_panel.get_style().background_color = Color(232, 241, 249);
     root_panel.get_style().border_width = 0;
@@ -62,7 +56,6 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
 
     conversation_title_label.get_style().foreground_color = Color(35, 76, 112);
     conversation_hint_label.get_style().foreground_color = Color(104, 118, 130);
-    conversation_message_label.get_style().foreground_color = Color(28, 28, 28);
 
     sidebar_panel.get_style().background_color = Color(238, 246, 252);
     sidebar_panel.get_style().border_color = Color(168, 194, 216);
@@ -91,7 +84,11 @@ StatusView::StatusView(ApplicationRuntime* new_application_runtime)
 
     conversation_panel.add_child(&conversation_title_label);
     conversation_panel.add_child(&conversation_hint_label);
-    conversation_panel.add_child(&conversation_message_label);
+    conversation_panel.add_child(&conversation_view);
+
+    conversation_view.append_system_message(
+        "Framework components online."
+    );
 
     sidebar_panel.add_child(&sidebar_title_label);
     sidebar_panel.add_child(&diagnostics_stack);
@@ -201,11 +198,16 @@ void StatusView::layout(int width, int height) {
         20
     );
 
-    conversation_message_label.set_bounds(
-        outer_padding + 14,
-        body_y + 72,
-        conversation_width - 28,
-        28
+    int conversation_view_height = body_height - 74;
+    if (conversation_view_height < 0) {
+        conversation_view_height = 0;
+    }
+
+    conversation_view.arrange(
+        outer_padding + 10,
+        body_y + 64,
+        conversation_width - 20,
+        conversation_view_height
     );
 
     if (show_sidebar) {
@@ -283,17 +285,9 @@ void StatusView::update_dynamic_text() {
 }
 
 void StatusView::show_submitted_message(const char* text) {
-    char result_text[256];
-
     if (text == 0 || text[0] == '\0') {
         return;
     }
 
-    sprintf(
-        result_text,
-        "You: %s",
-        text
-    );
-
-    conversation_message_label.set_text(result_text);
+    conversation_view.append_local_message(text);
 }
