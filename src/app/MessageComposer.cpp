@@ -103,6 +103,10 @@ int MessageComposer::get_font_size() const {
     return message_toolbar.get_font_size();
 }
 
+bool MessageComposer::contains_popup_point(int x, int y) const {
+    return message_toolbar.contains_popup_point(x, y);
+}
+
 void MessageComposer::arrange(int x, int y, int width, int height) {
     const int toolbar_height = 34;
     const int gap = 2;

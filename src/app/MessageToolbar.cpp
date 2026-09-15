@@ -150,6 +150,17 @@ int MessageToolbar::get_font_size() const {
     return font_size;
 }
 
+bool MessageToolbar::contains_popup_point(int x, int y) const {
+    if (
+        emoji_panel.get_is_open() &&
+        emoji_panel.contains_point(x, y)
+    ) {
+        return true;
+    }
+
+    return font_size_combo.contains_open_popup_point(x, y);
+}
+
 void MessageToolbar::arrange(int x, int y, int width, int height) {
     const int padding = 4;
     const int gap = 4;

@@ -41,6 +41,7 @@ class ComboBox : public Container {
 
         void set_open(bool new_is_open);
         bool get_is_open() const;
+        bool contains_open_popup_point(int x, int y) const;
 
         void set_enabled(bool new_is_enabled);
         bool get_is_enabled() const;

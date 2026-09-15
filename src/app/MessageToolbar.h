@@ -52,6 +52,8 @@ class MessageToolbar : public Panel {
         bool get_underline() const;
         int get_font_size() const;
 
+        bool contains_popup_point(int x, int y) const;
+
         void arrange(int x, int y, int width, int height);
 
         virtual bool handle_event(const UIEvent& event);

@@ -259,27 +259,23 @@ void StatusView::layout(int width, int height) {
 }
 
 bool StatusView::handle_event(const UIEvent& event) {
-    // The composer may show popups above its nominal bounds. Dispatch it first
-    // and stop when handled so popup clicks cannot leak into conversation text.
-    if (message_composer.handle_event(event)) {
-        return true;
+    bool is_mouse_event =
+        event.type == UIEvent::event_mouse_move ||
+        event.type == UIEvent::event_mouse_down ||
+        event.type == UIEvent::event_mouse_up;
+
+    // Popup surfaces extend outside the composer's normal bounds. When the
+    // pointer is over an open popup, consume that event through the composer
+    // before the normal root dispatch so conversation/input controls below it
+    // cannot receive the same click.
+    if (
+        is_mouse_event &&
+        message_composer.contains_popup_point(event.x, event.y)
+    ) {
+        return message_composer.handle_event(event);
     }
 
-    bool was_handled = false;
-
-    if (sidebar_panel.handle_event(event)) {
-        was_handled = true;
-    }
-
-    if (conversation_panel.handle_event(event)) {
-        was_handled = true;
-    }
-
-    if (header_panel.handle_event(event)) {
-        was_handled = true;
-    }
-
-    return was_handled;
+    return root_panel.handle_event(event);
 }
 
 void StatusView::render(ComponentRenderer& renderer) {

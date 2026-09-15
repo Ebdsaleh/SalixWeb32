@@ -115,6 +115,10 @@ bool ComboBox::get_is_open() const {
     return is_open;
 }
 
+bool ComboBox::contains_open_popup_point(int x, int y) const {
+    return is_open && contains_option_point(x, y);
+}
+
 void ComboBox::set_enabled(bool new_is_enabled) {
     is_enabled = new_is_enabled;
     main_button.set_enabled(is_enabled);
