@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject
+	ProjectType="Visual C++"
+	Version="7.10"
+	Name="SalixWeb32"
+	ProjectGUID="{D8E4AB59-0F48-4F74-A718-490D7E1C8320}"
+	Keyword="Win32Proj">
+	<Platforms>
+		<Platform Name="Win32"/>
+	</Platforms>
+	<Configurations>
+		<Configuration
+			Name="Debug|Win32"
+			OutputDirectory="..\..\bin\Debug"
+			IntermediateDirectory="..\..\obj\Debug"
+			ConfigurationType="1"
+			CharacterSet="2">
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="0"
+				AdditionalIncludeDirectories="..\..\src"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
+				MinimalRebuild="TRUE"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="1"
+				UsePrecompiledHeader="0"
+				WarningLevel="4"
+				Detect64BitPortabilityProblems="FALSE"
+				DebugInformationFormat="4"/>
+			<Tool Name="VCCustomBuildTool"/>
+			<Tool Name="VCLinkerTool"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib"
+				OutputFile="$(OutDir)/SalixWeb32.exe"
+				LinkIncremental="2"
+				GenerateDebugInformation="TRUE"
+				ProgramDatabaseFile="$(OutDir)/SalixWeb32.pdb"
+				SubSystem="2"
+				TargetMachine="1"/>
+			<Tool Name="VCMIDLTool"/>
+			<Tool Name="VCPostBuildEventTool"/>
+			<Tool Name="VCPreBuildEventTool"/>
+			<Tool Name="VCPreLinkEventTool"/>
+			<Tool Name="VCResourceCompilerTool"/>
+			<Tool Name="VCWebServiceProxyGeneratorTool"/>
+			<Tool Name="VCXMLDataGeneratorTool"/>
+			<Tool Name="VCWebDeploymentTool"/>
+			<Tool Name="VCManagedWrapperGeneratorTool"/>
+			<Tool Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+		</Configuration>
+		<Configuration
+			Name="Release|Win32"
+			OutputDirectory="..\..\bin\Release"
+			IntermediateDirectory="..\..\obj\Release"
+			ConfigurationType="1"
+			CharacterSet="2">
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="2"
+				InlineFunctionExpansion="1"
+				AdditionalIncludeDirectories="..\..\src"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
+				StringPooling="TRUE"
+				RuntimeLibrary="0"
+				EnableFunctionLevelLinking="TRUE"
+				UsePrecompiledHeader="0"
+				WarningLevel="4"
+				Detect64BitPortabilityProblems="FALSE"
+				DebugInformationFormat="3"/>
+			<Tool Name="VCCustomBuildTool"/>
+			<Tool Name="VCLinkerTool"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib"
+				OutputFile="$(OutDir)/SalixWeb32.exe"
+				LinkIncremental="1"
+				GenerateDebugInformation="TRUE"
+				ProgramDatabaseFile="$(OutDir)/SalixWeb32.pdb"
+				SubSystem="2"
+				OptimizeReferences="2"
+				EnableCOMDATFolding="2"
+				TargetMachine="1"/>
+			<Tool Name="VCMIDLTool"/>
+			<Tool Name="VCPostBuildEventTool"/>
+			<Tool Name="VCPreBuildEventTool"/>
+			<Tool Name="VCPreLinkEventTool"/>
+			<Tool Name="VCResourceCompilerTool"/>
+			<Tool Name="VCWebServiceProxyGeneratorTool"/>
+			<Tool Name="VCXMLDataGeneratorTool"/>
+			<Tool Name="VCWebDeploymentTool"/>
+			<Tool Name="VCManagedWrapperGeneratorTool"/>
+			<Tool Name="VCAuxiliaryManagedWrapperGeneratorTool"/>
+		</Configuration>
+	</Configurations>
+	<References>
+	</References>
+	<Files>
+		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
+			<File RelativePath="..\..\src\main.cpp"/>
+			<File RelativePath="..\..\src\runtime\ApplicationRuntime.cpp"/>
+			<File RelativePath="..\..\src\runtime\Diagnostics.cpp"/>
+			<File RelativePath="..\..\src\runtime\ServiceRegistry.cpp"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
+		</Filter>
+		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
+			<File RelativePath="..\..\src\runtime\ApplicationRuntime.h"/>
+			<File RelativePath="..\..\src\runtime\Diagnostics.h"/>
+			<File RelativePath="..\..\src\runtime\Service.h"/>
+			<File RelativePath="..\..\src\runtime\ServiceRegistry.h"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>
+		</Filter>
+	</Files>
+	<Globals>
+	</Globals>
+</VisualStudioProject>
