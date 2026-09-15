@@ -13,6 +13,7 @@
 #include "MessageInputStrip.h"
 
 class FileDialog;
+class NativeControlHost;
 
 class MessageComposer : public Panel {
     public:
@@ -46,6 +47,9 @@ class MessageComposer : public Panel {
         bool get_underline() const;
         int get_font_size() const;
 
+        void attach_native_controls(NativeControlHost* control_host);
+        void detach_native_controls();
+
         bool contains_popup_point(int x, int y) const;
 
         void arrange(int x, int y, int width, int height);
@@ -68,6 +72,15 @@ class MessageComposer : public Panel {
         static void on_toolbar_attachments_added(
             MessageToolbar* toolbar,
             const std::vector<std::string>& paths,
+            void* context
+        );
+
+        static void on_toolbar_format_changed(
+            MessageToolbar* toolbar,
+            bool bold,
+            bool italic,
+            bool underline,
+            int font_size,
             void* context
         );
 

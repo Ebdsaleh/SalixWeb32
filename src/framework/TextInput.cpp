@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    framework/TextInput.cpp
 // Author:      Ebdsaleh
-// Description: Implements a backend-neutral single-line text input component.
+// Description: Implements a backend-neutral single-line formatted text input.
 // =================================================================================
 
 #include <string.h>
@@ -40,6 +40,7 @@ void TextInput::set_text(const char* new_text) {
 
     if (new_text == 0) {
         text.clear();
+        character_formats.clear();
         selection.reset(0, 0);
         return;
     }
@@ -50,6 +51,7 @@ void TextInput::set_text(const char* new_text) {
         text.erase(max_length);
     }
 
+    character_formats.assign(text.length(), typing_format);
     selection.reset((int)text.length(), (int)text.length());
 }
 
@@ -66,9 +68,18 @@ void TextInput::set_max_length(int new_max_length) {
 
     if ((int)text.length() > max_length) {
         text.erase(max_length);
+
+        if ((int)character_formats.size() > max_length) {
+            character_formats.erase(
+                character_formats.begin() + max_length,
+                character_formats.end()
+            );
+        }
+
         clear_history();
     }
 
+    ensure_format_length();
     selection.clamp_to_length((int)text.length());
 }
 
@@ -124,6 +135,32 @@ bool TextInput::get_selection_range(
     return selection.get_range(index, start, end);
 }
 
+bool TextInput::is_character_selected(int character_index) const {
+    if (character_index < 0 || character_index >= (int)text.length()) {
+        return false;
+    }
+
+    int range_count = selection.get_range_count();
+
+    for (int index = 0; index < range_count; ++index) {
+        int range_start = 0;
+        int range_end = 0;
+
+        if (!selection.get_range(index, range_start, range_end)) {
+            continue;
+        }
+
+        if (
+            character_index >= range_start &&
+            character_index < range_end
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void TextInput::clear_selection() {
     end_edit_group();
     selection.clear_selection();
@@ -132,6 +169,78 @@ void TextInput::clear_selection() {
 void TextInput::select_all() {
     end_edit_group();
     selection.select_all((int)text.length());
+}
+
+void TextInput::set_text_format(
+    bool bold,
+    bool italic,
+    bool underline,
+    int font_size
+) {
+    if (font_size < 1) {
+        font_size = 1;
+    }
+
+    if (font_size > 96) {
+        font_size = 96;
+    }
+
+    TextFormat new_format(bold, italic, underline, font_size);
+    typing_format = new_format;
+
+    if (!has_selection()) {
+        end_edit_group();
+        return;
+    }
+
+    begin_edit(edit_none);
+    ensure_format_length();
+
+    std::vector<TextRange> ranges;
+    selection.get_normalized_ranges(ranges);
+
+    for (int range_index = 0; range_index < (int)ranges.size(); ++range_index) {
+        int start = ranges[range_index].start;
+        int end = ranges[range_index].end;
+
+        if (start < 0) {
+            start = 0;
+        }
+
+        if (end > (int)character_formats.size()) {
+            end = (int)character_formats.size();
+        }
+
+        for (int position = start; position < end; ++position) {
+            character_formats[position] = new_format;
+        }
+    }
+
+    end_edit_group();
+}
+
+TextFormat TextInput::get_typing_format() const {
+    return typing_format;
+}
+
+TextFormat TextInput::get_character_format(int index) const {
+    if (index < 0 || index >= (int)character_formats.size()) {
+        return typing_format;
+    }
+
+    return character_formats[index];
+}
+
+const TextFormat* TextInput::get_format_data() const {
+    if (character_formats.empty()) {
+        return 0;
+    }
+
+    return &character_formats[0];
+}
+
+int TextInput::get_format_count() const {
+    return (int)character_formats.size();
 }
 
 bool TextInput::accepts_mime_type(const char* mime_type) const {
@@ -542,8 +651,17 @@ bool TextInput::handle_event(const UIEvent& event) {
                     selection.get_caret_position() < (int)text.length()
                 ) {
                     begin_edit(edit_delete);
-                    text.erase(selection.get_caret_position(), 1);
+                    int position = selection.get_caret_position();
+                    text.erase(position, 1);
+
+                    if (position < (int)character_formats.size()) {
+                        character_formats.erase(
+                            character_formats.begin() + position
+                        );
+                    }
+
                     selection.clamp_to_length((int)text.length());
+                    ensure_format_length();
                 }
                 return true;
 
@@ -556,10 +674,6 @@ bool TextInput::handle_event(const UIEvent& event) {
         return false;
     }
 
-    // Win32 currently delivers Ctrl+Y / Ctrl+Z through the character path as
-    // their ASCII control characters. Keeping the commands here avoids exposing
-    // native virtual-key constants to the framework; a later input-command layer
-    // can promote these into explicit backend-neutral command events.
     if (event.control_down && event.character_code == control_character_z) {
         if (event.shift_down) {
             redo();
@@ -585,7 +699,15 @@ bool TextInput::handle_event(const UIEvent& event) {
             begin_edit(edit_backspace);
             int new_cursor_position = selection.get_caret_position() - 1;
             text.erase(new_cursor_position, 1);
+
+            if (new_cursor_position < (int)character_formats.size()) {
+                character_formats.erase(
+                    character_formats.begin() + new_cursor_position
+                );
+            }
+
             selection.reset(new_cursor_position, (int)text.length());
+            ensure_format_length();
         }
         return true;
     }
@@ -635,17 +757,36 @@ void TextInput::delete_selection() {
         return;
     }
 
+    ensure_format_length();
     int new_cursor_position = ranges[0].start;
 
     for (int index = (int)ranges.size() - 1; index >= 0; --index) {
+        int start = ranges[index].start;
+        int count = ranges[index].end - ranges[index].start;
+
         text.erase(
-            (std::string::size_type)ranges[index].start,
-            (std::string::size_type)(
-                ranges[index].end - ranges[index].start
-            )
+            (std::string::size_type)start,
+            (std::string::size_type)count
         );
+
+        if (
+            start >= 0 &&
+            start < (int)character_formats.size() &&
+            count > 0
+        ) {
+            int end = start + count;
+            if (end > (int)character_formats.size()) {
+                end = (int)character_formats.size();
+            }
+
+            character_formats.erase(
+                character_formats.begin() + start,
+                character_formats.begin() + end
+            );
+        }
     }
 
+    ensure_format_length();
     selection.reset(new_cursor_position, (int)text.length());
 }
 
@@ -729,8 +870,6 @@ bool TextInput::insert_plain_text(
     if (selection.has_active_range()) {
         delete_selection();
     } else if (selection.has_persistent_ranges()) {
-        // Ctrl+click can intentionally preserve earlier highlights while moving
-        // the caret. Typing inserts at that caret rather than deleting picks.
         selection.clear_selection();
     }
 
@@ -743,6 +882,7 @@ bool TextInput::insert_plain_text(
         filtered_text.erase(remaining_capacity);
     }
 
+    ensure_format_length();
     int cursor_position = selection.get_caret_position();
 
     text.insert(
@@ -750,8 +890,15 @@ bool TextInput::insert_plain_text(
         filtered_text
     );
 
+    character_formats.insert(
+        character_formats.begin() + cursor_position,
+        filtered_text.length(),
+        typing_format
+    );
+
     cursor_position += (int)filtered_text.length();
     selection.reset(cursor_position, (int)text.length());
+    ensure_format_length();
     return true;
 }
 
@@ -764,11 +911,24 @@ int TextInput::get_cursor_position_from_event(
 
     int relative_x = event.x - get_x() - text_padding;
 
-    return event.text_metrics->get_character_index_at_x(
+    return event.text_metrics->get_formatted_character_index_at_x(
         text.c_str(),
         (int)text.length(),
+        get_format_data(),
+        get_format_count(),
         relative_x
     );
+}
+
+void TextInput::ensure_format_length() {
+    if (character_formats.size() < text.length()) {
+        character_formats.resize(text.length(), typing_format);
+    } else if (character_formats.size() > text.length()) {
+        character_formats.erase(
+            character_formats.begin() + text.length(),
+            character_formats.end()
+        );
+    }
 }
 
 bool TextInput::copy_selection(Clipboard* clipboard) const {
@@ -848,12 +1008,15 @@ TextInput::EditState TextInput::capture_edit_state() const {
     EditState state;
     state.text = text;
     state.selection = selection;
+    state.character_formats = character_formats;
     return state;
 }
 
 void TextInput::restore_edit_state(const EditState& state) {
     text = state.text;
     selection = state.selection;
+    character_formats = state.character_formats;
+    ensure_format_length();
     selection.clamp_to_length((int)text.length());
     is_mouse_selecting = false;
     is_mouse_deselecting = false;

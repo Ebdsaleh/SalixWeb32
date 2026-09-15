@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    framework/ComboBox.h
 // Author:      Ebdsaleh
-// Description: Declares a lightweight backend-neutral combo-box component.
+// Description: Declares a backend-neutral combo-box semantic component.
 // =================================================================================
 #pragma once
 
@@ -30,6 +30,8 @@ class ComboBox : public Container {
 
         void add_item(const char* text, int value);
         int get_item_count() const;
+        const char* get_item_text(int index) const;
+        int get_item_value(int index) const;
 
         void set_selected_index(int new_selected_index);
         int get_selected_index() const;
@@ -45,6 +47,10 @@ class ComboBox : public Container {
 
         void set_enabled(bool new_is_enabled);
         bool get_is_enabled() const;
+
+        void set_native_peer_active(bool new_native_peer_active);
+        bool get_native_peer_active() const;
+        void notify_native_selection_changed(int new_selected_index);
 
         void set_selection_changed_handler(
             SelectionChangedHandler new_handler,
@@ -67,12 +73,14 @@ class ComboBox : public Container {
         void update_main_button_text();
         void update_option_visibility();
         bool contains_option_point(int x, int y) const;
+        void notify_selection_changed();
 
         Button main_button;
         std::vector<Item> items;
         int selected_index;
         bool is_open;
         bool is_enabled;
+        bool native_peer_active;
         DropDirection drop_direction;
         SelectionChangedHandler selection_changed_handler;
         void* selection_changed_context;

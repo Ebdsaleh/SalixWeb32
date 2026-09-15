@@ -31,9 +31,11 @@ MessageComposer::MessageComposer(FileDialog* file_dialog)
         MessageComposer::on_toolbar_attachments_added,
         this
     );
+    message_toolbar.set_format_changed_handler(
+        MessageComposer::on_toolbar_format_changed,
+        this
+    );
 
-    // Add the input first and toolbar second so popup children from the toolbar
-    // render above the input strip when they overlap it.
     add_child(&message_input_strip);
     add_child(&message_toolbar);
 }
@@ -103,6 +105,16 @@ int MessageComposer::get_font_size() const {
     return message_toolbar.get_font_size();
 }
 
+void MessageComposer::attach_native_controls(
+    NativeControlHost* control_host
+) {
+    message_toolbar.attach_native_controls(control_host);
+}
+
+void MessageComposer::detach_native_controls() {
+    message_toolbar.detach_native_controls();
+}
+
 bool MessageComposer::contains_popup_point(int x, int y) const {
     return message_toolbar.contains_popup_point(x, y);
 }
@@ -138,8 +150,6 @@ bool MessageComposer::handle_event(const UIEvent& event) {
         return false;
     }
 
-    // Toolbar popups may overlap the input strip. Give the toolbar first chance
-    // to consume an event so an emoji/font popup never clicks through into text.
     if (message_toolbar.handle_event(event)) {
         return true;
     }
@@ -198,6 +208,29 @@ void MessageComposer::on_toolbar_attachments_added(
     if (composer != 0) {
         composer->add_attachments(paths);
     }
+}
+
+void MessageComposer::on_toolbar_format_changed(
+    MessageToolbar* toolbar,
+    bool bold,
+    bool italic,
+    bool underline,
+    int font_size,
+    void* context
+) {
+    (void)toolbar;
+
+    MessageComposer* composer = (MessageComposer*)context;
+    if (composer == 0) {
+        return;
+    }
+
+    composer->message_input_strip.set_text_format(
+        bold,
+        italic,
+        underline,
+        font_size
+    );
 }
 
 void MessageComposer::add_attachments(

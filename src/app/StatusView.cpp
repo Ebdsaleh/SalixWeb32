@@ -129,6 +129,16 @@ StatusView::StatusView(
     root_panel.add_child(&message_composer);
 }
 
+void StatusView::attach_native_control_host(
+    NativeControlHost* control_host
+) {
+    message_composer.attach_native_controls(control_host);
+}
+
+void StatusView::detach_native_control_host() {
+    message_composer.detach_native_controls();
+}
+
 void StatusView::layout(int width, int height) {
     const int outer_padding = 8;
     const int gap = 6;
@@ -264,10 +274,6 @@ bool StatusView::handle_event(const UIEvent& event) {
         event.type == UIEvent::event_mouse_down ||
         event.type == UIEvent::event_mouse_up;
 
-    // Popup surfaces extend outside the composer's normal bounds. When the
-    // pointer is over an open popup, consume that event through the composer
-    // before the normal root dispatch so conversation/input controls below it
-    // cannot receive the same click.
     if (
         is_mouse_event &&
         message_composer.contains_popup_point(event.x, event.y)

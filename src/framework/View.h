@@ -6,11 +6,19 @@
 #pragma once
 
 class ComponentRenderer;
+class NativeControlHost;
 class UIEvent;
 
 class View {
     public:
         virtual ~View() {}
+
+        virtual void attach_native_control_host(NativeControlHost* control_host) {
+            (void)control_host;
+        }
+
+        virtual void detach_native_control_host() {
+        }
 
         virtual void layout(int width, int height) = 0;
         virtual bool handle_event(const UIEvent& event) = 0;

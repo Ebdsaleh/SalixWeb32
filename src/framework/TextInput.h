@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    framework/TextInput.h
 // Author:      Ebdsaleh
-// Description: Declares a backend-neutral single-line text input component.
+// Description: Declares a backend-neutral single-line formatted text input.
 // =================================================================================
 #pragma once
 
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Component.h"
+#include "TextFormat.h"
 #include "TextSelection.h"
 
 class Clipboard;
@@ -46,8 +47,20 @@ class TextInput : public Component {
         int get_selection_end() const;
         int get_selection_range_count() const;
         bool get_selection_range(int index, int& start, int& end) const;
+        bool is_character_selected(int character_index) const;
         void clear_selection();
         void select_all();
+
+        void set_text_format(
+            bool bold,
+            bool italic,
+            bool underline,
+            int font_size
+        );
+        TextFormat get_typing_format() const;
+        TextFormat get_character_format(int index) const;
+        const TextFormat* get_format_data() const;
+        int get_format_count() const;
 
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
@@ -68,12 +81,14 @@ class TextInput : public Component {
             edit_none = 0,
             edit_typing,
             edit_backspace,
-            edit_delete
+            edit_delete,
+            edit_format
         };
 
         struct EditState {
             std::string text;
             TextSelection selection;
+            std::vector<TextFormat> character_formats;
         };
 
         void move_cursor(int new_cursor_position, bool extend_selection);
@@ -81,6 +96,7 @@ class TextInput : public Component {
         void blank_selection_with_spaces();
         bool insert_plain_text(const char* new_text, EditKind edit_kind);
         int get_cursor_position_from_event(const UIEvent& event) const;
+        void ensure_format_length();
 
         bool copy_selection(Clipboard* clipboard) const;
         bool cut_selection(Clipboard* clipboard, CutMode cut_mode);
@@ -98,6 +114,8 @@ class TextInput : public Component {
         void clear_history();
 
         std::string text;
+        std::vector<TextFormat> character_formats;
+        TextFormat typing_format;
         int max_length;
         bool is_focused;
         TextSelection selection;

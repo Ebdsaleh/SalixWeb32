@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    framework/ComboBox.cpp
 // Author:      Ebdsaleh
-// Description: Implements a lightweight backend-neutral combo-box component.
+// Description: Implements a backend-neutral combo-box semantic component.
 // =================================================================================
 
 #include "ComboBox.h"
@@ -16,6 +16,7 @@ ComboBox::ComboBox()
     : selected_index(-1),
       is_open(false),
       is_enabled(true),
+      native_peer_active(false),
       drop_direction(drop_down),
       selection_changed_handler(0),
       selection_changed_context(0) {
@@ -66,6 +67,22 @@ int ComboBox::get_item_count() const {
     return (int)items.size();
 }
 
+const char* ComboBox::get_item_text(int index) const {
+    if (index < 0 || index >= (int)items.size()) {
+        return "";
+    }
+
+    return items[index].text.c_str();
+}
+
+int ComboBox::get_item_value(int index) const {
+    if (index < 0 || index >= (int)items.size()) {
+        return 0;
+    }
+
+    return items[index].value;
+}
+
 void ComboBox::set_selected_index(int new_selected_index) {
     if (
         new_selected_index < 0 ||
@@ -107,7 +124,12 @@ ComboBox::DropDirection ComboBox::get_drop_direction() const {
 }
 
 void ComboBox::set_open(bool new_is_open) {
-    is_open = new_is_open && is_enabled && !items.empty();
+    if (native_peer_active) {
+        is_open = false;
+    } else {
+        is_open = new_is_open && is_enabled && !items.empty();
+    }
+
     update_option_visibility();
 }
 
@@ -116,6 +138,10 @@ bool ComboBox::get_is_open() const {
 }
 
 bool ComboBox::contains_open_popup_point(int x, int y) const {
+    if (native_peer_active) {
+        return false;
+    }
+
     return is_open && contains_option_point(x, y);
 }
 
@@ -136,6 +162,36 @@ void ComboBox::set_enabled(bool new_is_enabled) {
 
 bool ComboBox::get_is_enabled() const {
     return is_enabled;
+}
+
+void ComboBox::set_native_peer_active(bool new_native_peer_active) {
+    native_peer_active = new_native_peer_active;
+
+    if (native_peer_active) {
+        is_open = false;
+        main_button.set_visible(false);
+    } else {
+        main_button.set_visible(true);
+    }
+
+    update_option_visibility();
+}
+
+bool ComboBox::get_native_peer_active() const {
+    return native_peer_active;
+}
+
+void ComboBox::notify_native_selection_changed(int new_selected_index) {
+    if (
+        new_selected_index < 0 ||
+        new_selected_index >= (int)items.size()
+    ) {
+        return;
+    }
+
+    selected_index = new_selected_index;
+    update_main_button_text();
+    notify_selection_changed();
 }
 
 void ComboBox::set_selection_changed_handler(
@@ -175,7 +231,7 @@ void ComboBox::arrange(int x, int y, int width, int height) {
 }
 
 bool ComboBox::handle_event(const UIEvent& event) {
-    if (!get_is_visible() || !is_enabled) {
+    if (!get_is_visible() || !is_enabled || native_peer_active) {
         return false;
     }
 
@@ -224,16 +280,7 @@ bool ComboBox::handle_event(const UIEvent& event) {
     ) {
         set_selected_index(pressed_option_index);
         set_open(false);
-
-        if (selection_changed_handler != 0) {
-            selection_changed_handler(
-                this,
-                get_selected_value(),
-                get_selected_text(),
-                selection_changed_context
-            );
-        }
-
+        notify_selection_changed();
         return true;
     }
 
@@ -256,7 +303,9 @@ void ComboBox::update_main_button_text() {
 void ComboBox::update_option_visibility() {
     for (int index = 0; index < (int)items.size(); ++index) {
         if (items[index].button != 0) {
-            items[index].button->set_visible(is_open);
+            items[index].button->set_visible(
+                !native_peer_active && is_open
+            );
         }
     }
 }
@@ -273,4 +322,17 @@ bool ComboBox::contains_option_point(int x, int y) const {
     }
 
     return false;
+}
+
+void ComboBox::notify_selection_changed() {
+    if (selection_changed_handler == 0) {
+        return;
+    }
+
+    selection_changed_handler(
+        this,
+        get_selected_value(),
+        get_selected_text(),
+        selection_changed_context
+    );
 }

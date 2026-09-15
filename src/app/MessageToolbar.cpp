@@ -8,6 +8,7 @@
 
 #include "MessageToolbar.h"
 #include "framework/FileDialog.h"
+#include "framework/NativeControlHost.h"
 #include "framework/UIEvent.h"
 
 namespace {
@@ -18,10 +19,13 @@ namespace {
 
 MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     : file_dialog(new_file_dialog),
+      native_control_host(0),
       insert_text_handler(0),
       insert_text_context(0),
       attachments_added_handler(0),
       attachments_added_context(0),
+      format_changed_handler(0),
+      format_changed_context(0),
       font_size(12) {
 
     get_style().background_color = Color(229, 240, 249);
@@ -99,8 +103,35 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     add_child(&emoji_panel);
 }
 
+MessageToolbar::~MessageToolbar() {
+    detach_native_controls();
+}
+
 void MessageToolbar::set_file_dialog(FileDialog* new_file_dialog) {
     file_dialog = new_file_dialog;
+}
+
+void MessageToolbar::attach_native_controls(NativeControlHost* control_host) {
+    if (native_control_host == control_host) {
+        return;
+    }
+
+    detach_native_controls();
+    native_control_host = control_host;
+
+    if (native_control_host != 0) {
+        native_control_host->attach_combo_box(&font_size_combo);
+        native_control_host->sync_combo_box(&font_size_combo);
+    }
+}
+
+void MessageToolbar::detach_native_controls() {
+    if (native_control_host == 0) {
+        return;
+    }
+
+    native_control_host->detach_combo_box(&font_size_combo);
+    native_control_host = 0;
 }
 
 void MessageToolbar::set_insert_text_handler(
@@ -117,6 +148,14 @@ void MessageToolbar::set_attachments_added_handler(
 ) {
     attachments_added_handler = new_handler;
     attachments_added_context = new_context;
+}
+
+void MessageToolbar::set_format_changed_handler(
+    FormatChangedHandler new_handler,
+    void* new_context
+) {
+    format_changed_handler = new_handler;
+    format_changed_context = new_context;
 }
 
 void MessageToolbar::set_attachment_count(int attachment_count) {
@@ -182,61 +221,31 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     int control_y = y + padding;
     int cursor_x = x + padding;
 
-    attach_button.set_bounds(
-        cursor_x,
-        control_y,
-        attach_width,
-        control_height
-    );
+    attach_button.set_bounds(cursor_x, control_y, attach_width, control_height);
     cursor_x += attach_width + gap;
 
-    bold_button.set_bounds(
-        cursor_x,
-        control_y,
-        toggle_width,
-        control_height
-    );
+    bold_button.set_bounds(cursor_x, control_y, toggle_width, control_height);
     cursor_x += toggle_width + gap;
 
-    italic_button.set_bounds(
-        cursor_x,
-        control_y,
-        toggle_width,
-        control_height
-    );
+    italic_button.set_bounds(cursor_x, control_y, toggle_width, control_height);
     cursor_x += toggle_width + gap;
 
-    underline_button.set_bounds(
-        cursor_x,
-        control_y,
-        toggle_width,
-        control_height
-    );
+    underline_button.set_bounds(cursor_x, control_y, toggle_width, control_height);
     cursor_x += toggle_width + gap;
 
-    font_size_combo.arrange(
-        cursor_x,
-        control_y,
-        font_width,
-        control_height
-    );
+    font_size_combo.arrange(cursor_x, control_y, font_width, control_height);
+
+    if (native_control_host != 0) {
+        native_control_host->sync_combo_box(&font_size_combo);
+    }
+
     cursor_x += font_width + gap;
 
-    list_button.set_bounds(
-        cursor_x,
-        control_y,
-        list_width,
-        control_height
-    );
+    list_button.set_bounds(cursor_x, control_y, list_width, control_height);
     cursor_x += list_width + gap;
 
     int emoji_x = cursor_x;
-    emoji_button.set_bounds(
-        emoji_x,
-        control_y,
-        emoji_width,
-        control_height
-    );
+    emoji_button.set_bounds(emoji_x, control_y, emoji_width, control_height);
     cursor_x += emoji_width + gap;
 
     int remaining_width = x + width - padding - cursor_x;
@@ -303,6 +312,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
 
     if (
         event.type == UIEvent::event_mouse_down &&
+        !font_size_combo.get_native_peer_active() &&
         font_size_combo.contains_point(event.x, event.y)
     ) {
         emoji_panel.set_open(false);
@@ -310,11 +320,23 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
 
     bool attach_was_pressed = attach_button.get_is_pressed();
     bool emoji_was_pressed = emoji_button.get_is_pressed();
+    bool bold_was_checked = bold_button.get_is_checked();
+    bool italic_was_checked = italic_button.get_is_checked();
+    bool underline_was_checked = underline_button.get_is_checked();
 
     bool was_handled = Panel::handle_event(event);
 
     if (event.type != UIEvent::event_mouse_up) {
         return was_handled;
+    }
+
+    if (
+        bold_was_checked != bold_button.get_is_checked() ||
+        italic_was_checked != italic_button.get_is_checked() ||
+        underline_was_checked != underline_button.get_is_checked()
+    ) {
+        notify_format_changed();
+        return true;
     }
 
     if (
@@ -352,6 +374,7 @@ void MessageToolbar::on_font_size_changed(
     if (toolbar != 0) {
         toolbar->font_size = selected_value;
         toolbar->emoji_panel.set_open(false);
+        toolbar->notify_format_changed();
     }
 }
 
@@ -378,14 +401,32 @@ void MessageToolbar::on_emoticon_selected(
 
 void MessageToolbar::toggle_bold() {
     bold_button.set_checked(!bold_button.get_is_checked());
+    notify_format_changed();
 }
 
 void MessageToolbar::toggle_italic() {
     italic_button.set_checked(!italic_button.get_is_checked());
+    notify_format_changed();
 }
 
 void MessageToolbar::toggle_underline() {
     underline_button.set_checked(!underline_button.get_is_checked());
+    notify_format_changed();
+}
+
+void MessageToolbar::notify_format_changed() {
+    if (format_changed_handler == 0) {
+        return;
+    }
+
+    format_changed_handler(
+        this,
+        get_bold(),
+        get_italic(),
+        get_underline(),
+        get_font_size(),
+        format_changed_context
+    );
 }
 
 bool MessageToolbar::open_attachment_dialog() {

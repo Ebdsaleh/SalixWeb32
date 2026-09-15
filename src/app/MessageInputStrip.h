@@ -34,6 +34,13 @@ class MessageInputStrip : public Panel {
         void set_allow_empty_submit(bool new_allow_empty_submit);
         bool get_allow_empty_submit() const;
 
+        void set_text_format(
+            bool bold,
+            bool italic,
+            bool underline,
+            int font_size
+        );
+
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
 

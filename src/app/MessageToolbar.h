@@ -16,6 +16,7 @@
 #include "EmojiPanel.h"
 
 class FileDialog;
+class NativeControlHost;
 
 class MessageToolbar : public Panel {
     public:
@@ -31,9 +32,22 @@ class MessageToolbar : public Panel {
             void* context
         );
 
+        typedef void (*FormatChangedHandler)(
+            MessageToolbar* toolbar,
+            bool bold,
+            bool italic,
+            bool underline,
+            int font_size,
+            void* context
+        );
+
         MessageToolbar(FileDialog* file_dialog);
+        virtual ~MessageToolbar();
 
         void set_file_dialog(FileDialog* new_file_dialog);
+
+        void attach_native_controls(NativeControlHost* control_host);
+        void detach_native_controls();
 
         void set_insert_text_handler(
             InsertTextHandler new_handler,
@@ -42,6 +56,11 @@ class MessageToolbar : public Panel {
 
         void set_attachments_added_handler(
             AttachmentsAddedHandler new_handler,
+            void* new_context
+        );
+
+        void set_format_changed_handler(
+            FormatChangedHandler new_handler,
             void* new_context
         );
 
@@ -75,13 +94,17 @@ class MessageToolbar : public Panel {
         void toggle_bold();
         void toggle_italic();
         void toggle_underline();
+        void notify_format_changed();
         bool open_attachment_dialog();
 
         FileDialog* file_dialog;
+        NativeControlHost* native_control_host;
         InsertTextHandler insert_text_handler;
         void* insert_text_context;
         AttachmentsAddedHandler attachments_added_handler;
         void* attachments_added_context;
+        FormatChangedHandler format_changed_handler;
+        void* format_changed_context;
 
         Button attach_button;
         ToggleButton bold_button;

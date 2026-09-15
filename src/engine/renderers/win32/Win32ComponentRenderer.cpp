@@ -11,6 +11,7 @@
 #include "framework/Label.h"
 #include "framework/Button.h"
 #include "framework/TextInput.h"
+#include "framework/TextFormat.h"
 #include "framework/Style.h"
 
 namespace {
@@ -98,6 +99,91 @@ namespace {
         }
 
         return text_size.cx;
+    }
+
+    HFONT create_formatted_font(
+        HDC device_context,
+        const TextFormat& format
+    ) {
+        int font_size = format.font_size;
+        if (font_size < 1) {
+            font_size = 1;
+        }
+
+        int logical_height = -MulDiv(
+            font_size,
+            GetDeviceCaps(device_context, LOGPIXELSY),
+            72
+        );
+
+        return CreateFontA(
+            logical_height,
+            0,
+            0,
+            0,
+            format.bold ? FW_BOLD : FW_NORMAL,
+            format.italic ? TRUE : FALSE,
+            format.underline ? TRUE : FALSE,
+            FALSE,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE,
+            "Tahoma"
+        );
+    }
+
+    int measure_formatted_character(
+        HDC device_context,
+        char character,
+        const TextFormat& format
+    ) {
+        HFONT font = create_formatted_font(device_context, format);
+        if (font == NULL) {
+            return 0;
+        }
+
+        HGDIOBJ previous_font = SelectObject(device_context, font);
+
+        SIZE text_size;
+        text_size.cx = 0;
+        text_size.cy = 0;
+        GetTextExtentPoint32A(device_context, &character, 1, &text_size);
+
+        if (previous_font != NULL && previous_font != HGDI_ERROR) {
+            SelectObject(device_context, previous_font);
+        }
+
+        DeleteObject(font);
+        return text_size.cx;
+    }
+
+    int measure_formatted_prefix(
+        HDC device_context,
+        const TextInput& text_input,
+        const std::string& text,
+        int end_index
+    ) {
+        if (end_index < 0) {
+            end_index = 0;
+        }
+
+        if (end_index > (int)text.length()) {
+            end_index = (int)text.length();
+        }
+
+        int width = 0;
+
+        for (int index = 0; index < end_index; ++index) {
+            width += measure_formatted_character(
+                device_context,
+                text[index],
+                text_input.get_character_format(index)
+            );
+        }
+
+        return width;
     }
 
     int get_label_text_x(
@@ -491,50 +577,90 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
         to_color_ref(text_input.get_style().foreground_color)
     );
 
-    DrawTextA(
-        device_context,
-        display_text.c_str(),
-        -1,
-        &text_rect,
-        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX
-    );
+    int text_x = text_rect.left;
 
-    TEXTMETRICA text_metrics;
-    ZeroMemory(&text_metrics, sizeof(text_metrics));
-    GetTextMetricsA(device_context, &text_metrics);
+    for (int index = 0; index < (int)display_text.length(); ++index) {
+        TextFormat format = text_input.get_character_format(index);
+        HFONT font = create_formatted_font(device_context, format);
+        HGDIOBJ previous_character_font = NULL;
 
-    int text_y = text_rect.top +
-        ((text_rect.bottom - text_rect.top - text_metrics.tmHeight) / 2);
+        if (font != NULL) {
+            previous_character_font = SelectObject(device_context, font);
+        }
 
-    if (text_y < text_rect.top) {
-        text_y = text_rect.top;
-    }
+        SIZE character_size;
+        character_size.cx = 0;
+        character_size.cy = 0;
+        GetTextExtentPoint32A(
+            device_context,
+            display_text.c_str() + index,
+            1,
+            &character_size
+        );
 
-    if (text_input.get_is_focused() && text_input.has_selection()) {
-        int range_count = text_input.get_selection_range_count();
+        TEXTMETRICA text_metrics;
+        ZeroMemory(&text_metrics, sizeof(text_metrics));
+        GetTextMetricsA(device_context, &text_metrics);
 
-        for (int index = 0; index < range_count; ++index) {
-            int selection_start = 0;
-            int selection_end = 0;
+        int text_y = text_rect.top +
+            ((text_rect.bottom - text_rect.top - text_metrics.tmHeight) / 2);
 
-            if (!text_input.get_selection_range(
-                    index,
-                    selection_start,
-                    selection_end
-                )) {
-                continue;
+        if (text_y < text_rect.top) {
+            text_y = text_rect.top;
+        }
+
+        bool is_selected =
+            text_input.get_is_focused() &&
+            text_input.is_character_selected(index);
+
+        if (is_selected) {
+            RECT selection_rect;
+            selection_rect.left = text_x;
+            selection_rect.top = text_rect.top + 2;
+            selection_rect.right = text_x + character_size.cx;
+            selection_rect.bottom = text_rect.bottom - 2;
+
+            if (selection_rect.right <= selection_rect.left) {
+                selection_rect.right = selection_rect.left + 1;
             }
 
-            draw_selection_range(
+            FillRect(
                 device_context,
-                display_text,
-                text_rect.left,
-                text_y,
-                text_rect.top + 2,
-                text_rect.bottom - 2,
-                selection_start,
-                selection_end
+                &selection_rect,
+                GetSysColorBrush(COLOR_HIGHLIGHT)
             );
+
+            SetTextColor(
+                device_context,
+                GetSysColor(COLOR_HIGHLIGHTTEXT)
+            );
+        } else {
+            SetTextColor(
+                device_context,
+                to_color_ref(text_input.get_style().foreground_color)
+            );
+        }
+
+        TextOutA(
+            device_context,
+            text_x,
+            text_y,
+            display_text.c_str() + index,
+            1
+        );
+
+        text_x += character_size.cx;
+
+        if (
+            font != NULL &&
+            previous_character_font != NULL &&
+            previous_character_font != HGDI_ERROR
+        ) {
+            SelectObject(device_context, previous_character_font);
+        }
+
+        if (font != NULL) {
+            DeleteObject(font);
         }
     }
 
@@ -549,9 +675,10 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
             cursor_position = (int)display_text.length();
         }
 
-        int cursor_x = text_rect.left + measure_text_width(
+        int cursor_x = text_rect.left + measure_formatted_prefix(
             device_context,
-            display_text.c_str(),
+            text_input,
+            display_text,
             cursor_position
         );
 

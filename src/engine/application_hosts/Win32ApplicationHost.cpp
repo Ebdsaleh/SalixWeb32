@@ -187,7 +187,7 @@ bool Win32ApplicationHost::initialize(
         0,
         window_class_name,
         "SalixWeb32",
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         800,
@@ -204,6 +204,18 @@ bool Win32ApplicationHost::initialize(
         return false;
     }
 
+    if (!native_control_host.initialize(window_handle, instance_handle)) {
+        Diagnostics::write_line(
+            "Win32ApplicationHost: native control host initialization failed."
+        );
+        DestroyWindow(window_handle);
+        window_handle = NULL;
+        UnregisterClassA(window_class_name, instance_handle);
+        return false;
+    }
+
+    application_view->attach_native_control_host(&native_control_host);
+
     update_client_size(window_handle);
     layout_application_view();
 
@@ -214,6 +226,8 @@ bool Win32ApplicationHost::initialize(
             NULL
         ) == 0) {
         Diagnostics::write_line("Win32ApplicationHost: SetTimer failed.");
+        application_view->detach_native_control_host();
+        native_control_host.shutdown();
         DestroyWindow(window_handle);
         window_handle = NULL;
         UnregisterClassA(window_class_name, instance_handle);
@@ -253,6 +267,12 @@ void Win32ApplicationHost::shutdown() {
     if (!is_initialized) {
         return;
     }
+
+    if (application_view != 0) {
+        application_view->detach_native_control_host();
+    }
+
+    native_control_host.shutdown();
 
     if (window_handle != NULL && IsWindow(window_handle)) {
         KillTimer(window_handle, runtime_timer_id);
@@ -334,6 +354,13 @@ LRESULT Win32ApplicationHost::handle_message(
             layout_application_view();
             InvalidateRect(current_window_handle, NULL, FALSE);
             return 0;
+
+        case WM_COMMAND:
+            if (native_control_host.handle_command(w_param, l_param)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+                return 0;
+            }
+            break;
 
         case WM_MOUSEMOVE: {
             UIEvent event(UIEvent::event_mouse_move);
@@ -452,9 +479,6 @@ LRESULT Win32ApplicationHost::handle_message(
         }
 
         case WM_ERASEBKGND:
-            // WM_PAINT owns the entire client-area background. Suppressing the
-            // separate erase pass prevents old GDI environments from exposing
-            // a blank frame between erase and redraw.
             return 1;
 
         case WM_PAINT:
@@ -537,7 +561,6 @@ void Win32ApplicationHost::paint_window(HWND current_window_handle) {
             SelectObject(back_buffer_context, previous_bitmap);
         }
     } else {
-        // Allocation failure must not prevent the application from painting.
         FillRect(
             device_context,
             &client_rect,

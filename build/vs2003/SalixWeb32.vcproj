@@ -120,6 +120,7 @@
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
 		</Filter>
@@ -140,9 +141,11 @@
 			<File RelativePath="..\..\src\framework\Label.h"/>
 			<File RelativePath="..\..\src\framework\MimeData.h"/>
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>
+			<File RelativePath="..\..\src\framework\NativeControlHost.h"/>
 			<File RelativePath="..\..\src\framework\Panel.h"/>
 			<File RelativePath="..\..\src\framework\StackPanel.h"/>
 			<File RelativePath="..\..\src\framework\Style.h"/>
+			<File RelativePath="..\..\src\framework\TextFormat.h"/>
 			<File RelativePath="..\..\src\framework\TextInput.h"/>
 			<File RelativePath="..\..\src\framework\TextMetrics.h"/>
 			<File RelativePath="..\..\src\framework\TextNavigation.h"/>
@@ -159,6 +162,7 @@
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
 		</Filter>

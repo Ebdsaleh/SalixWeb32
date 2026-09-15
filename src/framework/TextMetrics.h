@@ -5,6 +5,8 @@
 // =================================================================================
 #pragma once
 
+struct TextFormat;
+
 class TextMetrics {
     public:
         virtual ~TextMetrics() {}
@@ -19,4 +21,16 @@ class TextMetrics {
             int text_length,
             int pixel_x
         ) = 0;
+
+        virtual int get_formatted_character_index_at_x(
+            const char* text,
+            int text_length,
+            const TextFormat* formats,
+            int format_count,
+            int pixel_x
+        ) {
+            (void)formats;
+            (void)format_count;
+            return get_character_index_at_x(text, text_length, pixel_x);
+        }
 };

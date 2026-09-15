@@ -7,6 +7,8 @@
 
 #include <windows.h>
 
+#include "engine/platform/win32/Win32NativeControlHost.h"
+
 class ApplicationRuntime;
 class View;
 
@@ -47,6 +49,7 @@ class Win32ApplicationHost {
         HWND window_handle;
         ApplicationRuntime* application_runtime;
         View* application_view;
+        Win32NativeControlHost native_control_host;
         int client_width;
         int client_height;
         bool is_initialized;

@@ -71,6 +71,20 @@ bool MessageInputStrip::get_allow_empty_submit() const {
     return allow_empty_submit;
 }
 
+void MessageInputStrip::set_text_format(
+    bool bold,
+    bool italic,
+    bool underline,
+    int font_size
+) {
+    message_input.set_text_format(
+        bold,
+        italic,
+        underline,
+        font_size
+    );
+}
+
 bool MessageInputStrip::accepts_mime_type(const char* mime_type) const {
     return message_input.accepts_mime_type(mime_type);
 }
