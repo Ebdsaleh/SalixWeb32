@@ -204,6 +204,55 @@ void TextSelection::select_range(
     caret_position = end;
 }
 
+void TextSelection::remove_range(
+    int start,
+    int end,
+    int text_length
+) {
+    start = clamp_position(start, text_length);
+    end = clamp_position(end, text_length);
+
+    if (end < start) {
+        int temporary = start;
+        start = end;
+        end = temporary;
+    }
+
+    if (end <= start) {
+        return;
+    }
+
+    std::vector<TextRange> ranges;
+    get_normalized_ranges(ranges);
+
+    std::vector<TextRange> remaining_ranges;
+
+    for (int index = 0; index < (int)ranges.size(); ++index) {
+        const TextRange& current_range = ranges[index];
+
+        if (end <= current_range.start || start >= current_range.end) {
+            remaining_ranges.push_back(current_range);
+            continue;
+        }
+
+        if (start > current_range.start) {
+            remaining_ranges.push_back(
+                TextRange(current_range.start, start)
+            );
+        }
+
+        if (end < current_range.end) {
+            remaining_ranges.push_back(
+                TextRange(end, current_range.end)
+            );
+        }
+    }
+
+    persistent_ranges = remaining_ranges;
+    normalize_ranges(persistent_ranges, text_length);
+    anchor_position = caret_position;
+}
+
 void TextSelection::select_all(int text_length) {
     select_range(0, text_length, text_length, false);
 }

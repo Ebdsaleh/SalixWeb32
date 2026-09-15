@@ -17,7 +17,9 @@ Label::Label()
     : horizontal_alignment(align_left),
       is_selectable(false),
       is_focused(false),
-      is_mouse_selecting(false) {
+      is_mouse_selecting(false),
+      is_mouse_deselecting(false),
+      mouse_deselect_anchor(0) {
 }
 
 void Label::set_text(const char* new_text) {
@@ -49,6 +51,7 @@ void Label::set_selectable(bool new_is_selectable) {
     if (!is_selectable) {
         is_focused = false;
         is_mouse_selecting = false;
+        is_mouse_deselecting = false;
         selection.clear_selection();
     }
 }
@@ -110,7 +113,54 @@ bool Label::handle_event(const UIEvent& event) {
             int new_cursor_position = get_cursor_position_from_event(event);
             int text_length = (int)text.length();
 
-            if (event.control_down) {
+            if (event.control_down && event.alt_down) {
+                selection.preserve_active_range(text_length);
+
+                if (event.click_count >= 3) {
+                    selection.remove_range(
+                        TextNavigation::find_line_start(
+                            text,
+                            new_cursor_position
+                        ),
+                        TextNavigation::find_line_end(
+                            text,
+                            new_cursor_position
+                        ),
+                        text_length
+                    );
+                    selection.move_caret_preserving_selection(
+                        new_cursor_position,
+                        text_length
+                    );
+                    is_mouse_deselecting = false;
+                } else if (event.click_count == 2) {
+                    selection.remove_range(
+                        TextNavigation::find_word_start(
+                            text,
+                            new_cursor_position
+                        ),
+                        TextNavigation::find_word_end(
+                            text,
+                            new_cursor_position
+                        ),
+                        text_length
+                    );
+                    selection.move_caret_preserving_selection(
+                        new_cursor_position,
+                        text_length
+                    );
+                    is_mouse_deselecting = false;
+                } else {
+                    selection.move_caret_preserving_selection(
+                        new_cursor_position,
+                        text_length
+                    );
+                    mouse_deselect_anchor = new_cursor_position;
+                    is_mouse_deselecting = true;
+                }
+
+                is_mouse_selecting = false;
+            } else if (event.control_down) {
                 if (event.click_count >= 3) {
                     selection.select_range(
                         TextNavigation::find_line_start(
@@ -145,6 +195,7 @@ bool Label::handle_event(const UIEvent& event) {
                 }
 
                 is_mouse_selecting = false;
+                is_mouse_deselecting = false;
             } else if (event.click_count >= 3) {
                 selection.select_range(
                     TextNavigation::find_line_start(
@@ -159,6 +210,7 @@ bool Label::handle_event(const UIEvent& event) {
                     false
                 );
                 is_mouse_selecting = false;
+                is_mouse_deselecting = false;
             } else if (event.click_count == 2) {
                 selection.select_range(
                     TextNavigation::find_word_start(
@@ -173,6 +225,7 @@ bool Label::handle_event(const UIEvent& event) {
                     false
                 );
                 is_mouse_selecting = false;
+                is_mouse_deselecting = false;
             } else if (event.shift_down && is_focused) {
                 selection.move_caret(
                     new_cursor_position,
@@ -180,16 +233,63 @@ bool Label::handle_event(const UIEvent& event) {
                     true
                 );
                 is_mouse_selecting = true;
+                is_mouse_deselecting = false;
             } else {
                 selection.reset(new_cursor_position, text_length);
                 is_mouse_selecting = true;
+                is_mouse_deselecting = false;
             }
         } else {
             is_mouse_selecting = false;
+            is_mouse_deselecting = false;
         }
 
         is_focused = new_is_focused;
         return new_is_focused || did_change;
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_move &&
+        is_focused &&
+        is_mouse_deselecting &&
+        event.left_button_down
+    ) {
+        int new_cursor_position = get_cursor_position_from_event(event);
+        int text_length = (int)text.length();
+
+        selection.remove_range(
+            mouse_deselect_anchor,
+            new_cursor_position,
+            text_length
+        );
+        selection.move_caret_preserving_selection(
+            new_cursor_position,
+            text_length
+        );
+        return true;
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_up &&
+        is_mouse_deselecting
+    ) {
+        if (is_focused) {
+            int new_cursor_position = get_cursor_position_from_event(event);
+            int text_length = (int)text.length();
+
+            selection.remove_range(
+                mouse_deselect_anchor,
+                new_cursor_position,
+                text_length
+            );
+            selection.move_caret_preserving_selection(
+                new_cursor_position,
+                text_length
+            );
+        }
+
+        is_mouse_deselecting = false;
+        return true;
     }
 
     if (

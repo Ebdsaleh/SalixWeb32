@@ -51,6 +51,12 @@ class TextSelection {
             bool additive
         );
 
+        void remove_range(
+            int start,
+            int end,
+            int text_length
+        );
+
         void select_all(int text_length);
 
         int get_range_count() const;

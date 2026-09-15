@@ -10,7 +10,7 @@ The discontinuous-selection and paste-mode implementation from:
 ad147f1 Add discontinuous text selection and paste modes
 ```
 
-was rebuilt and exercised successfully on the Pentium 4 with Visual C++ 7.1 under both Windows Server 2003 SP2 x86 and MiniXP.
+was rebuilt and exercised successfully on the Pentium 4 under both Windows Server 2003 SP2 and MiniXP with Visual C++ 7.1.
 
 Observed behavior:
 
@@ -48,9 +48,9 @@ Pentium       Pentium
 
 During target testing, one screenshot showed an additional manually entered space between two pasted `Pentium` fragments. That space was deliberately typed by the tester and is not evidence of a clipboard or preserved-spacing mismatch.
 
-## Interaction note
+## Validated additive mouse workflow
 
-The currently validated additive mouse workflow is therefore:
+The currently validated additive mouse workflow is:
 
 ```text
 select range
@@ -59,6 +59,26 @@ select range
 ```
 
 This behavior is accepted as the current framework interaction model. Future changes to additive-selection gestures should preserve the underlying `TextSelection` multi-range model and clipboard semantics even if the exact mouse gesture is refined.
+
+## Subtractive selection target
+
+The next interaction layer adds explicit subtraction from existing highlighted ranges:
+
+```text
+Ctrl+Alt+drag
+```
+
+removes the dragged character span from the current selection set. Only overlapping highlighted characters are removed; text outside the existing selection remains unaffected. If the dragged span cuts through the middle of one highlighted range, that range is split into two independent ranges.
+
+```text
+Ctrl+Alt+double-click
+```
+
+removes the clicked word from the current highlighted ranges. This uses the same whitespace-delimited word boundaries as normal double-click word selection.
+
+For symmetry with the existing triple-click behavior, Ctrl+Alt+triple-click removes the clicked logical line from the current selection set. The current controls are single-line, so this presently means the complete text value.
+
+Subtractive gestures operate in both editable `TextInput` controls and selectable/read-only `Label` controls. They change selection state only; they do not delete or edit the underlying text.
 
 ## Design boundary
 

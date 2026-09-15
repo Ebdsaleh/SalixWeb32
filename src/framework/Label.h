@@ -56,4 +56,6 @@ class Label : public Component {
         bool is_focused;
         TextSelection selection;
         bool is_mouse_selecting;
+        bool is_mouse_deselecting;
+        int mouse_deselect_anchor;
 };
