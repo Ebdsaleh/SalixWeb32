@@ -8,6 +8,7 @@
 
 StackPanel::StackPanel()
     : orientation(orientation_vertical),
+      main_axis_alignment(main_axis_center),
       item_extent(30),
       spacing(0),
       cross_axis_extent(0) {
@@ -19,6 +20,14 @@ void StackPanel::set_orientation(Orientation new_orientation) {
 
 StackPanel::Orientation StackPanel::get_orientation() const {
     return orientation;
+}
+
+void StackPanel::set_main_axis_alignment(MainAxisAlignment new_alignment) {
+    main_axis_alignment = new_alignment;
+}
+
+StackPanel::MainAxisAlignment StackPanel::get_main_axis_alignment() const {
+    return main_axis_alignment;
 }
 
 void StackPanel::set_item_extent(int new_item_extent) {
@@ -75,7 +84,14 @@ void StackPanel::arrange_vertical() {
     }
 
     int total_height = (child_count * item_extent) + ((child_count - 1) * spacing);
-    int current_y = get_y() + ((get_height() - total_height) / 2);
+    int current_y = get_y();
+
+    if (main_axis_alignment == main_axis_center) {
+        current_y += (get_height() - total_height) / 2;
+    } else if (main_axis_alignment == main_axis_end) {
+        current_y += get_height() - total_height;
+    }
+
     int child_width = get_width();
 
     if (cross_axis_extent > 0 && cross_axis_extent < child_width) {
@@ -106,7 +122,14 @@ void StackPanel::arrange_horizontal() {
     }
 
     int total_width = (child_count * item_extent) + ((child_count - 1) * spacing);
-    int current_x = get_x() + ((get_width() - total_width) / 2);
+    int current_x = get_x();
+
+    if (main_axis_alignment == main_axis_center) {
+        current_x += (get_width() - total_width) / 2;
+    } else if (main_axis_alignment == main_axis_end) {
+        current_x += get_width() - total_width;
+    }
+
     int child_height = get_height();
 
     if (cross_axis_extent > 0 && cross_axis_extent < child_height) {
