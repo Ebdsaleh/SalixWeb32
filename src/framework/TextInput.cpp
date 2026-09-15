@@ -16,19 +16,28 @@
 #include "TextNavigation.h"
 #include "rendering/ComponentRenderer.h"
 
+namespace {
+    const int control_character_y = 25;
+    const int control_character_z = 26;
+}
+
 TextInput::TextInput()
     : max_length(120),
       is_focused(false),
       is_mouse_selecting(false),
       is_mouse_deselecting(false),
       mouse_deselect_anchor(0),
-      text_padding(6) {
+      text_padding(6),
+      active_edit_kind(edit_none),
+      history_limit(100) {
 
     get_style().background_color = Color(255, 255, 255);
     get_style().border_color = Color(112, 112, 112);
 }
 
 void TextInput::set_text(const char* new_text) {
+    clear_history();
+
     if (new_text == 0) {
         text.clear();
         selection.reset(0, 0);
@@ -57,6 +66,7 @@ void TextInput::set_max_length(int new_max_length) {
 
     if ((int)text.length() > max_length) {
         text.erase(max_length);
+        clear_history();
     }
 
     selection.clamp_to_length((int)text.length());
@@ -73,6 +83,7 @@ void TextInput::set_focused(bool new_is_focused) {
     if (!is_focused) {
         is_mouse_selecting = false;
         is_mouse_deselecting = false;
+        end_edit_group();
     }
 }
 
@@ -81,6 +92,7 @@ bool TextInput::get_is_focused() const {
 }
 
 void TextInput::set_cursor_position(int new_cursor_position) {
+    end_edit_group();
     selection.reset(new_cursor_position, (int)text.length());
 }
 
@@ -113,10 +125,12 @@ bool TextInput::get_selection_range(
 }
 
 void TextInput::clear_selection() {
+    end_edit_group();
     selection.clear_selection();
 }
 
 void TextInput::select_all() {
+    end_edit_group();
     selection.select_all((int)text.length());
 }
 
@@ -156,7 +170,47 @@ bool TextInput::insert_mime_data(
         return false;
     }
 
-    return insert_plain_text(inserted_text);
+    return insert_plain_text(inserted_text, edit_none);
+}
+
+bool TextInput::can_undo() const {
+    return !undo_history.empty();
+}
+
+bool TextInput::can_redo() const {
+    return !redo_history.empty();
+}
+
+bool TextInput::undo() {
+    end_edit_group();
+
+    if (undo_history.empty()) {
+        return false;
+    }
+
+    redo_history.push_back(capture_edit_state());
+    trim_history(redo_history);
+
+    EditState state = undo_history[undo_history.size() - 1];
+    undo_history.pop_back();
+    restore_edit_state(state);
+    return true;
+}
+
+bool TextInput::redo() {
+    end_edit_group();
+
+    if (redo_history.empty()) {
+        return false;
+    }
+
+    undo_history.push_back(capture_edit_state());
+    trim_history(undo_history);
+
+    EditState state = redo_history[redo_history.size() - 1];
+    redo_history.pop_back();
+    restore_edit_state(state);
+    return true;
 }
 
 int TextInput::get_text_padding() const {
@@ -169,6 +223,8 @@ bool TextInput::handle_event(const UIEvent& event) {
     }
 
     if (event.type == UIEvent::event_mouse_down) {
+        end_edit_group();
+
         bool new_is_focused = contains_point(event.x, event.y);
         bool did_change = new_is_focused != is_focused;
 
@@ -390,6 +446,7 @@ bool TextInput::handle_event(const UIEvent& event) {
         if (event.control_down) {
             switch (event.key_code) {
                 case UIEvent::key_left:
+                    end_edit_group();
                     move_cursor(
                         TextNavigation::find_word_boundary_left(
                             text,
@@ -400,6 +457,7 @@ bool TextInput::handle_event(const UIEvent& event) {
                     return true;
 
                 case UIEvent::key_right:
+                    end_edit_group();
                     move_cursor(
                         TextNavigation::find_word_boundary_right(
                             text,
@@ -414,11 +472,17 @@ bool TextInput::handle_event(const UIEvent& event) {
                     return true;
 
                 case UIEvent::key_c:
+                    end_edit_group();
                     copy_selection(event.clipboard);
                     return true;
 
                 case UIEvent::key_x:
-                    cut_selection(event.clipboard);
+                    cut_selection(
+                        event.clipboard,
+                        event.shift_down
+                            ? cut_keep_formatting
+                            : cut_compact
+                    );
                     return true;
 
                 case UIEvent::key_v:
@@ -437,6 +501,7 @@ bool TextInput::handle_event(const UIEvent& event) {
 
         switch (event.key_code) {
             case UIEvent::key_left:
+                end_edit_group();
                 if (!event.shift_down && has_selection()) {
                     move_cursor(get_selection_start(), false);
                 } else {
@@ -448,6 +513,7 @@ bool TextInput::handle_event(const UIEvent& event) {
                 return true;
 
             case UIEvent::key_right:
+                end_edit_group();
                 if (!event.shift_down && has_selection()) {
                     move_cursor(get_selection_end(), false);
                 } else {
@@ -459,20 +525,25 @@ bool TextInput::handle_event(const UIEvent& event) {
                 return true;
 
             case UIEvent::key_home:
+                end_edit_group();
                 move_cursor(0, event.shift_down);
                 return true;
 
             case UIEvent::key_end:
+                end_edit_group();
                 move_cursor((int)text.length(), event.shift_down);
                 return true;
 
             case UIEvent::key_delete:
                 if (has_selection()) {
+                    begin_edit(edit_none);
                     delete_selection();
                 } else if (
                     selection.get_caret_position() < (int)text.length()
                 ) {
+                    begin_edit(edit_delete);
                     text.erase(selection.get_caret_position(), 1);
+                    selection.clamp_to_length((int)text.length());
                 }
                 return true;
 
@@ -485,13 +556,33 @@ bool TextInput::handle_event(const UIEvent& event) {
         return false;
     }
 
+    // Win32 currently delivers Ctrl+Y / Ctrl+Z through the character path as
+    // their ASCII control characters. Keeping the commands here avoids exposing
+    // native virtual-key constants to the framework; a later input-command layer
+    // can promote these into explicit backend-neutral command events.
+    if (event.control_down && event.character_code == control_character_z) {
+        if (event.shift_down) {
+            redo();
+        } else {
+            undo();
+        }
+        return true;
+    }
+
+    if (event.control_down && event.character_code == control_character_y) {
+        redo();
+        return true;
+    }
+
     if (event.character_code == 8) {
         if (has_selection()) {
+            begin_edit(edit_none);
             delete_selection();
         } else if (
             selection.get_caret_position() > 0 &&
             !text.empty()
         ) {
+            begin_edit(edit_backspace);
             int new_cursor_position = selection.get_caret_position() - 1;
             text.erase(new_cursor_position, 1);
             selection.reset(new_cursor_position, (int)text.length());
@@ -506,7 +597,7 @@ bool TextInput::handle_event(const UIEvent& event) {
         char character_text[2];
         character_text[0] = (char)event.character_code;
         character_text[1] = '\0';
-        insert_plain_text(character_text);
+        insert_plain_text(character_text, edit_typing);
         return true;
     }
 
@@ -558,22 +649,46 @@ void TextInput::delete_selection() {
     selection.reset(new_cursor_position, (int)text.length());
 }
 
-bool TextInput::insert_plain_text(const char* new_text) {
+void TextInput::blank_selection_with_spaces() {
+    if (!has_selection()) {
+        return;
+    }
+
+    std::vector<TextRange> ranges;
+    selection.get_normalized_ranges(ranges);
+
+    if (ranges.empty()) {
+        return;
+    }
+
+    int new_cursor_position = ranges[0].start;
+
+    for (int range_index = 0; range_index < (int)ranges.size(); ++range_index) {
+        int start = ranges[range_index].start;
+        int end = ranges[range_index].end;
+
+        if (start < 0) {
+            start = 0;
+        }
+
+        if (end > (int)text.length()) {
+            end = (int)text.length();
+        }
+
+        for (int position = start; position < end; ++position) {
+            text[position] = ' ';
+        }
+    }
+
+    selection.reset(new_cursor_position, (int)text.length());
+}
+
+bool TextInput::insert_plain_text(
+    const char* new_text,
+    EditKind edit_kind
+) {
     if (new_text == 0) {
         return false;
-    }
-
-    if (selection.has_active_range()) {
-        delete_selection();
-    } else if (selection.has_persistent_ranges()) {
-        // Ctrl+click can intentionally preserve earlier highlights while moving
-        // the caret. Typing inserts at that caret rather than deleting picks.
-        selection.clear_selection();
-    }
-
-    int remaining_capacity = max_length - (int)text.length();
-    if (remaining_capacity <= 0) {
-        return true;
     }
 
     std::string filtered_text;
@@ -591,13 +706,41 @@ bool TextInput::insert_plain_text(const char* new_text) {
 
         filtered_text += character;
 
-        if ((int)filtered_text.length() >= remaining_capacity) {
+        if ((int)filtered_text.length() >= max_length) {
             break;
         }
     }
 
     if (filtered_text.empty()) {
         return true;
+    }
+
+    bool will_delete_selection = selection.has_active_range();
+
+    if (
+        !will_delete_selection &&
+        (int)text.length() >= max_length
+    ) {
+        return true;
+    }
+
+    begin_edit(edit_kind);
+
+    if (selection.has_active_range()) {
+        delete_selection();
+    } else if (selection.has_persistent_ranges()) {
+        // Ctrl+click can intentionally preserve earlier highlights while moving
+        // the caret. Typing inserts at that caret rather than deleting picks.
+        selection.clear_selection();
+    }
+
+    int remaining_capacity = max_length - (int)text.length();
+    if (remaining_capacity <= 0) {
+        return true;
+    }
+
+    if ((int)filtered_text.length() > remaining_capacity) {
+        filtered_text.erase(remaining_capacity);
     }
 
     int cursor_position = selection.get_caret_position();
@@ -647,7 +790,10 @@ bool TextInput::copy_selection(Clipboard* clipboard) const {
     return clipboard->set_data(data);
 }
 
-bool TextInput::cut_selection(Clipboard* clipboard) {
+bool TextInput::cut_selection(
+    Clipboard* clipboard,
+    CutMode cut_mode
+) {
     if (!has_selection()) {
         return false;
     }
@@ -656,7 +802,14 @@ bool TextInput::cut_selection(Clipboard* clipboard) {
         return false;
     }
 
-    delete_selection();
+    begin_edit(edit_none);
+
+    if (cut_mode == cut_keep_formatting) {
+        blank_selection_with_spaces();
+    } else {
+        delete_selection();
+    }
+
     return true;
 }
 
@@ -674,4 +827,52 @@ bool TextInput::paste_from_clipboard(
     }
 
     return insert_mime_data(data, paste_mode);
+}
+
+void TextInput::begin_edit(EditKind new_edit_kind) {
+    if (
+        new_edit_kind == edit_none ||
+        active_edit_kind != new_edit_kind
+    ) {
+        push_undo_state();
+    }
+
+    active_edit_kind = new_edit_kind;
+}
+
+void TextInput::end_edit_group() {
+    active_edit_kind = edit_none;
+}
+
+TextInput::EditState TextInput::capture_edit_state() const {
+    EditState state;
+    state.text = text;
+    state.selection = selection;
+    return state;
+}
+
+void TextInput::restore_edit_state(const EditState& state) {
+    text = state.text;
+    selection = state.selection;
+    selection.clamp_to_length((int)text.length());
+    is_mouse_selecting = false;
+    is_mouse_deselecting = false;
+}
+
+void TextInput::push_undo_state() {
+    undo_history.push_back(capture_edit_state());
+    trim_history(undo_history);
+    redo_history.clear();
+}
+
+void TextInput::trim_history(std::vector<EditState>& history) {
+    while ((int)history.size() > history_limit) {
+        history.erase(history.begin());
+    }
+}
+
+void TextInput::clear_history() {
+    undo_history.clear();
+    redo_history.clear();
+    active_edit_kind = edit_none;
 }

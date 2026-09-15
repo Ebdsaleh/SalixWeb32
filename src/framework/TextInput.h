@@ -6,6 +6,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "Component.h"
 #include "TextSelection.h"
@@ -19,6 +20,11 @@ class TextInput : public Component {
         enum PasteMode {
             paste_compact = 0,
             paste_keep_formatting
+        };
+
+        enum CutMode {
+            cut_compact = 0,
+            cut_keep_formatting
         };
 
         TextInput();
@@ -47,23 +53,49 @@ class TextInput : public Component {
         bool insert_mime_data(const MimeData& data);
         bool insert_mime_data(const MimeData& data, PasteMode paste_mode);
 
+        bool can_undo() const;
+        bool can_redo() const;
+        bool undo();
+        bool redo();
+
         int get_text_padding() const;
 
         virtual bool handle_event(const UIEvent& event);
         virtual void render(ComponentRenderer& renderer) const;
 
     private:
+        enum EditKind {
+            edit_none = 0,
+            edit_typing,
+            edit_backspace,
+            edit_delete
+        };
+
+        struct EditState {
+            std::string text;
+            TextSelection selection;
+        };
+
         void move_cursor(int new_cursor_position, bool extend_selection);
         void delete_selection();
-        bool insert_plain_text(const char* new_text);
+        void blank_selection_with_spaces();
+        bool insert_plain_text(const char* new_text, EditKind edit_kind);
         int get_cursor_position_from_event(const UIEvent& event) const;
 
         bool copy_selection(Clipboard* clipboard) const;
-        bool cut_selection(Clipboard* clipboard);
+        bool cut_selection(Clipboard* clipboard, CutMode cut_mode);
         bool paste_from_clipboard(
             Clipboard* clipboard,
             PasteMode paste_mode
         );
+
+        void begin_edit(EditKind new_edit_kind);
+        void end_edit_group();
+        EditState capture_edit_state() const;
+        void restore_edit_state(const EditState& state);
+        void push_undo_state();
+        void trim_history(std::vector<EditState>& history);
+        void clear_history();
 
         std::string text;
         int max_length;
@@ -73,4 +105,9 @@ class TextInput : public Component {
         bool is_mouse_deselecting;
         int mouse_deselect_anchor;
         int text_padding;
+
+        std::vector<EditState> undo_history;
+        std::vector<EditState> redo_history;
+        EditKind active_edit_kind;
+        int history_limit;
 };
