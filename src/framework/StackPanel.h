@@ -14,10 +14,19 @@ class StackPanel : public Container {
             orientation_horizontal
         };
 
+        enum MainAxisAlignment {
+            main_axis_start = 0,
+            main_axis_center,
+            main_axis_end
+        };
+
         StackPanel();
 
         void set_orientation(Orientation new_orientation);
         Orientation get_orientation() const;
+
+        void set_main_axis_alignment(MainAxisAlignment new_alignment);
+        MainAxisAlignment get_main_axis_alignment() const;
 
         void set_item_extent(int new_item_extent);
         int get_item_extent() const;
@@ -35,6 +44,7 @@ class StackPanel : public Container {
         void arrange_horizontal();
 
         Orientation orientation;
+        MainAxisAlignment main_axis_alignment;
         int item_extent;
         int spacing;
         int cross_axis_extent;
