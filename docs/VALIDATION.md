@@ -167,3 +167,26 @@ The current messenger-style layout tranche adds:
 - responsive sidebar hiding when the window becomes too narrow.
 
 These items remain pending target-hardware validation until the updated project is rebuilt and exercised on the Pentium 4.
+
+## 2026-09-15 — MiniXP repaint-flicker regression
+
+The messenger-style shell launched successfully under MiniXP on the Pentium 4, but the target exposed a repaint defect that was not apparent in the primary Server 2003 environment: the entire client area visibly flashed whenever the periodic runtime-status repaint occurred.
+
+The cause is architectural rather than a control-specific bug. The Win32 host periodically invalidates the full client area so dynamic runtime status can refresh, and the existing paint path clears and redraws the full window directly to the screen. MiniXP makes the intermediate cleared frame visible.
+
+A corrective rendering tranche was pushed in:
+
+```text
+dd880eb Double-buffer Win32 painting to prevent flicker
+```
+
+The Win32 host now:
+
+- suppresses the separate `WM_ERASEBKGND` pass,
+- renders the complete application view into a compatible memory DC/bitmap,
+- copies the completed frame to the real window DC with one `BitBlt`,
+- and retains a direct-render fallback if a back-buffer allocation fails.
+
+This is an immediate anti-flicker correction. The longer-term framework rendering direction is to add explicit invalidation/dirty-region tracking so dynamic components can request repaint of only the area that changed instead of requiring periodic full-window invalidation.
+
+The double-buffered build remains pending MiniXP revalidation.
