@@ -32,20 +32,20 @@ Goal: prove the Salix architecture without any browser engine.
 - [x] Create VS.NET 2003-compatible solution/project
 - [x] Native `WinMain`
 - [x] `ApplicationRuntime`
-- [~] service lifecycle (`start/update/stop`)
-- [~] `ServiceRegistry`
+- [x] service lifecycle (`start/update/stop`)
+- [x] `ServiceRegistry`
 - [x] diagnostics/logging foundation
 - [x] `Win32ApplicationHost`
 - [x] main window creation
-- [~] resize handling
+- [x] resize handling
 - [x] clean shutdown
 - [x] basic status reporting
 
-The initial native skeleton has been validated on the target Pentium 4 under Windows Server 2003 SP2 x86 and has also passed a MiniXP smoke test. Service lifecycle instrumentation and explicit resize-state handling are the current hardening tranche and must be revalidated on target hardware before being marked complete.
+The Phase 1 native skeleton and hardening tranche have been validated on the target Pentium 4 under Windows Server 2003 SP2 x86. The executable builds with Visual C++ 7.1, launches from both Visual Studio and Command Prompt, exercises the runtime service lifecycle, updates live status without repaint ghosting, tracks client-area resizing correctly, and exits cleanly. The baseline executable also passed a MiniXP smoke test on the same hardware.
 
 See `docs/VALIDATION.md` for target-hardware results.
 
-**Exit criterion:** a native x86 executable runs correctly on Server 2003 SP2 and cleanly opens/closes a window.
+**Exit criterion:** achieved. A native x86 executable runs correctly on Server 2003 SP2 and cleanly opens/closes a window.
 
 ## Phase 2 — Framework / presentation separation
 
