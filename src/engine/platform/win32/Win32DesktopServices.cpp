@@ -13,6 +13,14 @@
 #include "Win32DesktopServices.h"
 #include "framework/RasterImage.h"
 
+// Some older Platform SDK header sets used with Visual C++ 7.1 do not expose
+// WM_MOUSEWHEEL unless newer target-version macros are enabled. Keep the
+// compatibility local to this Win32 implementation rather than raising the
+// application's global WINVER/_WIN32_WINNT contract.
+#ifndef WM_MOUSEWHEEL
+#define WM_MOUSEWHEEL 0x020A
+#endif
+
 namespace {
     const char* preview_window_class_name = "SalixWeb32ImagePreviewWindow";
     const double preview_zoom_step = 1.25;
