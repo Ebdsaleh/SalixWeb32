@@ -16,18 +16,29 @@
 #include "framework/NativeControlHost.h"
 #include "framework/UIEvent.h"
 #include "framework/rendering/ComponentRenderer.h"
+#include "web/platform/WebBackendCapabilities.h"
+#include "web/platform/WebPlatformHost.h"
+
+namespace {
+    const char* status_flag(bool value) {
+        return value ? "yes" : "no";
+    }
+}
 
 StatusView::StatusView(
     ApplicationRuntime* new_application_runtime,
     FileDialog* new_file_dialog,
-    DesktopServices* new_desktop_services
+    DesktopServices* new_desktop_services,
+    WebPlatformHost* new_web_platform_host
 ) : application_runtime(new_application_runtime),
     file_dialog(new_file_dialog),
     desktop_services(new_desktop_services),
+    web_platform_host(new_web_platform_host),
     native_control_host(0),
     client_width(0),
     client_height(0),
     conversation_tab_index(-1),
+    web_tab_index(-1),
     runtime_tab_index(-1),
     message_composer(new_file_dialog) {
 
@@ -36,13 +47,14 @@ StatusView::StatusView(
 
     conversation_title_label.set_text("Conversation");
     conversation_hint_label.set_text(
-        "Web backend not loaded - local UI messages are shown below."
+        "Conversation transport not connected - local UI messages are shown below."
     );
 
     sidebar_title_label.set_text("Runtime diagnostics");
     runtime_label.set_text("Runtime: operational");
     host_label.set_text("Win32 host: operational");
-    web_backend_label.set_text("Web backend: not loaded");
+    web_backend_label.set_text("Web backend: none");
+    web_capability_label.set_text("Web capabilities: unavailable");
 
     header_title_label.set_horizontal_alignment(Label::align_left);
     header_subtitle_label.set_horizontal_alignment(Label::align_left);
@@ -52,6 +64,7 @@ StatusView::StatusView(
     runtime_label.set_horizontal_alignment(Label::align_left);
     host_label.set_horizontal_alignment(Label::align_left);
     web_backend_label.set_horizontal_alignment(Label::align_left);
+    web_capability_label.set_horizontal_alignment(Label::align_left);
     runtime_status_label.set_horizontal_alignment(Label::align_left);
     client_size_label.set_horizontal_alignment(Label::align_left);
 
@@ -67,6 +80,9 @@ StatusView::StatusView(
 
     conversation_page.get_style().background_color = Color(255, 255, 255);
     conversation_page.get_style().border_width = 0;
+
+    web_page.get_style().background_color = Color(248, 250, 252);
+    web_page.get_style().border_width = 0;
 
     runtime_page.get_style().background_color = Color(238, 246, 252);
     runtime_page.get_style().border_width = 0;
@@ -86,6 +102,7 @@ StatusView::StatusView(
     runtime_label.get_style().foreground_color = Color(48, 76, 101);
     host_label.get_style().foreground_color = Color(48, 76, 101);
     web_backend_label.get_style().foreground_color = Color(48, 76, 101);
+    web_capability_label.get_style().foreground_color = Color(48, 76, 101);
     runtime_status_label.get_style().foreground_color = Color(48, 76, 101);
     client_size_label.get_style().foreground_color = Color(48, 76, 101);
 
@@ -97,6 +114,7 @@ StatusView::StatusView(
     diagnostics_stack.add_child(&runtime_label);
     diagnostics_stack.add_child(&host_label);
     diagnostics_stack.add_child(&web_backend_label);
+    diagnostics_stack.add_child(&web_capability_label);
     diagnostics_stack.add_child(&runtime_status_label);
     diagnostics_stack.add_child(&client_size_label);
 
@@ -111,6 +129,9 @@ StatusView::StatusView(
     conversation_view.append_system_message(
         "Framework components online."
     );
+
+    web_view.set_web_platform_host(web_platform_host);
+    web_page.add_child(&web_view);
 
     sidebar_panel.add_child(&sidebar_title_label);
     sidebar_panel.add_child(&diagnostics_stack);
@@ -130,6 +151,10 @@ StatusView::StatusView(
     conversation_tab_index = workspace_tabs.add_tab(
         "Conversation",
         &conversation_page
+    );
+    web_tab_index = workspace_tabs.add_tab(
+        "Web",
+        &web_page
     );
     runtime_tab_index = workspace_tabs.add_tab(
         "Runtime",
@@ -291,6 +316,13 @@ void StatusView::layout(
         composer_height
     );
 
+    web_view.arrange(
+        page_x,
+        page_y,
+        page_width,
+        page_height
+    );
+
     sidebar_panel.set_bounds(
         page_x,
         page_y,
@@ -336,6 +368,7 @@ bool StatusView::handle_event(const UIEvent& event) {
 }
 
 void StatusView::render(ComponentRenderer& renderer) {
+    web_view.update();
     update_dynamic_text();
     root_panel.render(renderer);
 }
@@ -409,6 +442,8 @@ bool StatusView::attach_files_from_dialog() {
 void StatusView::update_dynamic_text() {
     char service_text[128];
     char size_text[128];
+    char backend_text[256];
+    char capability_text[256];
 
     if (application_runtime != 0) {
         sprintf(
@@ -428,6 +463,39 @@ void StatusView::update_dynamic_text() {
         client_height
     );
 
+    if (web_platform_host != 0 && web_platform_host->has_backend()) {
+        WebBackendCapabilities capabilities;
+        web_platform_host->get_capabilities(capabilities);
+
+        sprintf(
+            backend_text,
+            "Web backend: %s (%s) | %s",
+            web_platform_host->get_backend_name(),
+            get_web_backend_family_name(
+                web_platform_host->get_backend_family()
+            ),
+            web_platform_host->get_is_initialized()
+                ? "initialized"
+                : "stopped"
+        );
+
+        sprintf(
+            capability_text,
+            "Web caps: nav %s | surface %s | network %s | HTML %s | JS %s | upload %s",
+            status_flag(capabilities.navigation),
+            status_flag(capabilities.surface_snapshot),
+            status_flag(capabilities.network),
+            status_flag(capabilities.html),
+            status_flag(capabilities.javascript),
+            status_flag(capabilities.file_upload)
+        );
+    } else {
+        sprintf(backend_text, "Web backend: none");
+        sprintf(capability_text, "Web capabilities: unavailable");
+    }
+
+    web_backend_label.set_text(backend_text);
+    web_capability_label.set_text(capability_text);
     runtime_status_label.set_text(service_text);
     client_size_label.set_text(size_text);
 }

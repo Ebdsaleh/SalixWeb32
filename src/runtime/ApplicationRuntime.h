@@ -8,9 +8,15 @@
 #include "ServiceRegistry.h"
 #include "RuntimeStatusService.h"
 
+class WebPlatformHost;
+
 class ApplicationRuntime {
     public:
         ApplicationRuntime();
+
+        bool set_web_platform_host(WebPlatformHost* host);
+        WebPlatformHost* get_web_platform_host();
+        const WebPlatformHost* get_web_platform_host() const;
 
         bool initialize();
         void update();
@@ -26,6 +32,7 @@ class ApplicationRuntime {
 
         ServiceRegistry service_registry;
         RuntimeStatusService runtime_status_service;
+        WebPlatformHost* web_platform_host;
         bool core_services_registered;
         bool is_initialized;
 };

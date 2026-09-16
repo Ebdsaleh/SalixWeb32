@@ -41,21 +41,75 @@ Dependencies should generally flow downward.
 
 `WebView` is a framework-level semantic component.
 
-It delegates to a web-platform provider through a backend contract.
+It delegates through a selected web-platform provider rather than depending on a concrete browser engine:
 
 ```text
 WebView
   |
   v
+WebPlatformHost
+  |
+  v
 WebPlatformBackend
   |
+  +-- PlaceholderWebBackend
   +-- NativeBackend
   +-- GeckoBackend
   +-- TranslatorBackend
   `-- RemoteBackend
 ```
 
-The application must not branch on Gecko-specific types or browser-specific DOM objects.
+`WebPlatformHost` is the backend-selection and lifecycle boundary. It can be given one concrete backend by the composition root before runtime initialization. Consumers see only generic navigation, surface, input, capability, and identity operations.
+
+The application must not branch on Gecko-specific types, backend-specific DOM objects, remote-bridge packet structures, or any other concrete provider detail.
+
+The first Phase 3 implementation uses `PlaceholderWebBackend`. It intentionally performs no network activity; its purpose is to prove the entire dependency direction on VC7.1 and the real target before a real web engine is selected.
+
+See `docs/WEB_BACKEND_CONTRACT.md` for the concrete Phase 3 contract and validation checklist.
+
+## Web platform lifecycle relationship
+
+`ApplicationRuntime` may be supplied an optional `WebPlatformHost`.
+
+The lifecycle is deliberately explicit:
+
+```text
+startup
+    register runtime services
+    initialize selected web backend
+    start runtime services
+
+update
+    update selected web backend
+    update runtime services
+
+shutdown
+    stop runtime services
+    shutdown selected web backend
+```
+
+This keeps the web platform optional. The native runtime remains capable of starting with no selected backend.
+
+Backend replacement is not allowed while the host is initialized in the first implementation. A future hot-swap feature must use an explicit stop/swap/start transaction rather than changing a live provider underneath `WebView`.
+
+## Navigation, surface, and input contracts
+
+The first Phase 3 contracts are intentionally small and backend-neutral.
+
+`WebNavigationRequest` contains a URL, navigation kind, and replace-history intent. It does not expose browser-engine navigation objects.
+
+`WebSurfaceSnapshot` currently contains:
+
+```text
+title
+address
+status
+content
+```
+
+This is a diagnostic Phase 3 surface used to validate the architecture. It is **not** the long-term DOM or rendering model. Future backends may extend the boundary with a document tree, raster surface, retained display list, native child surface, or another suitable representation.
+
+`WebInputEvent` receives normalized pointer, wheel, key, and character input from `WebView`. The placeholder backend only counts these events; DOM/browser event semantics remain future web-platform work.
 
 ## Web platform subsystems
 
@@ -75,13 +129,30 @@ web/
 
 No rule says every backend must use every native Salix subsystem.
 
-A Gecko backend may internally delegate many of them to Gecko. A native backend may compose Salix implementations. A translator may receive an already transformed document representation.
+A Gecko backend may internally delegate many of them to Gecko. A native backend may compose Salix implementations. A translator may receive an already transformed document representation. A remote backend may consume a surface or semantic representation generated on another machine.
 
 ## Capability discovery
 
-Backends should eventually be able to report supported features rather than pretending all features exist.
+Backends report supported features instead of pretending all features exist.
 
-Conceptual example:
+The initial capability contract includes:
+
+```text
+navigation
+surface snapshot
+pointer input
+keyboard input
+network
+HTML
+CSS
+JavaScript
+WebSocket
+file upload
+```
+
+The placeholder backend reports the contract-level features it genuinely supports and reports network/document/script/upload capability as unavailable. Both the Web workspace and Runtime diagnostics surface this information.
+
+Longer-term capability reporting can expand, for example:
 
 ```text
 html_parser        yes
@@ -92,7 +163,7 @@ service_worker     no
 wasm               no
 ```
 
-This will make diagnostics on old hardware much more useful.
+This makes diagnostics on old hardware much more useful and prevents an implementation from silently implying support it does not have.
 
 ## Web document abstraction
 
@@ -126,7 +197,7 @@ Container
 WebView
         |
         v
-ComponentRenderer
+ComponentRenderer / framework composition
         |
         v
 Win32 implementation
@@ -135,6 +206,8 @@ Win32 implementation
 This is a conceptual mirror, not a line-for-line port.
 
 Native platform controls can still be used behind framework contracts where they are advantageous. For example, the Win32 backend provides real combo-box and scrollbar peers while the application continues to depend on `ComboBox`, `ScrollBar`, and `NativeControlHost` rather than HWNDs.
+
+The current `WebView` is itself composed from existing framework primitives while consuming only the generic `WebPlatformHost`. A future rendering-heavy WebView may gain additional renderer/surface integration without changing the rule that product code must not depend on a concrete web backend.
 
 ## Conversation document relationship
 

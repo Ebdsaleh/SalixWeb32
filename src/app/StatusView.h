@@ -10,6 +10,7 @@
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
 #include "framework/TabView.h"
+#include "framework/WebView.h"
 #include "MessageComposer.h"
 #include "ConversationView.h"
 
@@ -18,13 +19,15 @@ class DesktopServices;
 class FileDialog;
 class NativeControlHost;
 class TextMetrics;
+class WebPlatformHost;
 
 class StatusView : public View {
     public:
         StatusView(
             ApplicationRuntime* application_runtime,
             FileDialog* file_dialog,
-            DesktopServices* desktop_services
+            DesktopServices* desktop_services,
+            WebPlatformHost* web_platform_host
         );
 
         virtual void attach_native_control_host(NativeControlHost* control_host);
@@ -55,10 +58,12 @@ class StatusView : public View {
         ApplicationRuntime* application_runtime;
         FileDialog* file_dialog;
         DesktopServices* desktop_services;
+        WebPlatformHost* web_platform_host;
         NativeControlHost* native_control_host;
         int client_width;
         int client_height;
         int conversation_tab_index;
+        int web_tab_index;
         int runtime_tab_index;
 
         Panel root_panel;
@@ -69,6 +74,7 @@ class StatusView : public View {
 
         TabView workspace_tabs;
         Panel conversation_page;
+        Panel web_page;
         Panel runtime_page;
 
         Panel conversation_panel;
@@ -76,12 +82,15 @@ class StatusView : public View {
         Label conversation_hint_label;
         ConversationView conversation_view;
 
+        WebView web_view;
+
         Panel sidebar_panel;
         Label sidebar_title_label;
         StackPanel diagnostics_stack;
         Label runtime_label;
         Label host_label;
         Label web_backend_label;
+        Label web_capability_label;
         Label runtime_status_label;
         Label client_size_label;
 

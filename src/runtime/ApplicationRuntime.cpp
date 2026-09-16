@@ -6,10 +6,29 @@
 
 #include "ApplicationRuntime.h"
 #include "Diagnostics.h"
+#include "web/platform/WebPlatformHost.h"
 
 ApplicationRuntime::ApplicationRuntime()
-    : core_services_registered(false),
+    : web_platform_host(0),
+      core_services_registered(false),
       is_initialized(false) {
+}
+
+bool ApplicationRuntime::set_web_platform_host(WebPlatformHost* host) {
+    if (is_initialized) {
+        return false;
+    }
+
+    web_platform_host = host;
+    return true;
+}
+
+WebPlatformHost* ApplicationRuntime::get_web_platform_host() {
+    return web_platform_host;
+}
+
+const WebPlatformHost* ApplicationRuntime::get_web_platform_host() const {
+    return web_platform_host;
 }
 
 bool ApplicationRuntime::initialize() {
@@ -22,8 +41,21 @@ bool ApplicationRuntime::initialize() {
         return false;
     }
 
+    if (
+        web_platform_host != 0 &&
+        !web_platform_host->initialize()
+    ) {
+        Diagnostics::write_line("ApplicationRuntime: web platform startup failed.");
+        return false;
+    }
+
     if (!service_registry.start_all()) {
         Diagnostics::write_line("ApplicationRuntime: service startup failed.");
+
+        if (web_platform_host != 0) {
+            web_platform_host->shutdown();
+        }
+
         return false;
     }
 
@@ -37,6 +69,10 @@ void ApplicationRuntime::update() {
         return;
     }
 
+    if (web_platform_host != 0) {
+        web_platform_host->update();
+    }
+
     service_registry.update_all();
 }
 
@@ -46,6 +82,11 @@ void ApplicationRuntime::shutdown() {
     }
 
     service_registry.stop_all();
+
+    if (web_platform_host != 0) {
+        web_platform_host->shutdown();
+    }
+
     is_initialized = false;
     Diagnostics::write_line("ApplicationRuntime shut down.");
 }

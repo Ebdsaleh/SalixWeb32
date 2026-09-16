@@ -106,10 +106,13 @@ Implemented or active post-baseline work:
 - [~] toggle-button primitive
 - [~] native-backed font-size combo-box primitive
 - [~] backend-neutral multi-file dialog contract
-- [~] Win32 `GetOpenFileNameA` multi-file provider
+- [~] Win32 `GetOpenFileNameA` Explorer-style multi-file provider
+- [~] native Ctrl+Click / Shift+Click multi-file attachment selection
 - [~] semantic attachment model and draft plumbing
+- [~] removable composer attachment chips/tray
 - [~] inline image attachment thumbnails with aspect-ratio preservation
 - [~] attachment Preview/Open/context actions
+- [~] image Preview mouse-wheel zoom
 - [~] attachment-aware plain conversation selection/copy surrogate
 - [~] native application menu bar (`File / Edit / Options / Help`)
 - [x] reusable framework `TabView` with native Win32 tab peer
@@ -141,14 +144,15 @@ Implemented or active post-baseline work:
 - [~] non-wrapped code with independent horizontal overflow scrolling
 - [~] lightweight language-aware code syntax tokenization/highlighting foundation
 - [ ] advanced syntax grammar / richer syntax palette
-- [ ] composer attachment chips/cards and removal controls
 - [ ] structured clipboard representation for inline attachment objects
 - [ ] clickable Markdown links
 - [ ] richer Markdown block widgets (quotes/tables/task lists/images)
 
 The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The current pre-menu/attachment application baseline, including the native tabbed workspace, rich conversation presentation, context menus, document-wide selection, composer navigation/scrolling, Markdown/code presentation, and native-control lifecycle, has now been exercised successfully on the real Pentium 4 under both Windows Server 2003 SP2 and MiniXP. The new native-menu and first-class image-attachment tranche remains pending VC7.1 compilation and target validation and must not be marked validated until that pass succeeds.
+The native tabbed workspace baseline has been exercised successfully on the real Pentium 4 under both Windows Server 2003 SP2 and MiniXP. The later native-menu/attachment work has also rebuilt and run green on the Pentium 4 under Windows Server 2003 SP2, including multi-file selection, removable attachment chips, inline image presentation, internal Preview, default-application Open, and Preview mouse-wheel zoom. The current `<` / `>` overflow controls are functionally accepted for now but their visual interaction is explicitly deferred to a later UI-polish pass. The latest attachment tranche must not be treated as MiniXP-validated until that repeat smoke pass is explicitly performed.
+
+Known VC7.1-era SDK gotchas are recorded in `docs/BUILD_ENVIRONMENT.md`, including the recurring local `WM_MOUSEWHEEL` compatibility definition and common-controls include-order requirements.
 
 See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, `docs/SYNTAX_HIGHLIGHTING.md`, `docs/CONTEXT_MENUS.md`, `docs/TABBED_VIEWS.md`, `docs/NATIVE_MENU_BAR.md`, and `docs/ATTACHMENTS.md` for the current contracts and validation checklists.
 
@@ -158,26 +162,31 @@ See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE
 
 Goal: web support has a stable slot before any engine is chosen.
 
-- [ ] `WebView` semantic component
-- [ ] `WebPlatformBackend` contract
-- [ ] backend lifecycle
-- [ ] navigation request model
-- [ ] document/render surface contract
-- [ ] input/event bridge
-- [ ] placeholder backend
-- [ ] diagnostics capability reporting
-- [ ] backend selection mechanism
+- [~] `WebView` semantic component
+- [~] `WebPlatformBackend` contract
+- [~] backend lifecycle through optional `WebPlatformHost`
+- [~] navigation request model
+- [~] first document/render surface snapshot contract
+- [~] input/event bridge
+- [~] placeholder backend
+- [~] diagnostics capability reporting
+- [~] backend selection mechanism
 
 Initial backend families:
 
 ```text
+placeholder   development/validation only
 native
 gecko
 translator
 remote
 ```
 
-**Exit criterion:** shell displays a WebView supplied by a dummy backend without product code knowing the concrete backend type.
+The first Phase 3 source tranche now provides a third `Web` workspace tab backed by `PlaceholderWebBackend`. The shell targets `https://www.chatgpt.com/` through the generic navigation contract, but the placeholder deliberately performs **no network request**. Its job is to prove the application -> framework -> web-platform boundary, backend lifecycle, input forwarding, capability discovery, and diagnostics on VC7.1 before any real engine/network provider is selected.
+
+This tranche is **pending real-target rebuild/validation**. See `docs/WEB_BACKEND_CONTRACT.md`.
+
+**Exit criterion:** shell displays a WebView supplied by a dummy backend without product code knowing the concrete backend type. This criterion is implemented in source but is not marked achieved until the VC7.1/Server 2003 target pass succeeds.
 
 ## Phase 4 — Web foundation primitives
 

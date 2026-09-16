@@ -69,6 +69,8 @@ The arrows describe the direction the visible chip strip moves:
 
 This is intentionally based on visible movement rather than abstract previous/next collection traversal.
 
+The current arrow presentation is functionally accepted but not considered final UX. The target pass showed that the interaction still feels visually unusual even though the requested direction is now correct. Replacing or redesigning the overflow presentation is explicitly deferred until the later UI-polish pass, after the backend path is working.
+
 The composer continues to keep the canonical pending paths in its existing attachment vector. `AttachmentTray` is presentation/control state only; `MessageDraft` is still built from the canonical composer attachment collection at submit time.
 
 Removal is deliberately deferred until the chip's mouse event has completely unwound. This avoids deleting the clicked chip while one of its own button callbacks is still active.
@@ -206,16 +208,25 @@ These implementation details stay below the generic `DesktopServices`, `RasterIm
 
 ## Current Pentium 4 validation status
 
-The September 16, 2026 Pentium 4 / Windows Server 2003 SP2 pass visibly confirmed the core image path:
+The September 16, 2026 Pentium 4 / Windows Server 2003 SP2 passes confirmed the core image and composer-attachment paths.
+
+Observed green on the target:
 
 - the native application menu is present,
-- a JPEG can be attached and sent,
-- the conversation renders the filename reference plus inline thumbnail,
-- the internal SalixWeb32 Preview window opens the image,
-- Open launches the system's Windows Picture and Fax Viewer for the same file,
-- the image remains visibly aspect-ratio-correct in the conversation and preview surfaces.
+- JPEG attachment and send path works,
+- conversation filename reference plus inline thumbnail renders correctly,
+- internal SalixWeb32 Preview opens the image,
+- Open launches Windows Picture and Fax Viewer for the same file,
+- image aspect ratio remains correct in conversation and preview surfaces,
+- one `+` dialog can queue multiple files using normal Windows multi-selection,
+- pending files appear as independent removable composer chips,
+- overflow navigation remains bounded inside the composer,
+- the revised `<` / `>` movement direction functions as specified,
+- Preview mouse-wheel zoom builds and works after the VC7.1 `WM_MOUSEWHEEL` compatibility guard was restored.
 
-Those observations validate the principal decode/render/Preview/Open path on Server 2003. The complete selection/copy edge cases, generic-file behavior, composer-chip/multi-select navigation refinements, preview zoom, and MiniXP repeat pass remain separate checklist items until explicitly exercised.
+The overflow arrows remain a known **presentation-polish** item rather than a functional blocker. Their replacement/design should be revisited after the backend is working rather than expanding this UI tranche further.
+
+The complete image-selection/plain-copy edge cases, generic-file behavior, and latest MiniXP repeat pass remain separate checklist items until explicitly exercised.
 
 ## Target validation checklist
 

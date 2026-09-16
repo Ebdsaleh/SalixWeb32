@@ -14,6 +14,9 @@
 #include "engine/platform/win32/Win32DesktopServices.h"
 #include "engine/platform/win32/Win32FileDialog.h"
 #include "engine/platform/win32/Win32GraphicsRuntime.h"
+#include "web/backends/PlaceholderWebBackend.h"
+#include "web/platform/WebNavigationRequest.h"
+#include "web/platform/WebPlatformHost.h"
 
 int APIENTRY WinMain(
     HINSTANCE instance_handle,
@@ -22,13 +25,20 @@ int APIENTRY WinMain(
     int show_command
 ) {
     ApplicationRuntime application_runtime;
+    PlaceholderWebBackend placeholder_web_backend;
+    WebPlatformHost web_platform_host;
     Win32GraphicsRuntime graphics_runtime;
     Win32FileDialog file_dialog;
     Win32DesktopServices desktop_services(instance_handle);
+
+    web_platform_host.set_backend(&placeholder_web_backend);
+    application_runtime.set_web_platform_host(&web_platform_host);
+
     StatusView status_view(
         &application_runtime,
         &file_dialog,
-        &desktop_services
+        &desktop_services,
+        &web_platform_host
     );
     Win32ApplicationHost application_host;
     Win32MenuController menu_controller;
@@ -57,6 +67,13 @@ int APIENTRY WinMain(
         );
         graphics_runtime.shutdown();
         return 1;
+    }
+
+    WebNavigationRequest initial_navigation("https://www.chatgpt.com/");
+    if (!web_platform_host.navigate(initial_navigation)) {
+        Diagnostics::write_line(
+            "Initial placeholder WebView navigation was not accepted."
+        );
     }
 
     if (!application_host.initialize(
