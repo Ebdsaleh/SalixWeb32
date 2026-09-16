@@ -4,9 +4,7 @@ This document records the first Phase 3 SalixWeb32 web-platform boundary.
 
 ## Purpose
 
-The goal of this tranche is **not** to browse the modern web yet. It is to establish the stable architectural slot through which a future native, Gecko, translator, or remote implementation can supply web capability without the application shell depending on that concrete implementation.
-
-The contract is deliberately useful before networking exists:
+The goal of this tranche is **not** to browse the modern web yet. It establishes the stable architectural slot through which a future native, Gecko, translator, or remote implementation can supply web capability without the application shell depending on that concrete implementation.
 
 ```text
 Application shell
@@ -20,14 +18,14 @@ web::platform::WebPlatformHost
         v
 web::platform::WebPlatformBackend
         |
-        +-- PlaceholderWebBackend   (current validation backend)
+        +-- PlaceholderWebBackend   (Phase 3 validation backend)
         +-- NativeBackend           (future)
         +-- GeckoBackend            (future)
         +-- TranslatorBackend       (future)
-        `-- RemoteBackend           (future)
+        `-- RemoteBackend           (transport work now active)
 ```
 
-The current placeholder backend performs **no network access**. It exists so the component, lifecycle, navigation, surface, input, diagnostics, and backend-selection boundaries can be compiled and exercised on the Pentium 4 before a real web engine is chosen.
+The placeholder backend performs **no network access**. It exists so the component, lifecycle, navigation, surface, input, diagnostics, and backend-selection boundaries can be compiled and exercised on the Pentium 4 before a real web engine is chosen.
 
 ## WebPlatformBackend
 
@@ -73,7 +71,7 @@ translator
 remote
 ```
 
-`placeholder` is a development/validation family only. The remaining families match the long-term architecture already described in `ARCHITECTURE.md`.
+`placeholder` is a development/validation family only. The remaining families match the long-term architecture described in `ARCHITECTURE.md`.
 
 ## WebPlatformHost
 
@@ -82,7 +80,7 @@ remote
 The composition root supplies a backend before runtime initialization:
 
 ```text
-PlaceholderWebBackend
+Concrete backend
         |
         v
 WebPlatformHost::set_backend(...)
@@ -146,13 +144,13 @@ kind
 replace-history flag
 ```
 
-The current shell submits an initial target of:
+The shell currently submits an initial target of:
 
 ```text
 https://www.chatgpt.com/
 ```
 
-The placeholder accepts the request only as state. **It does not contact the address.** The point is to prove that a real backend can later receive the same application request without changing the shell.
+The placeholder accepts the request only as state. **It does not contact the address.** The point is to prove that another backend can receive the same application request without changing the shell.
 
 ## WebSurfaceSnapshot
 
@@ -167,7 +165,7 @@ content
 
 This is a Phase 3 diagnostic/presentation surface, not an attempt to define the future DOM or full rendering engine.
 
-A future backend may eventually expose a document tree, raster surface, retained display list, native child surface, or another representation behind an extended contract. The application must not assume that this first textual snapshot is the final browser rendering architecture.
+A future backend may expose a document tree, raster surface, retained display list, native child surface, or another representation behind an extended contract. The application must not assume that this first textual snapshot is the final browser rendering architecture.
 
 ## WebView
 
@@ -181,9 +179,9 @@ It displays:
 - explicit capability flags,
 - backend surface status/content.
 
-It binds only to `WebPlatformHost`; it does not know `PlaceholderWebBackend` exists.
+It binds only to `WebPlatformHost`; it does not know a concrete backend exists.
 
-The first application shell adds a third workspace tab:
+The application shell contains:
 
 ```text
 Conversation | Web | Runtime
@@ -224,7 +222,7 @@ WebSocket
 file upload
 ```
 
-The placeholder reports only the contract capabilities it genuinely implements. In particular it reports:
+The placeholder reports only the contract capabilities it genuinely implements:
 
 ```text
 navigation       yes
@@ -249,22 +247,38 @@ The important rule for every later backend tranche is:
 
 A native implementation may compose Salix network/document/layout subsystems. A Gecko implementation may delegate those jobs internally. A translator or remote backend may receive a representation produced elsewhere. Those differences belong below the backend boundary.
 
-## Target validation checklist
+## Pentium 4 validation result
 
-This Phase 3 foundation is pending VC7.1/target validation until the real Pentium 4 rebuild is green.
+The Phase 3 foundation was rebuilt and exercised on the real Pentium 4 under Windows Server 2003 SP2 with Visual C++ 7.1 on September 16, 2026.
 
-1. Close/reopen Visual Studio .NET 2003 because the `.vcproj` gains new translation units.
-2. Clean and rebuild the Debug Win32 solution with VC7.1.
-3. Confirm SalixWeb32 still launches on Windows Server 2003 SP2.
-4. Confirm the workspace now contains `Conversation`, `Web`, and `Runtime` tabs.
-5. Switch repeatedly among all three tabs and confirm native Conversation controls disappear/reappear correctly.
-6. Open the `Web` tab and confirm it identifies `Placeholder Web Backend` and family `placeholder`.
-7. Confirm the Web tab displays `https://www.chatgpt.com/` as the navigation target while explicitly stating that no network request is performed.
-8. Confirm capability reporting shows navigation/surface/input available and network/HTML/JavaScript/upload unavailable.
-9. Move/click/type while the Web tab is active and confirm the forwarded-input counter changes without crashing.
-10. Open the `Runtime` tab and confirm backend identity, family, lifecycle, and concise capability information are visible there too.
-11. Confirm Conversation composition, attachments, image Preview/Open, and existing scrolling still work after visiting the Web tab.
-12. Close the application normally and confirm backend/runtime shutdown is clean.
-13. After Server 2003 passes, repeat the workspace/lifecycle smoke test under MiniXP.
+The target pass was reported **green with no build errors or warnings**.
 
-Only after that target pass should this Phase 3 foundation be marked validated.
+Observed in the running application:
+
+- `Conversation`, `Web`, and `Runtime` workspace tabs are present,
+- `Web` identifies `Placeholder Web Backend`, family `placeholder`, lifecycle `initialized`,
+- the requested address is `https://www.chatgpt.com/`,
+- capability reporting correctly distinguishes supported contract features from unavailable network/HTML/JS/WebSocket/upload features,
+- the placeholder explicitly states that no network request is being made,
+- forwarded input events increase while interacting with the Web workspace,
+- the application remains responsive and the new workspace renders correctly on the legacy target.
+
+This satisfies the Phase 3 Server 2003 exit criterion: the shell displays a `WebView` supplied by a dummy backend without product code knowing the concrete backend type.
+
+MiniXP remains a separate smoke target and is not implied by this Server 2003 result.
+
+The next transport work is documented in `docs/REMOTE_BRIDGE.md`.
+
+## Phase 3 regression checklist
+
+Future backend work should preserve these validated behaviors:
+
+1. VC7.1 continues to compile/link the generic web-platform boundary.
+2. SalixWeb32 starts even when no real network backend is selected.
+3. Workspace switching preserves Conversation native-control lifecycle.
+4. Web backend identity/family/lifecycle remain visible.
+5. Capability reporting remains honest and backend-driven.
+6. Input forwarding remains backend-neutral.
+7. Conversation composition, attachments, Preview/Open, and scrolling do not regress.
+8. Backend/runtime shutdown remains clean.
+9. MiniXP smoke coverage is recorded separately when explicitly performed.

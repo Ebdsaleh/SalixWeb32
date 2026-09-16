@@ -53,6 +53,19 @@ The VC7.1-era SDK can also be sensitive to header ordering around common control
 
 This previously affected the native tab implementation and should be treated as another known legacy-SDK compatibility check rather than as an application-architecture issue.
 
+### Winsock2 must precede `windows.h`
+
+When a Win32 translation unit uses Winsock2 directly, include `<winsock2.h>` **before** `<windows.h>`:
+
+```cpp
+#include <winsock2.h>
+#include <windows.h>
+```
+
+Older Windows SDK header stacks can otherwise allow the original Winsock header pulled in through `windows.h` to conflict with Winsock2 declarations. Keep Winsock headers confined to the platform implementation when possible so this ordering rule does not leak into framework/application headers.
+
+The first remote-bridge transport follows this rule in `Win32HttpTransport.cpp` and links `ws2_32.lib` explicitly.
+
 ## Python experiment
 
 CPython 3.13.3:

@@ -152,7 +152,7 @@ The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`
 
 The native tabbed workspace baseline has been exercised successfully on the real Pentium 4 under both Windows Server 2003 SP2 and MiniXP. The later native-menu/attachment work has also rebuilt and run green on the Pentium 4 under Windows Server 2003 SP2, including multi-file selection, removable attachment chips, inline image presentation, internal Preview, default-application Open, and Preview mouse-wheel zoom. The current `<` / `>` overflow controls are functionally accepted for now but their visual interaction is explicitly deferred to a later UI-polish pass. The latest attachment tranche must not be treated as MiniXP-validated until that repeat smoke pass is explicitly performed.
 
-Known VC7.1-era SDK gotchas are recorded in `docs/BUILD_ENVIRONMENT.md`, including the recurring local `WM_MOUSEWHEEL` compatibility definition and common-controls include-order requirements.
+Known VC7.1-era SDK gotchas are recorded in `docs/BUILD_ENVIRONMENT.md`, including the recurring local `WM_MOUSEWHEEL` compatibility definition, common-controls include-order requirements, and Winsock2-before-`windows.h` rule.
 
 See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, `docs/SYNTAX_HIGHLIGHTING.md`, `docs/CONTEXT_MENUS.md`, `docs/TABBED_VIEWS.md`, `docs/NATIVE_MENU_BAR.md`, and `docs/ATTACHMENTS.md` for the current contracts and validation checklists.
 
@@ -162,15 +162,15 @@ See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE
 
 Goal: web support has a stable slot before any engine is chosen.
 
-- [~] `WebView` semantic component
-- [~] `WebPlatformBackend` contract
-- [~] backend lifecycle through optional `WebPlatformHost`
-- [~] navigation request model
-- [~] first document/render surface snapshot contract
-- [~] input/event bridge
-- [~] placeholder backend
-- [~] diagnostics capability reporting
-- [~] backend selection mechanism
+- [x] `WebView` semantic component
+- [x] `WebPlatformBackend` contract
+- [x] backend lifecycle through optional `WebPlatformHost`
+- [x] navigation request model
+- [x] first document/render surface snapshot contract
+- [x] input/event bridge
+- [x] placeholder backend
+- [x] diagnostics capability reporting
+- [x] backend selection mechanism
 
 Initial backend families:
 
@@ -182,11 +182,13 @@ translator
 remote
 ```
 
-The first Phase 3 source tranche now provides a third `Web` workspace tab backed by `PlaceholderWebBackend`. The shell targets `https://www.chatgpt.com/` through the generic navigation contract, but the placeholder deliberately performs **no network request**. Its job is to prove the application -> framework -> web-platform boundary, backend lifecycle, input forwarding, capability discovery, and diagnostics on VC7.1 before any real engine/network provider is selected.
+The first Phase 3 source tranche provides a third `Web` workspace tab backed by `PlaceholderWebBackend`. The shell targets `https://www.chatgpt.com/` through the generic navigation contract, but the placeholder deliberately performs **no network request**. Its job is to prove the application -> framework -> web-platform boundary, backend lifecycle, input forwarding, capability discovery, and diagnostics before any real engine/network provider is selected.
 
-This tranche is **pending real-target rebuild/validation**. See `docs/WEB_BACKEND_CONTRACT.md`.
+The September 16, 2026 Pentium 4 / Windows Server 2003 SP2 target pass rebuilt this tranche with Visual C++ 7.1 with **no build errors or warnings**. The running Web workspace correctly reported the placeholder identity/family/lifecycle, explicit capabilities, requested ChatGPT address, and changing forwarded-input count.
 
-**Exit criterion:** shell displays a WebView supplied by a dummy backend without product code knowing the concrete backend type. This criterion is implemented in source but is not marked achieved until the VC7.1/Server 2003 target pass succeeds.
+See `docs/WEB_BACKEND_CONTRACT.md`.
+
+**Exit criterion:** achieved on the primary Server 2003 target. The shell displays a `WebView` supplied by a dummy backend without product code knowing the concrete backend type. MiniXP remains a separate smoke target.
 
 ## Phase 4 — Web foundation primitives
 
@@ -196,16 +198,21 @@ Goal: implement or port reusable pieces that every web backend needs.
 - [~] MIME handling foundation (`MimeData` introduced by the UI/clipboard layer)
 - [ ] Unicode/text encoding abstraction
 - [ ] stream/buffer abstraction
-- [ ] network request/response model
+- [~] network request/response model
+- [~] backend-neutral `NetworkTransport` contract
+- [~] Win32 Winsock2 plain-HTTP transport for trusted-LAN bridge validation
+- [~] remote companion protocol and modern-side development server
 - [ ] cookie model
 - [ ] cache abstraction
 - [ ] certificate/trust abstraction
 - [ ] security origin model
 - [ ] content decoding/compression investigation
 
-Do not implement cryptography from scratch.
+The first transport tranche deliberately uses plain HTTP only between the legacy machine and a trusted modern companion on the local network. It does **not** send credentials or claim modern Internet security. Its job is to validate the request/response and transport seam before modern TLS/service behavior is added on the companion side.
 
-**Exit criterion:** clean interfaces exist for network/security/document layers even if some providers remain stubs.
+See `docs/REMOTE_BRIDGE.md`.
+
+**Exit criterion:** clean interfaces exist for network/security/document layers even if some providers remain stubs. The current transport sub-tranche remains pending VC7.1 and real LAN round-trip validation.
 
 ## Phase 5 — Network + HTTPS viability
 
@@ -213,7 +220,7 @@ Goal: retrieve modern HTTPS content safely enough for experimentation.
 
 - [ ] identify portable TLS candidates
 - [ ] verify compiler/NT 5.2 compatibility
-- [ ] DNS/socket layer
+- [ ] DNS/socket layer for direct Internet backend
 - [ ] HTTP/1.1 client
 - [ ] redirects
 - [ ] headers
@@ -224,7 +231,9 @@ Goal: retrieve modern HTTPS content safely enough for experimentation.
 - [ ] investigate HTTP/2 need
 - [ ] defer HTTP/3 unless target requires it
 
-**Exit criterion:** P4 can retrieve selected modern HTTPS resources through the Salix network layer.
+The Phase 4 remote bridge does not satisfy these direct-Internet requirements. It is an alternate/parallel backend path that intentionally lets a modern companion own modern TLS and service-specific behavior.
+
+**Exit criterion:** P4 can retrieve selected modern HTTPS resources through the Salix network layer or an explicitly selected secure backend path.
 
 ## Phase 6 — Basic document engine
 
@@ -327,10 +336,11 @@ remote backend
 - [~] text input (native shell proof advancing before network backend)
 - [~] attachments (semantic local model + image presentation active; transfer backend pending)
 - [ ] file transfer
-- [~] copy/paste build logs (local UI path exists; remote bridge pending)
+- [~] copy/paste build logs (local UI path exists; remote bridge transport now active)
 - [ ] session persistence
 - [~] diagnostics panel
-- [ ] privacy/network endpoint visibility
+- [~] privacy/network endpoint visibility foundation
+- [~] remote bridge backend/companion transport foundation
 
 **Exit criterion:** modern interactive SaaS communication is usable directly from the P4 without an external transfer workflow.
 

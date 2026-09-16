@@ -56,16 +56,16 @@ WebPlatformBackend
   +-- NativeBackend
   +-- GeckoBackend
   +-- TranslatorBackend
-  `-- RemoteBackend
+  `-- RemoteBridgeWebBackend
 ```
 
 `WebPlatformHost` is the backend-selection and lifecycle boundary. It can be given one concrete backend by the composition root before runtime initialization. Consumers see only generic navigation, surface, input, capability, and identity operations.
 
 The application must not branch on Gecko-specific types, backend-specific DOM objects, remote-bridge packet structures, or any other concrete provider detail.
 
-The first Phase 3 implementation uses `PlaceholderWebBackend`. It intentionally performs no network activity; its purpose is to prove the entire dependency direction on VC7.1 and the real target before a real web engine is selected.
+The first Phase 3 implementation used `PlaceholderWebBackend` to prove the entire dependency direction on VC7.1 and the real target before a real network provider was selected. That contract has now passed the primary Server 2003 target build/runtime validation.
 
-See `docs/WEB_BACKEND_CONTRACT.md` for the concrete Phase 3 contract and validation checklist.
+See `docs/WEB_BACKEND_CONTRACT.md` for the concrete Phase 3 contract and validation result.
 
 ## Web platform lifecycle relationship
 
@@ -131,6 +131,45 @@ No rule says every backend must use every native Salix subsystem.
 
 A Gecko backend may internally delegate many of them to Gecko. A native backend may compose Salix implementations. A translator may receive an already transformed document representation. A remote backend may consume a surface or semantic representation generated on another machine.
 
+## Remote bridge transport relationship
+
+The first real network path intentionally separates the legacy application from modern Internet-service requirements:
+
+```text
+WebView
+  |
+  v
+WebPlatformHost
+  |
+  v
+RemoteBridgeWebBackend
+  |
+  v
+NetworkTransport
+  |
+  v
+Win32HttpTransport
+  |
+  v
+trusted LAN
+  |
+  v
+modern companion process
+  |
+  v
+future modern TLS / service adapter / translation logic
+```
+
+`NetworkRequest`, `NetworkResponse`, and `NetworkTransport` live in the web/network layer. They do not expose Winsock handles or Win32 socket types.
+
+`Win32HttpTransport` is a platform implementation of that contract using Winsock2. It is currently deliberately small and plain-HTTP-only because its first job is to prove a bounded LAN request/response seam on Windows Server 2003 / VC7.1.
+
+`RemoteBridgeWebBackend` consumes only `NetworkTransport`. It must not include Winsock headers or own Windows socket details.
+
+The modern companion is a separate process and may use a modern runtime/toolchain. This permits modern TLS, authentication, provider protocols, compression, or translation to be introduced there without forcing those requirements onto the Pentium 4.
+
+The first bridge protocol is intentionally non-sensitive and must not carry credentials or session tokens over its current plaintext transport. See `docs/REMOTE_BRIDGE.md`.
+
 ## Capability discovery
 
 Backends report supported features instead of pretending all features exist.
@@ -151,6 +190,8 @@ file upload
 ```
 
 The placeholder backend reports the contract-level features it genuinely supports and reports network/document/script/upload capability as unavailable. Both the Web workspace and Runtime diagnostics surface this information.
+
+The remote bridge backend may report `network` capability because it implements the selected LAN transport path while still reporting HTML, JavaScript, WebSocket, and file upload unavailable until the companion protocol genuinely supplies them.
 
 Longer-term capability reporting can expand, for example:
 
@@ -282,6 +323,8 @@ Runtime
 
 If Python is absent, the native product still starts and operates.
 
+The Python bridge companion is not the same thing as the optional embedded `PythonHost`. It runs on the modern companion machine and is merely one development implementation of the remote bridge protocol.
+
 ## Security relationship
 
 Security is not a late plugin.
@@ -301,6 +344,8 @@ network endpoint auditing
 ```
 
 A backend that lacks a security capability must report that honestly.
+
+The current LAN bridge is intentionally plaintext and therefore restricted to trusted local-network transport testing. It must not be exposed to the Internet or used for credentials in this state. Later companion-side modern TLS/service work must keep that boundary explicit.
 
 ## Performance assumptions
 
