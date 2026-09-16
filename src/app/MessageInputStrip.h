@@ -49,6 +49,7 @@ class MessageInputStrip : public Panel {
                     ? TextFormat::code_block
                     : TextFormat::code_none
             );
+            update_scrollbars(0);
         }
 
         void set_tab_size(int new_tab_size);
@@ -73,6 +74,7 @@ class MessageInputStrip : public Panel {
                 underline,
                 font_size
             );
+            update_scrollbars(0);
         }
 
         bool apply_list_style(TextInput::ListStyle style);
