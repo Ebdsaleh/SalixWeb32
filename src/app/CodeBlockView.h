@@ -32,6 +32,27 @@ class CodeBlockView : public Panel {
         const char* get_code() const;
         const char* get_language() const;
 
+        Label* get_selectable_label() {
+            return &code_label;
+        }
+
+        const Label* get_selectable_label() const {
+            return &code_label;
+        }
+
+        bool contains_code_text_point(int x, int y) const {
+            int left = body_panel.get_x() + body_padding;
+            int top = body_panel.get_y() + body_padding;
+            int right = body_panel.get_x() + body_panel.get_width() - body_padding;
+            int bottom = top + content_height;
+
+            return
+                x >= left &&
+                x < right &&
+                y >= top &&
+                y < bottom;
+        }
+
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
 

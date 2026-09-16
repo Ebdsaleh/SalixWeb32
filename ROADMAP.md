@@ -113,6 +113,10 @@ Implemented or active post-baseline work:
 - [~] delta-synchronized native scrollbar peers
 - [~] composer mouse-wheel scrolling (`Wheel` vertical / `Shift+Wheel` horizontal)
 - [~] persistent visual-column Up/Down caret navigation
+- [~] backend-neutral context-menu model with native Win32 popup presentation
+- [~] composer right-click Copy/Cut/Paste + keep-formatting variants
+- [~] cross-block read-only selection within one conversation message presentation
+- [~] read-only conversation Copy/Select All context menu
 - [~] bulleted/numbered list editing and dedicated `ListPanel`
 - [~] list continuation with Enter and `Ctrl+Enter` forced send
 - [~] classic text-emoticon registry
@@ -135,9 +139,9 @@ Implemented or active post-baseline work:
 
 The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, wrapped rich-conversation, and dedicated code-block-container work under Windows Server 2003 SP2. The newest code-language/syntax and composer wheel/vertical-navigation work remains pending VC7.1/Server 2003 validation, and newer post-v0.0.2 work must not be assumed validated under MiniXP until exercised there explicitly.
+The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, wrapped rich-conversation, and dedicated code-block-container work under Windows Server 2003 SP2. The newest code-language/syntax, composer wheel/vertical-navigation, and native context-menu/presentation-selection work remains pending VC7.1/Server 2003 validation, and newer post-v0.0.2 work must not be assumed validated under MiniXP until exercised there explicitly.
 
-See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, and `docs/SYNTAX_HIGHLIGHTING.md` for the current contracts and validation checklists.
+See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, `docs/SYNTAX_HIGHLIGHTING.md`, and `docs/CONTEXT_MENUS.md` for the current contracts and validation checklists.
 
 **Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer/conversation work continues without changing the validated baseline tag.
 

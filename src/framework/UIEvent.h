@@ -6,6 +6,7 @@
 #pragma once
 
 class Clipboard;
+class NativeControlHost;
 class TextMetrics;
 
 class UIEvent {
@@ -16,6 +17,7 @@ class UIEvent {
             event_mouse_down,
             event_mouse_up,
             event_mouse_wheel,
+            event_context_menu,
             event_key_down,
             event_key_up,
             event_character
@@ -54,6 +56,7 @@ class UIEvent {
               click_count(1),
               wheel_delta(0),
               clipboard(0),
+              native_control_host(0),
               text_metrics(0) {
         }
 
@@ -69,5 +72,6 @@ class UIEvent {
         int click_count;
         int wheel_delta;
         Clipboard* clipboard;
+        NativeControlHost* native_control_host;
         TextMetrics* text_metrics;
 };

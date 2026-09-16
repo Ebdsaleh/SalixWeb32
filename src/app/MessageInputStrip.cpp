@@ -8,17 +8,43 @@
 #include <string.h>
 
 #include "MessageInputStrip.h"
+#include "framework/Clipboard.h"
+#include "framework/ContextMenu.h"
+#include "framework/EmoticonRegistry.h"
 #include "framework/FormattedText.h"
-#include "framework/UIEvent.h"
 #include "framework/MimeData.h"
+#include "framework/MimeTypes.h"
 #include "framework/NativeControlHost.h"
 #include "framework/TextMetrics.h"
 #include "framework/TextViewportState.h"
-#include "framework/EmoticonRegistry.h"
+#include "framework/UIEvent.h"
 
 namespace {
+    enum ComposerContextCommand {
+        context_copy = 1,
+        context_cut,
+        context_cut_keep_formatting,
+        context_paste,
+        context_paste_keep_formatting,
+        context_select_all
+    };
+
     int maximum_int(int first, int second) {
         return first > second ? first : second;
+    }
+
+    bool clipboard_has_text(Clipboard* clipboard) {
+        if (clipboard == 0) {
+            return false;
+        }
+
+        MimeData data;
+        if (!clipboard->get_data(data)) {
+            return false;
+        }
+
+        return data.has_format(MimeTypes::text_plain()) ||
+            data.has_format(MimeTypes::salix_selection_preserved());
     }
 }
 
@@ -404,6 +430,102 @@ bool MessageInputStrip::handle_event(const UIEvent& event) {
             apply_viewport_state();
             return true;
         }
+    }
+
+    if (
+        event.type == UIEvent::event_context_menu &&
+        message_input.contains_point(event.x, event.y)
+    ) {
+        NativeControlHost* menu_host = event.native_control_host != 0
+            ? event.native_control_host
+            : native_control_host;
+
+        if (menu_host == 0) {
+            return false;
+        }
+
+        message_input.set_focused(true);
+
+        bool has_selection = message_input.has_selection();
+        bool has_text = message_input.get_text() != 0 &&
+            message_input.get_text()[0] != '\0';
+        bool can_paste = clipboard_has_text(event.clipboard);
+
+        ContextMenu menu;
+        menu.add_item(context_copy, "Copy", has_selection);
+        menu.add_item(context_cut, "Cut", has_selection);
+        menu.add_item(
+            context_cut_keep_formatting,
+            "Cut - Keep Formatting",
+            has_selection
+        );
+        menu.add_item(context_paste, "Paste", can_paste);
+        menu.add_item(
+            context_paste_keep_formatting,
+            "Paste - Keep Formatting",
+            can_paste
+        );
+        menu.add_separator();
+        menu.add_item(context_select_all, "Select All", has_text);
+
+        int command_id = menu_host->show_context_menu(
+            menu,
+            event.x,
+            event.y
+        );
+
+        if (command_id == 0) {
+            return true;
+        }
+
+        if (command_id == context_select_all) {
+            message_input.select_all();
+            return true;
+        }
+
+        UIEvent command_event(UIEvent::event_key_down);
+        command_event.control_down = true;
+        command_event.clipboard = event.clipboard;
+        command_event.text_metrics = event.text_metrics;
+
+        switch (command_id) {
+            case context_copy:
+                command_event.key_code = UIEvent::key_c;
+                break;
+
+            case context_cut:
+                command_event.key_code = UIEvent::key_x;
+                break;
+
+            case context_cut_keep_formatting:
+                command_event.key_code = UIEvent::key_x;
+                command_event.shift_down = true;
+                break;
+
+            case context_paste:
+                command_event.key_code = UIEvent::key_v;
+                break;
+
+            case context_paste_keep_formatting:
+                command_event.key_code = UIEvent::key_v;
+                command_event.shift_down = true;
+                break;
+
+            default:
+                return true;
+        }
+
+        bool handled = message_input.handle_event(command_event);
+
+        if (
+            command_id != context_copy &&
+            handled
+        ) {
+            update_scrollbars(event.text_metrics);
+            ensure_caret_visible(event.text_metrics);
+        }
+
+        return true;
     }
 
     if (send_button.handle_event(event)) {

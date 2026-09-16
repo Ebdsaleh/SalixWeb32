@@ -157,6 +157,7 @@
 			<File RelativePath="..\..\src\framework\ComboBox.h"/>
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
+			<File RelativePath="..\..\src\framework\ContextMenu.h"/>
 			<File RelativePath="..\..\src\framework\EmoticonRegistry.h"/>
 			<File RelativePath="..\..\src\framework\FileDialog.h"/>
 			<File RelativePath="..\..\src\framework\FormattedText.h"/>

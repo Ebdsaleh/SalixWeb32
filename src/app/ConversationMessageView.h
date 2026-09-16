@@ -11,9 +11,11 @@
 #include "framework/Label.h"
 #include "framework/FormattedText.h"
 
+class Clipboard;
 class CodeBlockView;
 class NativeControlHost;
 class TextMetrics;
+class UIEvent;
 
 class ConversationMessageView : public Panel {
     public:
@@ -41,6 +43,8 @@ class ConversationMessageView : public Panel {
 
         int get_preferred_height() const;
         bool has_code_blocks() const;
+
+        virtual bool handle_event(const UIEvent& event);
 
     private:
         struct BlockEntry {
@@ -75,12 +79,42 @@ class ConversationMessageView : public Panel {
         ) const;
         void layout_children(TextMetrics* text_metrics);
 
+        void collect_selectable_labels(std::vector<Label*>& labels);
+        void collect_selectable_labels(
+            std::vector<const Label*>& labels
+        ) const;
+        int find_selectable_label_at_point(
+            const std::vector<Label*>& labels,
+            int x,
+            int y
+        ) const;
+        bool resolve_selection_endpoint(
+            const std::vector<Label*>& labels,
+            const UIEvent& event,
+            int& label_index,
+            int& character_index
+        ) const;
+        void clear_presentation_selection(std::vector<Label*>& labels);
+        void apply_presentation_selection(
+            std::vector<Label*>& labels,
+            int target_label_index,
+            int target_character_index
+        );
+        bool has_presentation_selection() const;
+        bool has_focused_presentation_label() const;
+        bool copy_presentation_selection(Clipboard* clipboard) const;
+        void select_all_presentation();
+        bool handle_context_menu(const UIEvent& event);
+
         Label role_header_label;
         std::vector<BlockEntry> blocks;
         NativeControlHost* native_control_host;
 
         bool separate_role_header;
         bool contains_code_blocks;
+        bool presentation_drag_selecting;
+        int selection_anchor_label_index;
+        int selection_anchor_character_index;
         int preferred_height;
         int last_layout_width;
         int block_spacing;

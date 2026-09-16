@@ -44,8 +44,16 @@ class Label : public Component {
         void set_selectable(bool new_is_selectable);
         bool get_is_selectable() const;
         bool get_is_focused() const;
+        void set_focused(bool new_is_focused) {
+            is_focused = new_is_focused;
+            if (!is_focused) {
+                is_mouse_selecting = false;
+                is_mouse_deselecting = false;
+            }
+        }
 
         int get_cursor_position() const;
+        int get_character_index_at_event(const UIEvent& event) const;
         bool has_selection() const;
         int get_selection_start() const;
         int get_selection_end() const;
@@ -53,6 +61,7 @@ class Label : public Component {
         bool get_selection_range(int index, int& start, int& end) const;
         bool is_character_selected(int character_index) const;
         void clear_selection();
+        void set_selection_range(int start, int end);
         void select_all();
 
         virtual bool handle_event(const UIEvent& event);

@@ -239,3 +239,50 @@ Target validation should verify:
 10. Server 2003 is validated first, followed by MiniXP smoke coverage.
 
 See `docs/CODE_COMPOSER.md` for the complete interaction contract.
+
+## Pending native context-menu and read-only selection tranche
+
+The next interaction tranche is implemented in source and remains pending target validation. It adds a backend-neutral `ContextMenu` model, a native-menu presentation method on `NativeControlHost`, Win32 right-click routing, composer edit commands, and presentation-wide selection for one block-composed conversation message.
+
+The composer right-click menu currently exposes:
+
+```text
+Copy
+Cut
+Cut - Keep Formatting
+Paste
+Paste - Keep Formatting
+-----------------------
+Select All
+```
+
+The menu reuses the existing keyboard editing paths rather than reimplementing clipboard mutations. This is important because compact/preserved selection payloads, Undo/Redo history, formatting-aware cut/paste behavior, caret-follow scrolling, and scrollbar ranges remain owned by the established `TextInput` implementation.
+
+A read-only conversation message exposes:
+
+```text
+Copy
+-----------------------
+Select All
+```
+
+The message-level selection coordinator can extend a normal drag through the role header, prose labels, code text, and later prose inside that one `ConversationMessageView`. It does not rewrite canonical Markdown or code. Existing double/triple-click and Ctrl/Ctrl+Alt advanced gestures remain local to the individual selectable text surface.
+
+The current grouping boundary is intentionally one message presentation. Cross-message-row drag selection is not claimed by this tranche and remains a future conversation-document refinement.
+
+Target validation should verify:
+
+1. Visual C++ 7.1 compiles the new `ContextMenu` model and Win32 popup path without warnings/errors.
+2. Right-clicking inside the composer produces a native Server 2003 popup menu rather than painted framework chrome.
+3. Copy/Cut and Paste enablement follows current selection/clipboard availability.
+4. Cut/Paste and their Keep Formatting variants exactly match the existing keyboard semantics.
+5. Select All covers the complete composer draft.
+6. Right-clicking a conversation message provides Copy and Select All.
+7. Drag selection can cross prose -> code -> prose boundaries inside one message presentation in both directions.
+8. A separated role header participates in selection.
+9. Multi-block Copy produces selected text in presentation order with block boundaries represented as line breaks.
+10. The existing code-block Copy button still copies raw code only.
+11. Context menus do not cause the native scrollbar redraw regression to return.
+12. Validate first on Windows Server 2003 SP2 and then repeat the smoke pass under MiniXP.
+
+See `docs/CONTEXT_MENUS.md` for the full interaction contract and checklist.

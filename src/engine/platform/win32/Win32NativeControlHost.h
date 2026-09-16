@@ -11,6 +11,7 @@
 #include "framework/NativeControlHost.h"
 
 class ComboBox;
+class ContextMenu;
 class ScrollBar;
 
 class Win32NativeControlHost : public NativeControlHost {
@@ -28,6 +29,12 @@ class Win32NativeControlHost : public NativeControlHost {
         virtual bool attach_scroll_bar(ScrollBar* scroll_bar);
         virtual void detach_scroll_bar(ScrollBar* scroll_bar);
         virtual void sync_scroll_bar(ScrollBar* scroll_bar);
+
+        virtual int show_context_menu(
+            const ContextMenu& menu,
+            int client_x,
+            int client_y
+        );
 
         bool handle_command(WPARAM w_param, LPARAM l_param);
         bool handle_scroll(UINT message, WPARAM w_param, LPARAM l_param);

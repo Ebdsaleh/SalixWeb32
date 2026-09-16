@@ -6,6 +6,7 @@
 
 #include "Win32NativeControlHost.h"
 #include "framework/ComboBox.h"
+#include "framework/ContextMenu.h"
 #include "framework/ScrollBar.h"
 
 Win32NativeControlHost::ComboPeer::ComboPeer()
@@ -405,6 +406,71 @@ void Win32NativeControlHost::sync_scroll_bar(ScrollBar* scroll_bar) {
         peer.last_enabled = enabled;
         peer.enabled_valid = true;
     }
+}
+
+int Win32NativeControlHost::show_context_menu(
+    const ContextMenu& menu,
+    int client_x,
+    int client_y
+) {
+    if (
+        !is_initialized ||
+        parent_window == NULL ||
+        !IsWindow(parent_window) ||
+        menu.get_item_count() <= 0
+    ) {
+        return 0;
+    }
+
+    HMENU popup_menu = CreatePopupMenu();
+    if (popup_menu == NULL) {
+        return 0;
+    }
+
+    for (int index = 0; index < menu.get_item_count(); ++index) {
+        const ContextMenu::Item* item = menu.get_item(index);
+        if (item == 0) {
+            continue;
+        }
+
+        if (item->separator) {
+            AppendMenuA(popup_menu, MF_SEPARATOR, 0, NULL);
+            continue;
+        }
+
+        UINT flags = MF_STRING;
+        if (!item->enabled) {
+            flags |= MF_GRAYED;
+        }
+
+        AppendMenuA(
+            popup_menu,
+            flags,
+            (UINT_PTR)item->command_id,
+            item->text.c_str()
+        );
+    }
+
+    POINT screen_point;
+    screen_point.x = client_x;
+    screen_point.y = client_y;
+    ClientToScreen(parent_window, &screen_point);
+
+    SetForegroundWindow(parent_window);
+
+    int command_id = (int)TrackPopupMenu(
+        popup_menu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON,
+        screen_point.x,
+        screen_point.y,
+        0,
+        parent_window,
+        NULL
+    );
+
+    DestroyMenu(popup_menu);
+    PostMessageA(parent_window, WM_NULL, 0, 0);
+    return command_id;
 }
 
 bool Win32NativeControlHost::handle_command(

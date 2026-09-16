@@ -137,6 +137,10 @@ int Label::get_cursor_position() const {
     return selection.get_caret_position();
 }
 
+int Label::get_character_index_at_event(const UIEvent& event) const {
+    return get_cursor_position_from_event(event);
+}
+
 bool Label::has_selection() const {
     return selection.has_selection();
 }
@@ -189,6 +193,15 @@ bool Label::is_character_selected(int character_index) const {
 
 void Label::clear_selection() {
     selection.clear_selection();
+}
+
+void Label::set_selection_range(int start, int end) {
+    selection.select_range(
+        start,
+        end,
+        (int)text.length(),
+        false
+    );
 }
 
 void Label::select_all() {

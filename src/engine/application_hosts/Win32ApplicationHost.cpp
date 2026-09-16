@@ -481,6 +481,35 @@ LRESULT Win32ApplicationHost::handle_message(
             return 0;
         }
 
+        case WM_RBUTTONUP: {
+            SetFocus(current_window_handle);
+
+            UIEvent event(UIEvent::event_context_menu);
+            event.x = (int)(short)LOWORD(l_param);
+            event.y = (int)(short)HIWORD(l_param);
+            populate_modifier_state(event);
+
+            Win32Clipboard clipboard(current_window_handle);
+            event.clipboard = &clipboard;
+            event.native_control_host = &native_control_host;
+
+            HDC metrics_context = GetDC(current_window_handle);
+            Win32TextMetrics text_metrics(metrics_context);
+            event.text_metrics = metrics_context != NULL ? &text_metrics : 0;
+
+            bool was_handled = application_view != 0 &&
+                application_view->handle_event(event);
+
+            if (metrics_context != NULL) {
+                ReleaseDC(current_window_handle, metrics_context);
+            }
+
+            if (was_handled) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+            }
+            return 0;
+        }
+
         case WM_KEYDOWN: {
             UIEvent event(UIEvent::event_key_down);
             event.key_code = translate_key_code(w_param);
