@@ -95,6 +95,8 @@
 		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
 			<File RelativePath="..\..\src\main.cpp"/>
 			<File RelativePath="..\..\src\app\Attachment.cpp"/>
+			<File RelativePath="..\..\src\app\AttachmentChip.cpp"/>
+			<File RelativePath="..\..\src\app\AttachmentTray.cpp"/>
 			<File RelativePath="..\..\src\app\CodeBlockView.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationMessageView.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationMessageSelection.cpp"/>
@@ -150,6 +152,8 @@
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
 			<File RelativePath="..\..\src\app\Attachment.h"/>
+			<File RelativePath="..\..\src\app\AttachmentChip.h"/>
+			<File RelativePath="..\..\src\app\AttachmentTray.h"/>
 			<File RelativePath="..\..\src\app\CodeBlockView.h"/>
 			<File RelativePath="..\..\src\app\ConversationMessageView.h"/>
 			<File RelativePath="..\..\src\app\ConversationView.h"/>

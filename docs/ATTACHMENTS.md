@@ -1,6 +1,6 @@
 # Attachments
 
-This document records the first SalixWeb32 first-class attachment tranche.
+This document records the SalixWeb32 first-class attachment work.
 
 ## Design goal
 
@@ -25,6 +25,24 @@ kind
 ```
 
 Image classification is currently extension-based for formats supported by the Win32 image path (`bmp`, `gif`, `jpg/jpeg`, `png`, `tif/tiff`). The model is intentionally independent of GDI+; platform image decoding belongs below `DesktopServices`.
+
+## Composer attachment queue
+
+Selected files now become visible first-class draft items before the message is sent.
+
+The composer displays a compact attachment tray between the formatting toolbar and the multiline text input. Each queued file is represented by an `AttachmentChip` containing:
+
+```text
+[file-name.ext] [x]
+```
+
+The `x` button removes only that attachment from the pending draft. Removing the final attachment restores the composer to its normal no-attachment layout and returns empty-submit behavior to its normal state.
+
+The tray remains a fixed single row so the existing conversation/composer split does not jump vertically while files are added. When all chips fit, they are shown directly. When the row overflows, small previous/next navigation buttons page through the queued attachments without allowing child controls to draw outside the composer bounds.
+
+The composer continues to keep the canonical pending paths in its existing attachment vector. `AttachmentTray` is presentation/control state only; `MessageDraft` is still built from the canonical composer attachment collection at submit time.
+
+Removal is deliberately deferred until the chip's mouse event has completely unwound. This avoids deleting the clicked chip while one of its own button callbacks is still active.
 
 ## Conversation presentation
 
@@ -124,7 +142,7 @@ Hey, check this out! <attachment: renderware2.jpg> What do you think?
 
 without requiring XML-like markup to become the internal storage model.
 
-Composer-inline attachment objects, structured clipboard serialization, and service/backend upload packaging are follow-on work and are not claimed by this tranche.
+Structured clipboard serialization and service/backend upload packaging remain follow-on work and are not claimed by this tranche.
 
 ## Win32 image services
 
@@ -137,20 +155,36 @@ The current platform implementation uses:
 
 These implementation details stay below the generic `DesktopServices`, `RasterImage`, and `ImageView` boundaries.
 
+## Current Pentium 4 validation status
+
+The September 16, 2026 Pentium 4 / Windows Server 2003 SP2 pass visibly confirmed the core image path:
+
+- the native application menu is present,
+- a JPEG can be attached and sent,
+- the conversation renders the filename reference plus inline thumbnail,
+- the internal SalixWeb32 Preview window opens the image,
+- Open launches the system's Windows Picture and Fax Viewer for the same file,
+- the image remains visibly aspect-ratio-correct in the conversation and preview surfaces.
+
+Those observations validate the principal decode/render/Preview/Open path on Server 2003. The complete selection/copy edge cases, generic-file behavior, composer-chip tranche, and MiniXP repeat pass remain separate checklist items until explicitly exercised.
+
 ## Target validation checklist
 
-This tranche is not target-validated until rebuilt and exercised on the real Pentium 4.
-
-1. Attach a JPEG or PNG from the local machine and send the draft.
-2. Confirm the conversation displays `System: filename.ext` and an inline thumbnail.
-3. Confirm a landscape image, portrait image, and small image retain correct aspect ratio.
-4. Confirm no thumbnail exceeds the 400x400 first-pass bound.
-5. Resize the application narrower than a 400-pixel thumbnail and confirm the image remains inside the conversation viewport without distortion.
-6. Right-click the thumbnail and verify `Preview`, `Open`, and `Copy Reference`.
-7. Confirm Preview opens internally and preserves aspect ratio while its window is resized.
-8. Confirm Open launches the machine's default application for that file type.
-9. Drag-select conversation text across the image and copy it.
-10. Paste into a plain text destination and confirm the image position becomes exactly `System: filename.ext` in source order.
-11. Begin a selection on the image and drag upward/downward; confirm the image surrogate is selected atomically.
-12. Attach a non-image file and confirm it still produces a useful system filename reference without a broken image placeholder.
-13. Repeat the smoke pass under Windows Server 2003 SP2 and MiniXP.
+1. Attach a JPEG or PNG from the local machine and confirm a filename chip appears in the composer before send.
+2. Attach several files and confirm each receives an independent remove `x` control.
+3. Remove one middle attachment and confirm the others remain queued in their original order.
+4. Remove the final attachment and confirm the attachment tray disappears cleanly.
+5. Queue enough files to overflow the row and confirm the previous/next tray controls expose every attachment without drawing outside the composer.
+6. Send a draft containing attachments and confirm the tray clears after submission.
+7. Confirm the conversation displays `System: filename.ext` and an inline thumbnail for an image attachment.
+8. Confirm a landscape image, portrait image, and small image retain correct aspect ratio.
+9. Confirm no thumbnail exceeds the 400x400 first-pass bound.
+10. Resize the application narrower than a 400-pixel thumbnail and confirm the image remains inside the conversation viewport without distortion.
+11. Right-click the thumbnail and verify `Preview`, `Open`, and `Copy Reference`.
+12. Confirm Preview opens internally and preserves aspect ratio while its window is resized.
+13. Confirm Open launches the machine's default application for that file type.
+14. Drag-select conversation text across the image and copy it.
+15. Paste into a plain text destination and confirm the image position becomes exactly `System: filename.ext` in source order.
+16. Begin a selection on the image and drag upward/downward; confirm the image surrogate is selected atomically.
+17. Attach a non-image file and confirm it still produces a useful system filename reference without a broken image placeholder.
+18. Repeat the completed smoke pass under MiniXP after Server 2003 succeeds.

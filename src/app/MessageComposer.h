@@ -12,6 +12,7 @@
 #include "MessageToolbar.h"
 #include "MessageInputStrip.h"
 #include "MessageDraft.h"
+#include "AttachmentTray.h"
 
 class FileDialog;
 class NativeControlHost;
@@ -106,14 +107,24 @@ class MessageComposer : public Panel {
             void* context
         );
 
+        static void on_attachment_removed(
+            AttachmentTray* tray,
+            int index,
+            void* context
+        );
+
         void build_draft(MessageDraft& draft) const;
         void add_attachments(const std::vector<std::string>& paths);
+        void remove_attachment(int index);
         void clear_attachments();
+        void sync_attachment_state();
         void sync_list_state();
 
         MessageInputStrip message_input_strip;
+        AttachmentTray attachment_tray;
         MessageToolbar message_toolbar;
         std::vector<std::string> attachment_paths;
+        int pending_attachment_remove_index;
 
         SubmitHandler submit_handler;
         void* submit_context;

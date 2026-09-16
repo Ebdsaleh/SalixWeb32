@@ -162,6 +162,7 @@ namespace {
 
 MessageComposer::MessageComposer(FileDialog* file_dialog)
     : message_toolbar(file_dialog),
+      pending_attachment_remove_index(-1),
       submit_handler(0),
       submit_context(0) {
 
@@ -196,12 +197,21 @@ MessageComposer::MessageComposer(FileDialog* file_dialog)
         this
     );
 
+    attachment_tray.set_attachment_removed_handler(
+        MessageComposer::on_attachment_removed,
+        this
+    );
+    attachment_tray.set_visible(false);
+
     message_input_strip.set_code_mode(message_toolbar.get_code_mode());
     message_input_strip.apply_code_style(message_toolbar.get_code_mode());
     message_input_strip.set_tab_size(message_toolbar.get_tab_size());
 
     add_child(&message_input_strip);
+    add_child(&attachment_tray);
     add_child(&message_toolbar);
+
+    sync_attachment_state();
     sync_list_state();
 }
 
@@ -306,7 +316,15 @@ void MessageComposer::arrange(int x, int y, int width, int height) {
 
     set_bounds(x, y, width, height);
 
-    int input_height = height - toolbar_height - gap;
+    int tray_height = attachment_tray.get_preferred_height();
+    int tray_gap = tray_height > 0 ? gap : 0;
+
+    int input_height =
+        height -
+        toolbar_height -
+        gap -
+        tray_height -
+        tray_gap;
     if (input_height < 0) {
         input_height = 0;
     }
@@ -318,9 +336,25 @@ void MessageComposer::arrange(int x, int y, int width, int height) {
         toolbar_height
     );
 
+    int next_y = y + toolbar_height + gap;
+
+    if (tray_height > 0) {
+        attachment_tray.set_visible(true);
+        attachment_tray.arrange(
+            x,
+            next_y,
+            width,
+            tray_height
+        );
+        next_y += tray_height + tray_gap;
+    } else {
+        attachment_tray.set_visible(false);
+        attachment_tray.arrange(0, 0, 0, 0);
+    }
+
     message_input_strip.arrange(
         x,
-        y + toolbar_height + gap,
+        next_y,
         width,
         input_height
     );
@@ -356,6 +390,26 @@ bool MessageComposer::handle_event(const UIEvent& event) {
     if (message_toolbar.handle_event(event)) {
         sync_list_state();
         return true;
+    }
+
+    if (
+        attachment_tray.get_is_visible() &&
+        attachment_tray.handle_event(event)
+    ) {
+        if (pending_attachment_remove_index >= 0) {
+            int remove_index = pending_attachment_remove_index;
+            pending_attachment_remove_index = -1;
+            remove_attachment(remove_index);
+        }
+
+        sync_list_state();
+        return true;
+    }
+
+    if (pending_attachment_remove_index >= 0) {
+        int remove_index = pending_attachment_remove_index;
+        pending_attachment_remove_index = -1;
+        remove_attachment(remove_index);
     }
 
     bool was_handled = message_input_strip.handle_event(event);
@@ -488,6 +542,21 @@ void MessageComposer::on_toolbar_code_mode_changed(
     composer->message_input_strip.set_tab_size(tab_size);
 }
 
+void MessageComposer::on_attachment_removed(
+    AttachmentTray* tray,
+    int index,
+    void* context
+) {
+    (void)tray;
+
+    MessageComposer* composer = (MessageComposer*)context;
+    if (composer == 0) {
+        return;
+    }
+
+    composer->pending_attachment_remove_index = index;
+}
+
 void MessageComposer::build_draft(MessageDraft& draft) const {
     draft.clear();
 
@@ -522,14 +591,40 @@ void MessageComposer::add_attachments(
         }
     }
 
-    message_toolbar.set_attachment_count((int)attachment_paths.size());
-    message_input_strip.set_allow_empty_submit(!attachment_paths.empty());
+    sync_attachment_state();
+}
+
+void MessageComposer::remove_attachment(int index) {
+    if (index < 0 || index >= (int)attachment_paths.size()) {
+        return;
+    }
+
+    attachment_paths.erase(attachment_paths.begin() + index);
+    sync_attachment_state();
 }
 
 void MessageComposer::clear_attachments() {
+    pending_attachment_remove_index = -1;
     attachment_paths.clear();
-    message_toolbar.set_attachment_count(0);
-    message_input_strip.set_allow_empty_submit(false);
+    sync_attachment_state();
+}
+
+void MessageComposer::sync_attachment_state() {
+    int attachment_count = (int)attachment_paths.size();
+
+    message_toolbar.set_attachment_count(attachment_count);
+    message_input_strip.set_allow_empty_submit(attachment_count > 0);
+    attachment_tray.set_paths(attachment_paths);
+    attachment_tray.set_visible(attachment_count > 0);
+
+    if (get_width() > 0 && get_height() > 0) {
+        arrange(
+            get_x(),
+            get_y(),
+            get_width(),
+            get_height()
+        );
+    }
 }
 
 void MessageComposer::sync_list_state() {
