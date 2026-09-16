@@ -135,6 +135,8 @@ namespace {
         const TextWrapLine& line,
         TextMetrics* text_metrics
     ) {
+        (void)text_length;
+
         if (text_metrics == 0) {
             return 16;
         }
