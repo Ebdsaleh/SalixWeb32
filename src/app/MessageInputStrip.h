@@ -61,6 +61,20 @@ class MessageInputStrip : public Panel {
             int font_size
         );
 
+        void set_text_format_preserving_code(
+            bool bold,
+            bool italic,
+            bool underline,
+            int font_size
+        ) {
+            message_input.set_text_format_preserving_code(
+                bold,
+                italic,
+                underline,
+                font_size
+            );
+        }
+
         bool apply_list_style(TextInput::ListStyle style);
         TextInput::ListStyle get_current_list_style() const;
 
