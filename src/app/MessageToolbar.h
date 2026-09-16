@@ -77,6 +77,8 @@ class MessageToolbar : public Panel {
         );
 
         void set_attachment_count(int attachment_count);
+        void set_list_style(ListPanel::ListStyle new_list_style);
+        ListPanel::ListStyle get_list_style() const;
 
         bool get_bold() const;
         bool get_italic() const;
@@ -131,11 +133,12 @@ class MessageToolbar : public Panel {
         ToggleButton italic_button;
         ToggleButton underline_button;
         ComboBox font_size_combo;
-        Button list_button;
+        ToggleButton list_button;
         Button emoji_button;
         Label attachment_status_label;
         EmojiPanel emoji_panel;
         ListPanel list_panel;
 
         int font_size;
+        ListPanel::ListStyle list_style;
 };

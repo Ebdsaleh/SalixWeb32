@@ -43,10 +43,12 @@ MessageComposer::MessageComposer(FileDialog* file_dialog)
 
     add_child(&message_input_strip);
     add_child(&message_toolbar);
+    sync_list_state();
 }
 
 void MessageComposer::set_text(const char* new_text) {
     message_input_strip.set_text(new_text);
+    sync_list_state();
 }
 
 const char* MessageComposer::get_text() const {
@@ -56,6 +58,7 @@ const char* MessageComposer::get_text() const {
 void MessageComposer::clear() {
     message_input_strip.clear();
     clear_attachments();
+    sync_list_state();
 }
 
 void MessageComposer::set_button_text(const char* new_text) {
@@ -156,10 +159,13 @@ bool MessageComposer::handle_event(const UIEvent& event) {
     }
 
     if (message_toolbar.handle_event(event)) {
+        sync_list_state();
         return true;
     }
 
-    return message_input_strip.handle_event(event);
+    bool was_handled = message_input_strip.handle_event(event);
+    sync_list_state();
+    return was_handled;
 }
 
 void MessageComposer::on_input_submitted(
@@ -204,6 +210,7 @@ void MessageComposer::on_toolbar_insert_text(
     MimeData data;
     data.set_text(text);
     composer->message_input_strip.insert_mime_data(data);
+    composer->sync_list_state();
 }
 
 void MessageComposer::on_toolbar_attachments_added(
@@ -263,6 +270,7 @@ void MessageComposer::on_toolbar_list_requested(
     }
 
     composer->message_input_strip.apply_list_style(input_style);
+    composer->sync_list_state();
 }
 
 void MessageComposer::build_draft(MessageDraft& draft) const {
@@ -294,4 +302,18 @@ void MessageComposer::clear_attachments() {
     attachment_paths.clear();
     message_toolbar.set_attachment_count(0);
     message_input_strip.set_allow_empty_submit(false);
+}
+
+void MessageComposer::sync_list_state() {
+    TextInput::ListStyle input_style =
+        message_input_strip.get_current_list_style();
+    ListPanel::ListStyle toolbar_style = ListPanel::list_clear;
+
+    if (input_style == TextInput::list_bulleted) {
+        toolbar_style = ListPanel::list_bulleted;
+    } else if (input_style == TextInput::list_numbered) {
+        toolbar_style = ListPanel::list_numbered;
+    }
+
+    message_toolbar.set_list_style(toolbar_style);
 }

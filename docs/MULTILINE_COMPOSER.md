@@ -12,14 +12,53 @@ Canonical line breaks are stored as `\n` characters. Carriage returns from paste
 
 ## Enter behavior
 
-The messenger interaction remains send-oriented:
+The messenger interaction remains send-oriented outside lists:
 
 ```text
 Enter        -> send the current draft
 Shift+Enter  -> insert a line break
+Ctrl+Enter   -> send the current draft
 ```
 
-This keeps the quick chat workflow while making multiline drafting available without adding a separate mode switch.
+When the caret is on a recognized bulleted or numbered list line, the List toolbar button becomes visually checked and `Enter` changes meaning from Send to Continue List:
+
+```text
+* first item| + Enter
+
+becomes
+
+* first item
+* |
+```
+
+Numbered lines increment from the current visible prefix:
+
+```text
+7. seventh item| + Enter
+
+becomes
+
+7. seventh item
+8. |
+```
+
+While the caret remains on a recognized list line:
+
+```text
+Enter        -> insert a newline plus the next list prefix
+Shift+Enter  -> insert a plain newline without a new list prefix
+Ctrl+Enter   -> send the current draft
+```
+
+This makes ordinary Enter useful for rapid list entry without sacrificing a direct keyboard Send command. The canonical document still stores ordinary `\n`, `* `, and `N. ` text rather than hidden paragraph objects.
+
+## List-state indicator
+
+The toolbar List control is a real `ToggleButton`, but its checked state is not merely whether the popup is open. It reflects the list state of the logical line containing the caret.
+
+The composer synchronizes this state after editing and navigation. Moving the caret from a list line to an ordinary line therefore releases the List toggle; moving back to a recognized `* `, `- `, or `N. ` line checks it again. This also means manually typed canonical list prefixes participate in the same behavior.
+
+Internally the composer keeps the exact style (`clear`, `bulleted`, or `numbered`) even though the toolbar only needs a checked/unchecked visual state.
 
 ## Navigation
 
@@ -41,7 +80,7 @@ The Win32 text painter and hit-testing path both understand explicit lines, mixe
 
 ## List popup
 
-The previously disabled `List` toolbar button is now active and opens a dedicated `ListPanel` with:
+The List toolbar button opens a dedicated `ListPanel` with:
 
 ```text
 Bullets
@@ -85,14 +124,19 @@ Those are presentation/viewport follow-ups rather than blockers for validating m
 
 Before marking this tranche validated, test at minimum:
 
-1. Enter sends while Shift+Enter creates several lines in the composer.
-2. Up/Down, Home/End, Ctrl+Home/Ctrl+End and Shift-selection behave across lines.
-3. B/I/U/font-size formatting survives across multiple lines and survives Send.
-4. Graphical emoticons render correctly on several different lines.
-5. Select multiple lines and apply Bullets; verify each touched line receives one `* ` prefix.
-6. Apply Bullets again and verify the prefixes are removed.
-7. Apply Numbered to several lines and verify sequential `1.`, `2.`, `3.` prefixes.
-8. Switch selected numbered lines to Bullets and verify prefixes are replaced rather than stacked.
-9. Ctrl+Z/Ctrl+Y undo and redo one entire list transformation atomically.
-10. Send a multiline/list message and verify conversation row height, selection, copy, and emoticon hit-testing.
-11. Repeat the validation under both Windows Server 2003 SP2 and MiniXP.
+1. Outside a list, Enter sends while Shift+Enter creates several lines in the composer.
+2. Ctrl+Enter submits the draft directly.
+3. On a bulleted line, Enter creates the next `* ` item and keeps the List toolbar control checked.
+4. On a numbered line, repeated Enter increments `1.`, `2.`, `3.` and so on.
+5. Move the caret between list and ordinary lines and verify the List toggle follows the current line.
+6. While on a list line, Ctrl+Enter sends rather than creating another item.
+7. Up/Down, Home/End, Ctrl+Home/Ctrl+End and Shift-selection behave across lines.
+8. B/I/U/font-size formatting survives across multiple lines and survives Send.
+9. Graphical emoticons render correctly on several different lines.
+10. Select multiple lines and apply Bullets; verify each touched line receives one `* ` prefix.
+11. Apply Bullets again and verify the prefixes are removed.
+12. Apply Numbered to several lines and verify sequential `1.`, `2.`, `3.` prefixes.
+13. Switch selected numbered lines to Bullets and verify prefixes are replaced rather than stacked.
+14. Ctrl+Z/Ctrl+Y undo and redo one entire list transformation atomically.
+15. Send a multiline/list message and verify conversation row height, selection, copy, and emoticon hit-testing.
+16. Repeat the validation under both Windows Server 2003 SP2 and MiniXP.

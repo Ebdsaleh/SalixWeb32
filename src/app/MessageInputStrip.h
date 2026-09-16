@@ -44,6 +44,7 @@ class MessageInputStrip : public Panel {
         );
 
         bool apply_list_style(TextInput::ListStyle style);
+        TextInput::ListStyle get_current_list_style() const;
 
         bool accepts_mime_type(const char* mime_type) const;
         bool insert_mime_data(const MimeData& data);
@@ -59,6 +60,7 @@ class MessageInputStrip : public Panel {
 
     private:
         static void on_button_clicked(Button* button, void* context);
+        bool continue_current_list();
         void submit();
 
         TextInput message_input;

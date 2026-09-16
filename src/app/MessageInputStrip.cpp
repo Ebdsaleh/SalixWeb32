@@ -4,6 +4,9 @@
 // Description: Implements the composite message-entry strip used by the shell.
 // =================================================================================
 
+#include <stdio.h>
+#include <string.h>
+
 #include "MessageInputStrip.h"
 #include "framework/FormattedText.h"
 #include "framework/UIEvent.h"
@@ -103,6 +106,59 @@ bool MessageInputStrip::apply_list_style(TextInput::ListStyle style) {
     return message_input.apply_list_style(style);
 }
 
+TextInput::ListStyle MessageInputStrip::get_current_list_style() const {
+    const char* current_text = message_input.get_text();
+    if (current_text == 0) {
+        return TextInput::list_clear;
+    }
+
+    int text_length = (int)strlen(current_text);
+    int caret = message_input.get_cursor_position();
+
+    if (caret < 0) {
+        caret = 0;
+    }
+    if (caret > text_length) {
+        caret = text_length;
+    }
+
+    int line_start = caret;
+    while (line_start > 0 && current_text[line_start - 1] != '\n') {
+        --line_start;
+    }
+
+    if (
+        line_start + 1 < text_length &&
+        (current_text[line_start] == '*' || current_text[line_start] == '-') &&
+        current_text[line_start + 1] == ' '
+    ) {
+        return TextInput::list_bulleted;
+    }
+
+    int position = line_start;
+    bool found_digit = false;
+
+    while (
+        position < text_length &&
+        current_text[position] >= '0' &&
+        current_text[position] <= '9'
+    ) {
+        found_digit = true;
+        ++position;
+    }
+
+    if (
+        found_digit &&
+        position + 1 < text_length &&
+        current_text[position] == '.' &&
+        current_text[position + 1] == ' '
+    ) {
+        return TextInput::list_numbered;
+    }
+
+    return TextInput::list_clear;
+}
+
 bool MessageInputStrip::accepts_mime_type(const char* mime_type) const {
     return message_input.accepts_mime_type(mime_type);
 }
@@ -174,15 +230,32 @@ bool MessageInputStrip::handle_event(const UIEvent& event) {
         return false;
     }
 
+    bool is_enter_character =
+        event.character_code == 13 ||
+        (event.control_down && event.character_code == 10);
+
     if (
-        submit_on_enter &&
         event.type == UIEvent::event_character &&
-        event.character_code == 13 &&
-        message_input.get_is_focused() &&
-        !event.shift_down
+        is_enter_character &&
+        message_input.get_is_focused()
     ) {
-        submit();
-        return true;
+        if (event.control_down) {
+            submit();
+            return true;
+        }
+
+        if (
+            !event.shift_down &&
+            get_current_list_style() != TextInput::list_clear
+        ) {
+            continue_current_list();
+            return true;
+        }
+
+        if (submit_on_enter && !event.shift_down) {
+            submit();
+            return true;
+        }
     }
 
     return Panel::handle_event(event);
@@ -195,6 +268,59 @@ void MessageInputStrip::on_button_clicked(Button* button, void* context) {
     if (input_strip != 0) {
         input_strip->submit();
     }
+}
+
+bool MessageInputStrip::continue_current_list() {
+    TextInput::ListStyle style = get_current_list_style();
+    if (style == TextInput::list_clear) {
+        return false;
+    }
+
+    char continuation[64];
+    continuation[0] = '\0';
+
+    if (style == TextInput::list_bulleted) {
+        strcpy(continuation, "\n* ");
+    } else if (style == TextInput::list_numbered) {
+        const char* current_text = message_input.get_text();
+        int text_length = current_text == 0 ? 0 : (int)strlen(current_text);
+        int caret = message_input.get_cursor_position();
+
+        if (caret < 0) {
+            caret = 0;
+        }
+        if (caret > text_length) {
+            caret = text_length;
+        }
+
+        int line_start = caret;
+        while (line_start > 0 && current_text[line_start - 1] != '\n') {
+            --line_start;
+        }
+
+        int current_number = 0;
+        int position = line_start;
+
+        while (
+            position < text_length &&
+            current_text[position] >= '0' &&
+            current_text[position] <= '9'
+        ) {
+            current_number = (current_number * 10) +
+                (current_text[position] - '0');
+            ++position;
+        }
+
+        if (current_number < 1) {
+            current_number = 1;
+        }
+
+        sprintf(continuation, "\n%d. ", current_number + 1);
+    }
+
+    MimeData data;
+    data.set_text(continuation);
+    return message_input.insert_mime_data(data);
 }
 
 void MessageInputStrip::submit() {

@@ -28,7 +28,8 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
       format_changed_context(0),
       list_requested_handler(0),
       list_requested_context(0),
-      font_size(12) {
+      font_size(12),
+      list_style(ListPanel::list_clear) {
 
     get_style().background_color = Color(229, 240, 249);
     get_style().border_color = Color(147, 181, 211);
@@ -76,7 +77,8 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
 
     list_button.set_text("List");
     list_button.set_enabled(true);
-    list_button.get_style().background_color = Color(238, 245, 251);
+    list_button.set_unchecked_background_color(Color(238, 245, 251));
+    list_button.set_checked_background_color(Color(177, 213, 239));
     list_button.get_style().foreground_color = Color(26, 68, 108);
     list_button.get_style().border_color = Color(132, 157, 181);
 
@@ -183,6 +185,15 @@ void MessageToolbar::set_attachment_count(int attachment_count) {
     char status_text[64];
     sprintf(status_text, "Files: %d", attachment_count);
     attachment_status_label.set_text(status_text);
+}
+
+void MessageToolbar::set_list_style(ListPanel::ListStyle new_list_style) {
+    list_style = new_list_style;
+    list_button.set_checked(list_style != ListPanel::list_clear);
+}
+
+ListPanel::ListStyle MessageToolbar::get_list_style() const {
+    return list_style;
 }
 
 bool MessageToolbar::get_bold() const {
@@ -368,6 +379,10 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
 
     bool was_handled = Panel::handle_event(event);
 
+    // The List control is a state indicator, not a popup-state toggle. Restore
+    // its visual checked state after ToggleButton processes pointer input.
+    list_button.set_checked(list_style != ListPanel::list_clear);
+
     if (event.type != UIEvent::event_mouse_up) {
         return was_handled;
     }
@@ -399,6 +414,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         font_size_combo.set_open(false);
         emoji_panel.set_open(false);
         list_panel.set_open(!list_panel.get_is_open());
+        list_button.set_checked(list_style != ListPanel::list_clear);
         return true;
     }
 

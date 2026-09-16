@@ -94,6 +94,7 @@ class MessageComposer : public Panel {
         void build_draft(MessageDraft& draft) const;
         void add_attachments(const std::vector<std::string>& paths);
         void clear_attachments();
+        void sync_list_state();
 
         MessageInputStrip message_input_strip;
         MessageToolbar message_toolbar;
