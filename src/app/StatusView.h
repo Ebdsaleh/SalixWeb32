@@ -9,6 +9,7 @@
 #include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
+#include "framework/TabView.h"
 #include "MessageComposer.h"
 #include "ConversationView.h"
 
@@ -36,19 +37,33 @@ class StatusView : public View {
             const MessageDraft& draft,
             void* context
         );
+        static void on_workspace_tab_changed(
+            TabView* tab_view,
+            int old_index,
+            int new_index,
+            void* context
+        );
 
         void update_dynamic_text();
         void show_submitted_message(const MessageDraft& draft);
+        void update_active_native_controls();
 
         ApplicationRuntime* application_runtime;
+        NativeControlHost* native_control_host;
         int client_width;
         int client_height;
+        int conversation_tab_index;
+        int runtime_tab_index;
 
         Panel root_panel;
 
         Panel header_panel;
         Label header_title_label;
         Label header_subtitle_label;
+
+        TabView workspace_tabs;
+        Panel conversation_page;
+        Panel runtime_page;
 
         Panel conversation_panel;
         Label conversation_title_label;

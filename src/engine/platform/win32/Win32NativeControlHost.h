@@ -13,6 +13,7 @@
 class ComboBox;
 class ContextMenu;
 class ScrollBar;
+class TabView;
 
 class Win32NativeControlHost : public NativeControlHost {
     public:
@@ -29,6 +30,10 @@ class Win32NativeControlHost : public NativeControlHost {
         virtual bool attach_scroll_bar(ScrollBar* scroll_bar);
         virtual void detach_scroll_bar(ScrollBar* scroll_bar);
         virtual void sync_scroll_bar(ScrollBar* scroll_bar);
+
+        virtual bool attach_tab_view(TabView* tab_view);
+        virtual void detach_tab_view(TabView* tab_view);
+        virtual void sync_tab_view(TabView* tab_view);
 
         virtual int show_context_menu(
             const ContextMenu& menu,
@@ -75,6 +80,33 @@ class Win32NativeControlHost : public NativeControlHost {
             bool last_enabled;
         };
 
+        struct TabPeer {
+            TabPeer();
+
+            TabView* tab_view;
+            HWND window_handle;
+            WNDPROC previous_window_proc;
+            int control_id;
+            int revision;
+
+            bool geometry_valid;
+            int last_x;
+            int last_y;
+            int last_width;
+            int last_height;
+
+            bool visibility_valid;
+            bool last_visible;
+            int last_active_index;
+        };
+
+        static LRESULT CALLBACK tab_window_proc(
+            HWND window_handle,
+            UINT message,
+            WPARAM w_param,
+            LPARAM l_param
+        );
+
         int find_combo_peer(ComboBox* combo_box) const;
         int find_combo_peer(HWND window_handle) const;
         void populate_combo_peer(ComboPeer& peer);
@@ -82,10 +114,15 @@ class Win32NativeControlHost : public NativeControlHost {
         int find_scroll_peer(ScrollBar* scroll_bar) const;
         int find_scroll_peer(HWND window_handle) const;
 
+        int find_tab_peer(TabView* tab_view) const;
+        int find_tab_peer(HWND window_handle) const;
+        void populate_tab_peer(TabPeer& peer);
+
         HWND parent_window;
         HINSTANCE instance_handle;
         std::vector<ComboPeer> combo_peers;
         std::vector<ScrollPeer> scroll_peers;
+        std::vector<TabPeer> tab_peers;
         int next_control_id;
         bool is_initialized;
 };

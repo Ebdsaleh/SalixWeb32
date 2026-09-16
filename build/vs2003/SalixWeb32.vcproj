@@ -29,7 +29,7 @@
 				DebugInformationFormat="4"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
@@ -68,7 +68,7 @@
 				DebugInformationFormat="3"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"
@@ -120,6 +120,7 @@
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
 			<File RelativePath="..\..\src\framework\ScrollBar.cpp"/>
 			<File RelativePath="..\..\src\framework\StackPanel.cpp"/>
+			<File RelativePath="..\..\src\framework\TabView.cpp"/>
 			<File RelativePath="..\..\src\framework\TextInput.cpp"/>
 			<File RelativePath="..\..\src\framework\TextNavigation.cpp"/>
 			<File RelativePath="..\..\src\framework\TextSelection.cpp"/>
@@ -134,6 +135,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHostTabs.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.cpp"/>
@@ -172,6 +174,7 @@
 			<File RelativePath="..\..\src\framework\ScrollBar.h"/>
 			<File RelativePath="..\..\src\framework\StackPanel.h"/>
 			<File RelativePath="..\..\src\framework\Style.h"/>
+			<File RelativePath="..\..\src\framework\TabView.h"/>
 			<File RelativePath="..\..\src\framework\TextFormat.h"/>
 			<File RelativePath="..\..\src\framework\TextInput.h"/>
 			<File RelativePath="..\..\src\framework\TextMetrics.h"/>
