@@ -8,16 +8,21 @@
 #include <shellapi.h>
 #include <gdiplus.h>
 #include <string>
+#include <vector>
 
 #include "Win32DesktopServices.h"
 #include "framework/RasterImage.h"
 
 namespace {
     const char* preview_window_class_name = "SalixWeb32ImagePreviewWindow";
+    const double preview_zoom_step = 1.25;
+    const double preview_min_zoom = 0.25;
+    const double preview_max_zoom = 8.0;
 
     struct PreviewWindowState {
         PreviewWindowState()
-            : image(0) {
+            : image(0),
+              zoom_scale(1.0) {
         }
 
         ~PreviewWindowState() {
@@ -26,6 +31,7 @@ namespace {
         }
 
         Gdiplus::Image* image;
+        double zoom_scale;
     };
 
     std::wstring to_wide_path(const char* path) {
@@ -109,12 +115,48 @@ namespace {
         }
     }
 
+    void change_preview_zoom(
+        PreviewWindowState* state,
+        int wheel_delta
+    ) {
+        if (state == 0 || wheel_delta == 0) {
+            return;
+        }
+
+        int wheel_steps = wheel_delta / 120;
+        if (wheel_steps == 0) {
+            wheel_steps = wheel_delta > 0 ? 1 : -1;
+        }
+
+        while (wheel_steps > 0) {
+            state->zoom_scale *= preview_zoom_step;
+            --wheel_steps;
+        }
+
+        while (wheel_steps < 0) {
+            state->zoom_scale /= preview_zoom_step;
+            ++wheel_steps;
+        }
+
+        if (state->zoom_scale < preview_min_zoom) {
+            state->zoom_scale = preview_min_zoom;
+        }
+
+        if (state->zoom_scale > preview_max_zoom) {
+            state->zoom_scale = preview_max_zoom;
+        }
+    }
+
     void draw_preview_image(
         HDC device_context,
         const RECT& client_rect,
-        Gdiplus::Image* image
+        PreviewWindowState* state
     ) {
-        if (device_context == NULL || image == 0) {
+        if (
+            device_context == NULL ||
+            state == 0 ||
+            state->image == 0
+        ) {
             return;
         }
 
@@ -123,19 +165,33 @@ namespace {
         int available_width = client_width - 24;
         int available_height = client_height - 24;
 
-        int draw_width = 0;
-        int draw_height = 0;
+        int fitted_width = 0;
+        int fitted_height = 0;
         calculate_fit_size(
-            (int)image->GetWidth(),
-            (int)image->GetHeight(),
+            (int)state->image->GetWidth(),
+            (int)state->image->GetHeight(),
             available_width,
             available_height,
-            draw_width,
-            draw_height
+            fitted_width,
+            fitted_height
         );
 
-        if (draw_width <= 0 || draw_height <= 0) {
+        if (fitted_width <= 0 || fitted_height <= 0) {
             return;
+        }
+
+        int draw_width = (int)(
+            ((double)fitted_width * state->zoom_scale) + 0.5
+        );
+        int draw_height = (int)(
+            ((double)fitted_height * state->zoom_scale) + 0.5
+        );
+
+        if (draw_width < 1) {
+            draw_width = 1;
+        }
+        if (draw_height < 1) {
+            draw_height = 1;
         }
 
         int draw_x = (client_width - draw_width) / 2;
@@ -146,7 +202,7 @@ namespace {
             Gdiplus::InterpolationModeHighQualityBicubic
         );
         graphics.DrawImage(
-            image,
+            state->image,
             draw_x,
             draw_y,
             draw_width,
@@ -190,17 +246,25 @@ namespace {
                     GetSysColorBrush(COLOR_WINDOW)
                 );
 
-                if (state != 0) {
-                    draw_preview_image(
-                        device_context,
-                        client_rect,
-                        state->image
-                    );
-                }
+                draw_preview_image(
+                    device_context,
+                    client_rect,
+                    state
+                );
 
                 EndPaint(window_handle, &paint_struct);
                 return 0;
             }
+
+            case WM_MOUSEWHEEL:
+                if (state != 0) {
+                    change_preview_zoom(
+                        state,
+                        (int)(short)HIWORD(w_param)
+                    );
+                    InvalidateRect(window_handle, NULL, FALSE);
+                }
+                return 0;
 
             case WM_SIZE:
                 InvalidateRect(window_handle, NULL, FALSE);

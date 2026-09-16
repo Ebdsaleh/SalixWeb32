@@ -15,30 +15,33 @@ AttachmentTray::AttachmentTray()
     get_style().border_color = Color(164, 190, 212);
     get_style().border_width = 1;
 
-    previous_button.set_text("<");
-    next_button.set_text(">");
+    // The glyph describes the direction the visible chip strip moves.
+    // '<' shifts the strip left to reveal later attachments on the right.
+    // '>' shifts the strip right to reveal earlier attachments on the left.
+    shift_left_button.set_text("<");
+    shift_right_button.set_text(">");
 
-    previous_button.get_style().background_color = Color(238, 245, 251);
-    next_button.get_style().background_color = Color(238, 245, 251);
-    previous_button.get_style().foreground_color = Color(42, 75, 105);
-    next_button.get_style().foreground_color = Color(42, 75, 105);
-    previous_button.get_style().border_color = Color(145, 173, 197);
-    next_button.get_style().border_color = Color(145, 173, 197);
+    shift_left_button.get_style().background_color = Color(238, 245, 251);
+    shift_right_button.get_style().background_color = Color(238, 245, 251);
+    shift_left_button.get_style().foreground_color = Color(42, 75, 105);
+    shift_right_button.get_style().foreground_color = Color(42, 75, 105);
+    shift_left_button.get_style().border_color = Color(145, 173, 197);
+    shift_right_button.get_style().border_color = Color(145, 173, 197);
 
-    previous_button.set_click_handler(
-        AttachmentTray::on_previous_clicked,
+    shift_left_button.set_click_handler(
+        AttachmentTray::on_shift_left_clicked,
         this
     );
-    next_button.set_click_handler(
-        AttachmentTray::on_next_clicked,
+    shift_right_button.set_click_handler(
+        AttachmentTray::on_shift_right_clicked,
         this
     );
 
-    previous_button.set_visible(false);
-    next_button.set_visible(false);
+    shift_left_button.set_visible(false);
+    shift_right_button.set_visible(false);
 
-    add_child(&previous_button);
-    add_child(&next_button);
+    add_child(&shift_left_button);
+    add_child(&shift_right_button);
 }
 
 AttachmentTray::~AttachmentTray() {
@@ -55,8 +58,8 @@ void AttachmentTray::set_paths(
 void AttachmentTray::clear() {
     clear_chips();
     first_visible_index = 0;
-    previous_button.set_visible(false);
-    next_button.set_visible(false);
+    shift_left_button.set_visible(false);
+    shift_right_button.set_visible(false);
 }
 
 void AttachmentTray::set_attachment_removed_handler(
@@ -106,7 +109,7 @@ void AttachmentTray::on_chip_remove(
     );
 }
 
-void AttachmentTray::on_previous_clicked(
+void AttachmentTray::on_shift_left_clicked(
     Button* button,
     void* context
 ) {
@@ -117,28 +120,32 @@ void AttachmentTray::on_previous_clicked(
         return;
     }
 
-    if (tray->first_visible_index > 0) {
-        --tray->first_visible_index;
-        tray->layout_chips();
-    }
-}
-
-void AttachmentTray::on_next_clicked(
-    Button* button,
-    void* context
-) {
-    (void)button;
-
-    AttachmentTray* tray = (AttachmentTray*)context;
-    if (tray == 0) {
-        return;
-    }
-
+    // Advancing the first visible item makes the visible chip strip move
+    // left, matching the '<' button's visual direction.
     if (
         tray->first_visible_index + 1 <
         (int)tray->chips.size()
     ) {
         ++tray->first_visible_index;
+        tray->layout_chips();
+    }
+}
+
+void AttachmentTray::on_shift_right_clicked(
+    Button* button,
+    void* context
+) {
+    (void)button;
+
+    AttachmentTray* tray = (AttachmentTray*)context;
+    if (tray == 0) {
+        return;
+    }
+
+    // Revealing an earlier item makes the visible chip strip move right,
+    // matching the '>' button's visual direction.
+    if (tray->first_visible_index > 0) {
+        --tray->first_visible_index;
         tray->layout_chips();
     }
 }
@@ -194,8 +201,8 @@ void AttachmentTray::layout_chips() {
     }
 
     if (chips.empty() || width <= 0 || height <= 0) {
-        previous_button.set_visible(false);
-        next_button.set_visible(false);
+        shift_left_button.set_visible(false);
+        shift_right_button.set_visible(false);
         return;
     }
 
@@ -216,8 +223,8 @@ void AttachmentTray::layout_chips() {
 
     if (!needs_navigation) {
         first_visible_index = 0;
-        previous_button.set_visible(false);
-        next_button.set_visible(false);
+        shift_left_button.set_visible(false);
+        shift_right_button.set_visible(false);
 
         int cursor_x = get_x() + padding;
         int chip_y = get_y() + padding;
@@ -246,10 +253,8 @@ void AttachmentTray::layout_chips() {
         return;
     }
 
-    previous_button.set_visible(true);
-    next_button.set_visible(true);
-
-    previous_button.set_enabled(first_visible_index > 0);
+    shift_left_button.set_visible(true);
+    shift_right_button.set_visible(true);
 
     int button_y = get_y() + padding;
     int button_height = height - (padding * 2);
@@ -257,13 +262,13 @@ void AttachmentTray::layout_chips() {
         button_height = 0;
     }
 
-    previous_button.set_bounds(
+    shift_left_button.set_bounds(
         get_x() + padding,
         button_y,
         nav_width,
         button_height
     );
-    next_button.set_bounds(
+    shift_right_button.set_bounds(
         get_x() + width - padding - nav_width,
         button_y,
         nav_width,
@@ -314,9 +319,13 @@ void AttachmentTray::layout_chips() {
         cursor_x += chip_width + gap;
     }
 
-    next_button.set_enabled(
+    // Arrow glyphs describe visible movement, not collection traversal:
+    // '<' exposes later items by moving the strip left, while '>' exposes
+    // earlier items by moving it right.
+    shift_left_button.set_enabled(
         last_visible_index + 1 < (int)chips.size()
     );
+    shift_right_button.set_enabled(first_visible_index > 0);
 }
 
 void AttachmentTray::clear_chips() {

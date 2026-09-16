@@ -26,9 +26,29 @@ kind
 
 Image classification is currently extension-based for formats supported by the Win32 image path (`bmp`, `gif`, `jpg/jpeg`, `png`, `tif/tiff`). The model is intentionally independent of GDI+; platform image decoding belongs below `DesktopServices`.
 
+## Native multi-file selection
+
+One press of the composer `+` button opens the Win32 file picker once and may return multiple attachment paths in the same selection operation.
+
+The Win32 provider deliberately uses the Explorer-style common dialog with both:
+
+```text
+OFN_EXPLORER
+OFN_ALLOWMULTISELECT
+```
+
+so ordinary Windows selection gestures remain native rather than being reimplemented by SalixWeb32:
+
+```text
+Ctrl+Click   -> add/remove individual non-contiguous files
+Shift+Click  -> select a contiguous range
+```
+
+Every path returned by that one dialog invocation is forwarded together to the composer and becomes an independent pending attachment chip. The application does not impose a one-file-per-`+` restriction.
+
 ## Composer attachment queue
 
-Selected files now become visible first-class draft items before the message is sent.
+Selected files become visible first-class draft items before the message is sent.
 
 The composer displays a compact attachment tray between the formatting toolbar and the multiline text input. Each queued file is represented by an `AttachmentChip` containing:
 
@@ -38,7 +58,16 @@ The composer displays a compact attachment tray between the formatting toolbar a
 
 The `x` button removes only that attachment from the pending draft. Removing the final attachment restores the composer to its normal no-attachment layout and returns empty-submit behavior to its normal state.
 
-The tray remains a fixed single row so the existing conversation/composer split does not jump vertically while files are added. When all chips fit, they are shown directly. When the row overflows, small previous/next navigation buttons page through the queued attachments without allowing child controls to draw outside the composer bounds.
+The tray remains a fixed single row so the existing conversation/composer split does not jump vertically while files are added. When all chips fit, they are shown directly. When the row overflows, small `<` and `>` controls expose the hidden attachments without allowing child controls to draw outside the composer bounds.
+
+The arrows describe the direction the visible chip strip moves:
+
+```text
+<  -> shift visible chips left, revealing later attachments
+>  -> shift visible chips right, revealing earlier attachments
+```
+
+This is intentionally based on visible movement rather than abstract previous/next collection traversal.
 
 The composer continues to keep the canonical pending paths in its existing attachment vector. `AttachmentTray` is presentation/control state only; `MessageDraft` is still built from the canonical composer attachment collection at submit time.
 
@@ -76,6 +105,26 @@ Right-clicking an image thumbnail exposes attachment-specific actions:
 - `Copy Reference` copies the plain contextual surrogate described below.
 
 `Preview` and `Open` are intentionally distinct operations.
+
+## Image preview zoom
+
+The internal Win32 preview window supports mouse-wheel zoom while the preview window is active.
+
+The initial state is the existing aspect-ratio-preserving fit-to-window presentation. Wheel input applies a zoom multiplier to that fitted size:
+
+```text
+Wheel up    -> zoom in
+Wheel down  -> zoom out
+```
+
+Each wheel notch changes the scale by a factor of `1.25`. The first-pass zoom range is clamped to:
+
+```text
+minimum: 25% of fitted size
+maximum: 800% of fitted size
+```
+
+The image remains centered and aspect ratio is preserved at every zoom level. Resizing the preview recalculates the fit-to-window baseline while retaining the current zoom multiplier. When zoomed beyond the client area, normal Win32 clipping shows the centered portion of the image; panning is a future enhancement rather than being coupled into this first zoom pass.
 
 ## Plain selection and copy
 
@@ -166,25 +215,29 @@ The September 16, 2026 Pentium 4 / Windows Server 2003 SP2 pass visibly confirme
 - Open launches the system's Windows Picture and Fax Viewer for the same file,
 - the image remains visibly aspect-ratio-correct in the conversation and preview surfaces.
 
-Those observations validate the principal decode/render/Preview/Open path on Server 2003. The complete selection/copy edge cases, generic-file behavior, composer-chip tranche, and MiniXP repeat pass remain separate checklist items until explicitly exercised.
+Those observations validate the principal decode/render/Preview/Open path on Server 2003. The complete selection/copy edge cases, generic-file behavior, composer-chip/multi-select navigation refinements, preview zoom, and MiniXP repeat pass remain separate checklist items until explicitly exercised.
 
 ## Target validation checklist
 
-1. Attach a JPEG or PNG from the local machine and confirm a filename chip appears in the composer before send.
-2. Attach several files and confirm each receives an independent remove `x` control.
+1. Press `+` once, use Ctrl+Click to select several non-contiguous files, and confirm all selected files appear as independent composer chips from that one dialog invocation.
+2. Press `+` once, use Shift+Click to select a contiguous file range, and confirm the complete selected range is queued.
 3. Remove one middle attachment and confirm the others remain queued in their original order.
 4. Remove the final attachment and confirm the attachment tray disappears cleanly.
-5. Queue enough files to overflow the row and confirm the previous/next tray controls expose every attachment without drawing outside the composer.
-6. Send a draft containing attachments and confirm the tray clears after submission.
-7. Confirm the conversation displays `System: filename.ext` and an inline thumbnail for an image attachment.
-8. Confirm a landscape image, portrait image, and small image retain correct aspect ratio.
-9. Confirm no thumbnail exceeds the 400x400 first-pass bound.
-10. Resize the application narrower than a 400-pixel thumbnail and confirm the image remains inside the conversation viewport without distortion.
-11. Right-click the thumbnail and verify `Preview`, `Open`, and `Copy Reference`.
-12. Confirm Preview opens internally and preserves aspect ratio while its window is resized.
-13. Confirm Open launches the machine's default application for that file type.
-14. Drag-select conversation text across the image and copy it.
-15. Paste into a plain text destination and confirm the image position becomes exactly `System: filename.ext` in source order.
-16. Begin a selection on the image and drag upward/downward; confirm the image surrogate is selected atomically.
-17. Attach a non-image file and confirm it still produces a useful system filename reference without a broken image placeholder.
-18. Repeat the completed smoke pass under MiniXP after Server 2003 succeeds.
+5. Queue enough files to overflow the row and confirm `<` visibly shifts the chip strip left to reveal later attachments.
+6. Confirm `>` visibly shifts the chip strip right to reveal earlier attachments.
+7. Confirm neither navigation direction allows chips to draw outside the composer.
+8. Send a draft containing attachments and confirm the tray clears after submission.
+9. Confirm the conversation displays `System: filename.ext` and an inline thumbnail for an image attachment.
+10. Confirm a landscape image, portrait image, and small image retain correct aspect ratio.
+11. Confirm no thumbnail exceeds the 400x400 first-pass bound.
+12. Resize the application narrower than a 400-pixel thumbnail and confirm the image remains inside the conversation viewport without distortion.
+13. Right-click the thumbnail and verify `Preview`, `Open`, and `Copy Reference`.
+14. In Preview, wheel upward several notches and confirm the image grows while remaining centered and undistorted.
+15. Wheel downward and confirm the image shrinks, respects the lower clamp, and remains aspect-ratio-correct.
+16. Resize the Preview window after changing zoom and confirm the current zoom multiplier survives the resize.
+17. Confirm Open launches the machine's default application for that file type.
+18. Drag-select conversation text across the image and copy it.
+19. Paste into a plain text destination and confirm the image position becomes exactly `System: filename.ext` in source order.
+20. Begin a selection on the image and drag upward/downward; confirm the image surrogate is selected atomically.
+21. Attach a non-image file and confirm it still produces a useful system filename reference without a broken image placeholder.
+22. Repeat the completed smoke pass under MiniXP after Server 2003 succeeds.

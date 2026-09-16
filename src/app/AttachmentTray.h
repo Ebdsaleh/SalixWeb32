@@ -41,8 +41,8 @@ class AttachmentTray : public Panel {
             AttachmentChip* chip,
             void* context
         );
-        static void on_previous_clicked(Button* button, void* context);
-        static void on_next_clicked(Button* button, void* context);
+        static void on_shift_left_clicked(Button* button, void* context);
+        static void on_shift_right_clicked(Button* button, void* context);
 
         void rebuild_chips(const std::vector<std::string>& paths);
         void layout_chips();
@@ -50,8 +50,8 @@ class AttachmentTray : public Panel {
         int find_chip_index(AttachmentChip* chip) const;
 
         std::vector<AttachmentChip*> chips;
-        Button previous_button;
-        Button next_button;
+        Button shift_left_button;
+        Button shift_right_button;
         AttachmentRemovedHandler attachment_removed_handler;
         void* attachment_removed_context;
         int first_visible_index;

@@ -33,6 +33,11 @@ bool Win32FileDialog::open_files(
     open_file_name.nMaxFile = sizeof(file_buffer);
     open_file_name.lpstrFilter = "All files\0*.*\0\0";
     open_file_name.nFilterIndex = 1;
+
+    // Explorer-style multi-selection deliberately delegates the familiar
+    // Ctrl+Click and Shift+Click gestures to the operating system. One
+    // GetOpenFileNameA invocation can therefore return the complete selected
+    // set to the composer without SalixWeb32 reimplementing shell selection.
     open_file_name.Flags =
         OFN_EXPLORER |
         OFN_ALLOWMULTISELECT |
