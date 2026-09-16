@@ -19,9 +19,11 @@ Status legend:
 - [x] Record hardware/toolchain constraints
 - [x] Create public architecture and roadmap documentation
 - [x] Create initial Git repository
-- [ ] Select license
+- [x] Select development license (`Salix Development Source License 1.0`)
 - [x] Establish coding conventions
 - [x] Add first tagged baseline once skeleton builds (`v0.0.1`)
+
+The current license is deliberately source-available and restrictive during active development. It is intended to cover releases through and including `v1.2.0`; a later release is planned to adopt a different and more permissive license. See `LICENSE` and `docs/LICENSE_POLICY.md`.
 
 **Exit criterion:** repository exists with documentation and agreed source layout.
 

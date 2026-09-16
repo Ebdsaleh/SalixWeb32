@@ -1,0 +1,65 @@
+Salix Development Source License 1.0
+
+Copyright (c) 2026 Ebdsaleh
+All rights reserved.
+
+1. Purpose
+
+SalixWeb32 is being developed in public so that its source code and architecture can be inspected, studied, reviewed, and discussed while the project is still under active development. This License is intentionally restrictive during that development period.
+
+2. Limited permission
+
+Subject to the terms below, you may view and study the Source Code for personal evaluation, educational review, security review, interoperability research, and discussion of the project.
+
+You may also exercise rights that are necessarily granted to users by the repository hosting service solely through that service's normal functionality, including viewing and forking where the hosting service's terms require those rights.
+
+3. Restrictions
+
+Except with the Licensor's prior express written permission, you may not:
+
+(a) execute, deploy, operate, host, or provide the Software as a service;
+(b) use the Software, in whole or in substantial part, for any production, commercial, organizational, or third-party purpose;
+(c) modify, adapt, translate, port, or create derivative works from the Software;
+(d) copy or reproduce the Software except as necessarily permitted by the repository hosting service or applicable law;
+(e) redistribute, publish, sublicense, sell, rent, lease, transfer, or otherwise provide the Software or a derivative work to another person or entity;
+(f) incorporate the Software or any substantial portion of it into another project, product, service, library, framework, or codebase;
+(g) remove or alter copyright, license, authorship, or attribution notices; or
+(h) use the SalixWeb32 name, Salix name, or associated marks to imply endorsement, sponsorship, or affiliation.
+
+For clarity, access to public source code does not by itself grant permission to run, reuse, modify, distribute, or incorporate that source code.
+
+4. Express permission
+
+The Licensor may grant additional permission in writing for a particular person, organization, purpose, version, branch, or period of time. Any permission not expressly granted is reserved.
+
+5. Version scope and planned future relicensing
+
+This License is intended to govern SalixWeb32 development releases through and including version 1.2.0, together with untagged development snapshots that the Licensor publishes under this License.
+
+The Licensor intends to publish a release after version 1.2.0 under a different and more permissive license.
+
+That statement is an intention only. It does not automatically change this License, does not promise any particular future license, and does not grant rights under any future license. A later release is governed only by the license notice distributed with that later release.
+
+6. Contributions
+
+No permission to contribute code, documentation, or other copyrightable material is implied by this License. During the development-license period, the Licensor may require a separate written contribution or relicensing agreement before accepting such material.
+
+7. No patent or trademark license
+
+Except for the limited copyright permission expressly stated above, no patent, trademark, trade name, service mark, or other intellectual-property license is granted.
+
+8. Termination
+
+Any permission granted by this License terminates automatically if you materially breach its terms. Upon termination, you must stop exercising rights granted by this License, except for rights that cannot lawfully be terminated.
+
+9. Disclaimer of warranty
+
+THE SOFTWARE AND SOURCE CODE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, RELIABILITY, OR AVAILABILITY.
+
+10. Limitation of liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE, SOURCE CODE, OR THIS LICENSE.
+
+11. Reservation of rights
+
+All rights not expressly granted by this License are reserved by the Licensor.

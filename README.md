@@ -4,6 +4,18 @@
 
 The first proof-of-concept will be an interactive modern SaaS client, but the project is deliberately **not** architected around any one website or service. The long-term goal is a reusable runtime in which web-platform capabilities can be supplied by interchangeable native, ported, translated, or remote backends.
 
+## Development license notice
+
+SalixWeb32 is currently **source-available for inspection and development review, not open source**.
+
+The current development license permits viewing and studying the source, but use, execution, deployment, modification, redistribution, incorporation into another project, derivative works, or other reuse requires the project owner's **prior express written permission**, except for rights necessarily provided through the repository hosting service or applicable law.
+
+The restrictive development license is intended to cover releases through and including **v1.2.0**. A later release is planned to move to a more permissive license, but that future license has not yet been selected and no future rights are granted in advance.
+
+Code contributions are not being accepted during the development-license period unless they are covered by a separate written contribution/relicensing agreement approved by the project owner. Bug reports, testing results, design discussion, and suggestions remain welcome.
+
+See `LICENSE` and `docs/LICENSE_POLICY.md` for the complete terms and project policy.
+
 ## Core idea
 
 SalixWeb32 separates:
@@ -70,7 +82,10 @@ See:
 - `docs/WEB_PLATFORM_CAPABILITIES.md`
 - `docs/BUILD_ENVIRONMENT.md`
 - `docs/DECISIONS.md`
+- `docs/LICENSE_POLICY.md`
 
 ## License
 
-Not selected yet. Do not add a license until the project owner chooses one.
+SalixWeb32 is currently distributed under the **Salix Development Source License 1.0** in `LICENSE`.
+
+It is intentionally restrictive during active development and is **not an OSI-approved open-source license**. The project owner intends to adopt a more permissive license for a release after v1.2.0; the final post-development license has not yet been selected.
