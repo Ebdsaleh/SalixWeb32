@@ -21,6 +21,7 @@ class Win32ComponentRenderer : public ComponentRenderer {
         virtual void render_label(const Label& label);
         virtual void render_button(const Button& button);
         virtual void render_text_input(const TextInput& text_input);
+        virtual void render_image_view(const ImageView& image_view);
 
     private:
         HDC device_context;

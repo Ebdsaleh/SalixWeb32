@@ -30,6 +30,10 @@ class Win32ApplicationHost {
         int run();
         void shutdown();
 
+        HWND get_window_handle() const {
+            return window_handle;
+        }
+
     private:
         static LRESULT CALLBACK window_proc(
             HWND window_handle,

@@ -9,6 +9,7 @@ class Panel;
 class Label;
 class Button;
 class TextInput;
+class ImageView;
 
 class ComponentRenderer {
     public:
@@ -28,4 +29,5 @@ class ComponentRenderer {
         virtual void render_label(const Label& label) = 0;
         virtual void render_button(const Button& button) = 0;
         virtual void render_text_input(const TextInput& text_input) = 0;
+        virtual void render_image_view(const ImageView& image_view) = 0;
 };

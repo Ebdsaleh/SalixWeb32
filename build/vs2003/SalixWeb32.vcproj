@@ -29,7 +29,7 @@
 				DebugInformationFormat="4"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib shell32.lib gdiplus.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
@@ -68,7 +68,7 @@
 				DebugInformationFormat="3"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib shell32.lib gdiplus.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"
@@ -94,6 +94,7 @@
 	<Files>
 		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
 			<File RelativePath="..\..\src\main.cpp"/>
+			<File RelativePath="..\..\src\app\Attachment.cpp"/>
 			<File RelativePath="..\..\src\app\CodeBlockView.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationMessageView.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationMessageSelection.cpp"/>
@@ -113,11 +114,13 @@
 			<File RelativePath="..\..\src\framework\Container.cpp"/>
 			<File RelativePath="..\..\src\framework\EmoticonRegistry.cpp"/>
 			<File RelativePath="..\..\src\framework\FormattedText.cpp"/>
+			<File RelativePath="..\..\src\framework\ImageView.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
 			<File RelativePath="..\..\src\framework\MarkdownBlockParser.cpp"/>
 			<File RelativePath="..\..\src\framework\MarkdownFormatter.cpp"/>
 			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
+			<File RelativePath="..\..\src\framework\RasterImage.cpp"/>
 			<File RelativePath="..\..\src\framework\ScrollBar.cpp"/>
 			<File RelativePath="..\..\src\framework\StackPanel.cpp"/>
 			<File RelativePath="..\..\src\framework\TabView.cpp"/>
@@ -132,8 +135,11 @@
 			<File RelativePath="..\..\src\runtime\RuntimeStatusService.cpp"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.cpp"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32MenuController.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32DesktopServices.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32GraphicsRuntime.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHostTabs.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
@@ -143,6 +149,7 @@
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
+			<File RelativePath="..\..\src\app\Attachment.h"/>
 			<File RelativePath="..\..\src\app\CodeBlockView.h"/>
 			<File RelativePath="..\..\src\app\ConversationMessageView.h"/>
 			<File RelativePath="..\..\src\app\ConversationView.h"/>
@@ -153,6 +160,7 @@
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
 			<File RelativePath="..\..\src\app\MessageToolbar.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
+			<File RelativePath="..\..\src\framework\ApplicationCommand.h"/>
 			<File RelativePath="..\..\src\framework\Button.h"/>
 			<File RelativePath="..\..\src\framework\Clipboard.h"/>
 			<File RelativePath="..\..\src\framework\CodeLanguageRegistry.h"/>
@@ -161,9 +169,11 @@
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
 			<File RelativePath="..\..\src\framework\ContextMenu.h"/>
+			<File RelativePath="..\..\src\framework\DesktopServices.h"/>
 			<File RelativePath="..\..\src\framework\EmoticonRegistry.h"/>
 			<File RelativePath="..\..\src\framework\FileDialog.h"/>
 			<File RelativePath="..\..\src\framework\FormattedText.h"/>
+			<File RelativePath="..\..\src\framework\ImageView.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
 			<File RelativePath="..\..\src\framework\MarkdownBlockParser.h"/>
 			<File RelativePath="..\..\src\framework\MarkdownFormatter.h"/>
@@ -171,6 +181,7 @@
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>
 			<File RelativePath="..\..\src\framework\NativeControlHost.h"/>
 			<File RelativePath="..\..\src\framework\Panel.h"/>
+			<File RelativePath="..\..\src\framework\RasterImage.h"/>
 			<File RelativePath="..\..\src\framework\ScrollBar.h"/>
 			<File RelativePath="..\..\src\framework\StackPanel.h"/>
 			<File RelativePath="..\..\src\framework\Style.h"/>
@@ -192,8 +203,11 @@
 			<File RelativePath="..\..\src\runtime\Service.h"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.h"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32MenuController.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32DesktopServices.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32GraphicsRuntime.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>

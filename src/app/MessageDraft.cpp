@@ -6,12 +6,16 @@
 
 #include "MessageDraft.h"
 
+namespace {
+    const Attachment empty_attachment;
+}
+
 MessageDraft::MessageDraft() {
 }
 
 void MessageDraft::clear() {
     body.clear();
-    attachment_paths.clear();
+    attachments.clear();
 }
 
 void MessageDraft::set_body(const FormattedText& new_body) {
@@ -23,25 +27,28 @@ const FormattedText& MessageDraft::get_body() const {
 }
 
 void MessageDraft::add_attachment(const char* path) {
-    if (path == 0 || path[0] == '\0') {
-        return;
+    Attachment attachment(path);
+    if (!attachment.empty()) {
+        attachments.push_back(attachment);
     }
-
-    attachment_paths.push_back(std::string(path));
 }
 
 int MessageDraft::get_attachment_count() const {
-    return (int)attachment_paths.size();
+    return (int)attachments.size();
+}
+
+const Attachment& MessageDraft::get_attachment(int index) const {
+    if (index < 0 || index >= (int)attachments.size()) {
+        return empty_attachment;
+    }
+
+    return attachments[index];
 }
 
 const char* MessageDraft::get_attachment_path(int index) const {
-    if (index < 0 || index >= (int)attachment_paths.size()) {
-        return "";
-    }
-
-    return attachment_paths[index].c_str();
+    return get_attachment(index).get_path();
 }
 
 bool MessageDraft::empty() const {
-    return body.empty() && attachment_paths.empty();
+    return body.empty() && attachments.empty();
 }

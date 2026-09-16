@@ -10,8 +10,10 @@
 #include "ConversationMessageView.h"
 #include "framework/Clipboard.h"
 #include "framework/ContextMenu.h"
+#include "framework/DesktopServices.h"
 #include "framework/MimeData.h"
 #include "framework/NativeControlHost.h"
+#include "framework/RasterImage.h"
 #include "framework/TextMetrics.h"
 #include "framework/UIEvent.h"
 #include "framework/rendering/ComponentRenderer.h"
@@ -20,13 +22,70 @@ namespace {
     enum ConversationContextCommand {
         context_copy = 1,
         context_select_message,
-        context_select_conversation
+        context_select_conversation,
+
+        context_attachment_preview = 100,
+        context_attachment_open,
+        context_attachment_copy_reference
     };
+
+    const int attachment_block_spacing = 6;
+
+    int calculate_image_height_for_width(
+        const ImageView* image_view,
+        int available_width
+    ) {
+        if (
+            image_view == 0 ||
+            !image_view->has_image() ||
+            available_width <= 0
+        ) {
+            return 0;
+        }
+
+        const RasterImage& image = image_view->get_image();
+        int image_width = image.get_width();
+        int image_height = image.get_height();
+
+        if (image_width <= 0 || image_height <= 0) {
+            return 0;
+        }
+
+        if (image_width <= available_width) {
+            return image_height;
+        }
+
+        int scaled_height = (int)(
+            ((long)image_height * (long)available_width) /
+            (long)image_width
+        );
+
+        return scaled_height > 0 ? scaled_height : 1;
+    }
+
+    int calculate_image_width_for_width(
+        const ImageView* image_view,
+        int available_width
+    ) {
+        if (
+            image_view == 0 ||
+            !image_view->has_image() ||
+            available_width <= 0
+        ) {
+            return 0;
+        }
+
+        int image_width = image_view->get_image().get_width();
+        return image_width < available_width
+            ? image_width
+            : available_width;
+    }
 }
 
 ConversationView::ConversationView()
     : vertical_scroll_bar(ScrollBar::vertical),
       native_control_host(0),
+      desktop_services(0),
       scroll_offset_y(0),
       row_spacing(8),
       content_padding(4),
@@ -36,6 +95,7 @@ ConversationView::ConversationView()
       layout_dirty(true),
       conversation_drag_selecting(false),
       selection_context_active(false),
+      selection_anchor_is_attachment(false),
       selection_anchor_message_index(-1),
       selection_anchor_label_index(-1),
       selection_anchor_character_index(0) {
@@ -56,6 +116,10 @@ ConversationView::ConversationView()
 ConversationView::~ConversationView() {
     detach_native_controls();
     clear_messages();
+}
+
+void ConversationView::set_desktop_services(DesktopServices* services) {
+    desktop_services = services;
 }
 
 bool ConversationView::append_message(
@@ -103,11 +167,12 @@ bool ConversationView::append_message(
     entry.role = role;
     entry.source_text = text;
     entry.view = message_view;
-    entry.row_height = calculate_entry_height(
+    entry.text_height = calculate_entry_height(
         *message_view,
         last_message_width,
         0
     );
+    entry.row_height = entry.text_height;
     messages.push_back(entry);
 
     layout_dirty = true;
@@ -140,12 +205,61 @@ bool ConversationView::append_remote_message(
     return append_message(message_remote, text);
 }
 
+bool ConversationView::append_attachment(const Attachment& attachment) {
+    if (attachment.empty()) {
+        return false;
+    }
+
+    if (!append_system_message(attachment.get_file_name())) {
+        return false;
+    }
+
+    MessageEntry& entry = messages[messages.size() - 1];
+    entry.attachment = attachment;
+
+    if (
+        attachment.is_image() &&
+        desktop_services != 0
+    ) {
+        RasterImage thumbnail;
+        if (desktop_services->load_image_thumbnail(
+                attachment.get_path(),
+                400,
+                400,
+                thumbnail
+            )) {
+            ImageView* image_view = new ImageView();
+            if (image_view != 0) {
+                image_view->set_image(thumbnail);
+
+                if (add_child(image_view)) {
+                    entry.image_view = image_view;
+                } else {
+                    delete image_view;
+                }
+            }
+        }
+    }
+
+    layout_dirty = true;
+    recalculate_entry_heights(last_message_width, 0);
+    relayout();
+    scroll_to_bottom();
+    return true;
+}
+
 void ConversationView::clear_messages() {
     for (int index = 0; index < (int)messages.size(); ++index) {
         ConversationMessageView* message_view = messages[index].view;
         if (message_view != 0) {
             remove_child(message_view);
             delete message_view;
+        }
+
+        ImageView* image_view = messages[index].image_view;
+        if (image_view != 0) {
+            remove_child(image_view);
+            delete image_view;
         }
     }
 
@@ -155,6 +269,7 @@ void ConversationView::clear_messages() {
     layout_dirty = true;
     conversation_drag_selecting = false;
     selection_context_active = false;
+    selection_anchor_is_attachment = false;
     selection_anchor_message_index = -1;
     selection_anchor_label_index = -1;
     selection_anchor_character_index = 0;
@@ -354,6 +469,11 @@ bool ConversationView::handle_event(const UIEvent& event) {
                 clear_conversation_selection();
                 selection_context_active = true;
                 conversation_drag_selecting = true;
+                selection_anchor_is_attachment = is_attachment_point(
+                    message_index,
+                    event.x,
+                    event.y
+                );
                 selection_anchor_message_index = message_index;
                 selection_anchor_label_index = label_index;
                 selection_anchor_character_index = character_index;
@@ -405,16 +525,20 @@ bool ConversationView::handle_event(const UIEvent& event) {
             int target_label_index = -1;
             int target_character_index = 0;
 
-            if (messages[target_message_index].view->
-                    resolve_presentation_position(
-                        event,
-                        target_label_index,
-                        target_character_index
-                    )) {
+            if (messages[target_message_index].view->resolve_presentation_position(
+                    event,
+                    target_label_index,
+                    target_character_index
+                )) {
                 apply_conversation_selection(
                     target_message_index,
                     target_label_index,
-                    target_character_index
+                    target_character_index,
+                    is_attachment_point(
+                        target_message_index,
+                        event.x,
+                        event.y
+                    )
                 );
             }
         }
@@ -437,21 +561,26 @@ bool ConversationView::handle_event(const UIEvent& event) {
             int target_label_index = -1;
             int target_character_index = 0;
 
-            if (messages[target_message_index].view->
-                    resolve_presentation_position(
-                        event,
-                        target_label_index,
-                        target_character_index
-                    )) {
+            if (messages[target_message_index].view->resolve_presentation_position(
+                    event,
+                    target_label_index,
+                    target_character_index
+                )) {
                 apply_conversation_selection(
                     target_message_index,
                     target_label_index,
-                    target_character_index
+                    target_character_index,
+                    is_attachment_point(
+                        target_message_index,
+                        event.x,
+                        event.y
+                    )
                 );
             }
         }
 
         conversation_drag_selecting = false;
+        selection_anchor_is_attachment = false;
         return true;
     }
 
@@ -529,12 +658,13 @@ void ConversationView::relayout() {
     int current_y = viewport_top - scroll_offset_y;
 
     for (int index = 0; index < (int)messages.size(); ++index) {
-        ConversationMessageView* message_view = messages[index].view;
+        MessageEntry& entry = messages[index];
+        ConversationMessageView* message_view = entry.view;
         if (message_view == 0) {
             continue;
         }
 
-        int row_height = messages[index].row_height;
+        int row_height = entry.row_height;
         if (row_height < 1) {
             row_height = 1;
         }
@@ -549,9 +679,28 @@ void ConversationView::relayout() {
             view_x + content_padding,
             current_y,
             message_width,
-            row_height,
+            entry.text_height,
             0
         );
+
+        if (entry.image_view != 0) {
+            int image_width = calculate_image_width_for_width(
+                entry.image_view,
+                message_width
+            );
+            int image_height = calculate_image_height_for_width(
+                entry.image_view,
+                message_width
+            );
+
+            entry.image_view->set_visible(is_visible);
+            entry.image_view->set_bounds(
+                view_x + content_padding,
+                current_y + entry.text_height + attachment_block_spacing,
+                image_width,
+                image_height
+            );
+        }
 
         current_y = row_bottom + row_spacing;
     }
@@ -581,16 +730,28 @@ void ConversationView::recalculate_entry_heights(
     }
 
     for (int index = 0; index < (int)messages.size(); ++index) {
-        ConversationMessageView* message_view = messages[index].view;
+        MessageEntry& entry = messages[index];
+        ConversationMessageView* message_view = entry.view;
         if (message_view == 0) {
             continue;
         }
 
-        messages[index].row_height = calculate_entry_height(
+        entry.text_height = calculate_entry_height(
             *message_view,
             message_width,
             text_metrics
         );
+        entry.row_height = entry.text_height;
+
+        if (entry.image_view != 0) {
+            int image_height = calculate_image_height_for_width(
+                entry.image_view,
+                message_width
+            );
+            if (image_height > 0) {
+                entry.row_height += attachment_block_spacing + image_height;
+            }
+        }
     }
 
     last_message_width = message_width;
@@ -680,11 +841,21 @@ int ConversationView::calculate_max_scroll_offset() const {
 
 int ConversationView::find_message_at_point(int x, int y) const {
     for (int index = 0; index < (int)messages.size(); ++index) {
-        const ConversationMessageView* message_view = messages[index].view;
+        const MessageEntry& entry = messages[index];
+        const ConversationMessageView* message_view = entry.view;
+
         if (
             message_view != 0 &&
             message_view->get_is_visible() &&
             message_view->contains_point(x, y)
+        ) {
+            return index;
+        }
+
+        if (
+            entry.image_view != 0 &&
+            entry.image_view->get_is_visible() &&
+            entry.image_view->contains_point(x, y)
         ) {
             return index;
         }
@@ -713,7 +884,7 @@ int ConversationView::resolve_message_index_for_selection(int y) const {
         last_valid = index;
 
         int top = message_view->get_y();
-        int bottom = top + message_view->get_height();
+        int bottom = top + messages[index].row_height;
 
         if (y >= top && y < bottom) {
             return index;
@@ -743,6 +914,25 @@ int ConversationView::resolve_message_index_for_selection(int y) const {
     }
 
     return last_valid;
+}
+
+bool ConversationView::is_attachment_point(
+    int message_index,
+    int x,
+    int y
+) const {
+    if (
+        message_index < 0 ||
+        message_index >= (int)messages.size()
+    ) {
+        return false;
+    }
+
+    const ImageView* image_view = messages[message_index].image_view;
+    return
+        image_view != 0 &&
+        image_view->get_is_visible() &&
+        image_view->contains_point(x, y);
 }
 
 void ConversationView::clear_conversation_selection() {
@@ -813,7 +1003,8 @@ bool ConversationView::copy_conversation_selection(
 void ConversationView::apply_conversation_selection(
     int target_message_index,
     int target_label_index,
-    int target_character_index
+    int target_character_index,
+    bool target_is_attachment
 ) {
     if (
         selection_anchor_message_index < 0 ||
@@ -842,6 +1033,10 @@ void ConversationView::apply_conversation_selection(
             target_label_index,
             target_character_index
         );
+
+        if (selection_anchor_is_attachment || target_is_attachment) {
+            anchor_view->select_all_presentation();
+        }
         return;
     }
 
@@ -874,37 +1069,44 @@ void ConversationView::apply_conversation_selection(
             target_label_index,
             target_character_index
         );
-        return;
-    }
+    } else {
+        int target_last_label = target_view->get_presentation_label_count() - 1;
+        int target_last_character = target_view->get_presentation_label_length(
+            target_last_label
+        );
 
-    int target_last_label = target_view->get_presentation_label_count() - 1;
-    int target_last_character = target_view->get_presentation_label_length(
-        target_last_label
-    );
+        target_view->set_presentation_selection(
+            target_label_index,
+            target_character_index,
+            target_last_label,
+            target_last_character
+        );
 
-    target_view->set_presentation_selection(
-        target_label_index,
-        target_character_index,
-        target_last_label,
-        target_last_character
-    );
-
-    for (
-        int index = target_message_index + 1;
-        index < selection_anchor_message_index;
-        ++index
-    ) {
-        if (messages[index].view != 0) {
-            messages[index].view->select_all_presentation();
+        for (
+            int index = target_message_index + 1;
+            index < selection_anchor_message_index;
+            ++index
+        ) {
+            if (messages[index].view != 0) {
+                messages[index].view->select_all_presentation();
+            }
         }
+
+        anchor_view->set_presentation_selection(
+            0,
+            0,
+            selection_anchor_label_index,
+            selection_anchor_character_index
+        );
     }
 
-    anchor_view->set_presentation_selection(
-        0,
-        0,
-        selection_anchor_label_index,
-        selection_anchor_character_index
-    );
+    if (selection_anchor_is_attachment) {
+        anchor_view->select_all_presentation();
+    }
+
+    if (target_is_attachment) {
+        target_view->select_all_presentation();
+    }
 }
 
 bool ConversationView::handle_context_menu(const UIEvent& event) {
@@ -917,6 +1119,14 @@ bool ConversationView::handle_context_menu(const UIEvent& event) {
     }
 
     int message_index = find_message_at_point(event.x, event.y);
+
+    if (
+        message_index >= 0 &&
+        is_attachment_point(message_index, event.x, event.y)
+    ) {
+        return handle_attachment_context_menu(event, message_index);
+    }
+
     bool has_selection = has_conversation_selection();
     bool has_messages = !messages.empty();
 
@@ -963,6 +1173,81 @@ bool ConversationView::handle_context_menu(const UIEvent& event) {
         messages[message_index].view->select_all_presentation();
     } else if (command_id == context_select_conversation) {
         select_all_conversation();
+    }
+
+    return true;
+}
+
+bool ConversationView::handle_attachment_context_menu(
+    const UIEvent& event,
+    int message_index
+) {
+    if (
+        message_index < 0 ||
+        message_index >= (int)messages.size()
+    ) {
+        return false;
+    }
+
+    NativeControlHost* menu_host = event.native_control_host != 0
+        ? event.native_control_host
+        : native_control_host;
+
+    if (menu_host == 0) {
+        return false;
+    }
+
+    const Attachment& attachment = messages[message_index].attachment;
+    if (attachment.empty()) {
+        return false;
+    }
+
+    ContextMenu menu;
+    menu.add_item(
+        context_attachment_preview,
+        "Preview",
+        attachment.is_image() && desktop_services != 0
+    );
+    menu.add_item(
+        context_attachment_open,
+        "Open",
+        desktop_services != 0
+    );
+    menu.add_separator();
+    menu.add_item(
+        context_attachment_copy_reference,
+        "Copy Reference",
+        event.clipboard != 0
+    );
+
+    int command_id = menu_host->show_context_menu(
+        menu,
+        event.x,
+        event.y
+    );
+
+    if (
+        command_id == context_attachment_preview &&
+        desktop_services != 0
+    ) {
+        desktop_services->preview_image(
+            attachment.get_path(),
+            attachment.get_file_name()
+        );
+    } else if (
+        command_id == context_attachment_open &&
+        desktop_services != 0
+    ) {
+        desktop_services->open_file(attachment.get_path());
+    } else if (
+        command_id == context_attachment_copy_reference &&
+        event.clipboard != 0
+    ) {
+        std::string reference("System: ");
+        reference += attachment.get_file_name();
+        MimeData data;
+        data.set_text(reference.c_str());
+        event.clipboard->set_data(data);
     }
 
     return true;

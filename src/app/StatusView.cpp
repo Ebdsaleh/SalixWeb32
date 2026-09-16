@@ -6,41 +6,30 @@
 
 #include <stdio.h>
 #include <string>
+#include <vector>
 
 #include "StatusView.h"
 #include "runtime/ApplicationRuntime.h"
+#include "framework/ApplicationCommand.h"
+#include "framework/DesktopServices.h"
+#include "framework/FileDialog.h"
 #include "framework/NativeControlHost.h"
 #include "framework/UIEvent.h"
 #include "framework/rendering/ComponentRenderer.h"
 
-namespace {
-    const char* get_file_name_from_path(const char* path) {
-        if (path == 0) {
-            return "";
-        }
-
-        const char* file_name = path;
-
-        for (const char* cursor = path; *cursor != '\0'; ++cursor) {
-            if (*cursor == '\\' || *cursor == '/') {
-                file_name = cursor + 1;
-            }
-        }
-
-        return file_name;
-    }
-}
-
 StatusView::StatusView(
     ApplicationRuntime* new_application_runtime,
-    FileDialog* file_dialog
+    FileDialog* new_file_dialog,
+    DesktopServices* new_desktop_services
 ) : application_runtime(new_application_runtime),
+    file_dialog(new_file_dialog),
+    desktop_services(new_desktop_services),
     native_control_host(0),
     client_width(0),
     client_height(0),
     conversation_tab_index(-1),
     runtime_tab_index(-1),
-    message_composer(file_dialog) {
+    message_composer(new_file_dialog) {
 
     header_title_label.set_text("SalixWeb32 Messenger");
     header_subtitle_label.set_text("Legacy web runtime - local framework shell");
@@ -118,6 +107,7 @@ StatusView::StatusView(
     conversation_panel.add_child(&conversation_hint_label);
     conversation_panel.add_child(&conversation_view);
 
+    conversation_view.set_desktop_services(desktop_services);
     conversation_view.append_system_message(
         "Framework components online."
     );
@@ -324,6 +314,10 @@ void StatusView::layout(
 }
 
 bool StatusView::handle_event(const UIEvent& event) {
+    if (event.type == UIEvent::event_command) {
+        return handle_application_command(event.command_id);
+    }
+
     bool is_mouse_event =
         event.type == UIEvent::event_mouse_move ||
         event.type == UIEvent::event_mouse_down ||
@@ -375,6 +369,43 @@ void StatusView::on_workspace_tab_changed(
     }
 }
 
+bool StatusView::handle_application_command(int command_id) {
+    switch (command_id) {
+        case application_command_attach_file:
+            if (workspace_tabs.get_active_index() != conversation_tab_index) {
+                workspace_tabs.set_active_index(conversation_tab_index);
+                update_active_native_controls();
+            }
+            return attach_files_from_dialog();
+
+        case application_command_show_conversation:
+            workspace_tabs.set_active_index(conversation_tab_index);
+            update_active_native_controls();
+            return true;
+
+        case application_command_show_runtime:
+            workspace_tabs.set_active_index(runtime_tab_index);
+            update_active_native_controls();
+            return true;
+    }
+
+    return false;
+}
+
+bool StatusView::attach_files_from_dialog() {
+    if (file_dialog == 0) {
+        return false;
+    }
+
+    std::vector<std::string> selected_paths;
+    if (!file_dialog->open_files(selected_paths) || selected_paths.empty()) {
+        return false;
+    }
+
+    message_composer.add_attachment_paths(selected_paths);
+    return true;
+}
+
 void StatusView::update_dynamic_text() {
     char service_text[128];
     char size_text[128];
@@ -411,12 +442,8 @@ void StatusView::show_submitted_message(const MessageDraft& draft) {
     int attachment_count = draft.get_attachment_count();
 
     for (int index = 0; index < attachment_count; ++index) {
-        const char* path = draft.get_attachment_path(index);
-        std::string attachment_message("Attached: ");
-        attachment_message += get_file_name_from_path(path);
-
-        conversation_view.append_system_message(
-            attachment_message.c_str()
+        conversation_view.append_attachment(
+            draft.get_attachment(index)
         );
     }
 }

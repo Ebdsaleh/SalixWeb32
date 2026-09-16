@@ -107,7 +107,13 @@ Implemented or active post-baseline work:
 - [~] native-backed font-size combo-box primitive
 - [~] backend-neutral multi-file dialog contract
 - [~] Win32 `GetOpenFileNameA` multi-file provider
-- [~] attachment buffer/count plumbing
+- [~] semantic attachment model and draft plumbing
+- [~] inline image attachment thumbnails with aspect-ratio preservation
+- [~] attachment Preview/Open/context actions
+- [~] attachment-aware plain conversation selection/copy surrogate
+- [~] native application menu bar (`File / Edit / Options / Help`)
+- [x] reusable framework `TabView` with native Win32 tab peer
+- [x] Conversation/Runtime tab lifecycle on Server 2003 SP2 and MiniXP
 - [~] Bold/Italic/Underline composer state (`Ctrl+B`, `Ctrl+I`, `Ctrl+U`)
 - [~] formatted text model and formatted sent-message preservation
 - [~] multiline composer with explicit line-break rendering/hit-testing
@@ -118,7 +124,7 @@ Implemented or active post-baseline work:
 - [~] backend-neutral context-menu model with native Win32 popup presentation
 - [~] composer right-click Copy/Cut/Paste + keep-formatting variants
 - [~] cross-block read-only selection within one conversation message presentation
-- [~] read-only conversation Copy/Select All context menu
+- [~] document-wide read-only conversation selection and Copy/Select All
 - [~] bulleted/numbered list editing and dedicated `ListPanel`
 - [~] list continuation with Enter and `Ctrl+Enter` forced send
 - [~] classic text-emoticon registry
@@ -135,15 +141,16 @@ Implemented or active post-baseline work:
 - [~] non-wrapped code with independent horizontal overflow scrolling
 - [~] lightweight language-aware code syntax tokenization/highlighting foundation
 - [ ] advanced syntax grammar / richer syntax palette
-- [ ] attachment chips/cards and removal controls
+- [ ] composer attachment chips/cards and removal controls
+- [ ] structured clipboard representation for inline attachment objects
 - [ ] clickable Markdown links
 - [ ] richer Markdown block widgets (quotes/tables/task lists/images)
 
 The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, wrapped rich-conversation, and dedicated code-block-container work under Windows Server 2003 SP2. The newest code-language/syntax, composer wheel/vertical-navigation, and native context-menu/presentation-selection work remains pending VC7.1/Server 2003 validation, and newer post-v0.0.2 work must not be assumed validated under MiniXP until exercised there explicitly.
+The current pre-menu/attachment application baseline, including the native tabbed workspace, rich conversation presentation, context menus, document-wide selection, composer navigation/scrolling, Markdown/code presentation, and native-control lifecycle, has now been exercised successfully on the real Pentium 4 under both Windows Server 2003 SP2 and MiniXP. The new native-menu and first-class image-attachment tranche remains pending VC7.1 compilation and target validation and must not be marked validated until that pass succeeds.
 
-See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, `docs/SYNTAX_HIGHLIGHTING.md`, and `docs/CONTEXT_MENUS.md` for the current contracts and validation checklists.
+See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, `docs/SYNTAX_HIGHLIGHTING.md`, `docs/CONTEXT_MENUS.md`, `docs/TABBED_VIEWS.md`, `docs/NATIVE_MENU_BAR.md`, and `docs/ATTACHMENTS.md` for the current contracts and validation checklists.
 
 **Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer/conversation work continues without changing the validated baseline tag.
 
@@ -309,7 +316,7 @@ remote backend
 
 - [~] conversation display (native shell proof advancing before network backend)
 - [~] text input (native shell proof advancing before network backend)
-- [~] attachments (local draft plumbing exists; transfer backend pending)
+- [~] attachments (semantic local model + image presentation active; transfer backend pending)
 - [ ] file transfer
 - [~] copy/paste build logs (local UI path exists; remote bridge pending)
 - [ ] session persistence

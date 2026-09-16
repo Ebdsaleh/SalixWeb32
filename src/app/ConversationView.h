@@ -7,13 +7,16 @@
 
 #include <vector>
 
+#include "Attachment.h"
 #include "framework/Panel.h"
 #include "framework/FormattedText.h"
+#include "framework/ImageView.h"
 #include "framework/ScrollBar.h"
 
 class Clipboard;
 class ComponentRenderer;
 class ConversationMessageView;
+class DesktopServices;
 class NativeControlHost;
 class TextMetrics;
 class UIEvent;
@@ -29,6 +32,8 @@ class ConversationView : public Panel {
         ConversationView();
         virtual ~ConversationView();
 
+        void set_desktop_services(DesktopServices* services);
+
         bool append_message(MessageRole role, const char* text);
         bool append_message(MessageRole role, const FormattedText& text);
         bool append_system_message(const char* text);
@@ -36,6 +41,7 @@ class ConversationView : public Panel {
         bool append_local_message(const FormattedText& text);
         bool append_remote_message(const char* text);
         bool append_remote_message(const FormattedText& text);
+        bool append_attachment(const Attachment& attachment);
 
         void clear_messages();
         int get_message_count() const;
@@ -59,9 +65,20 @@ class ConversationView : public Panel {
 
     private:
         struct MessageEntry {
+            MessageEntry()
+                : role(message_system),
+                  view(0),
+                  image_view(0),
+                  text_height(0),
+                  row_height(0) {
+            }
+
             MessageRole role;
             FormattedText source_text;
             ConversationMessageView* view;
+            ImageView* image_view;
+            Attachment attachment;
+            int text_height;
             int row_height;
         };
 
@@ -89,6 +106,7 @@ class ConversationView : public Panel {
 
         int find_message_at_point(int x, int y) const;
         int resolve_message_index_for_selection(int y) const;
+        bool is_attachment_point(int message_index, int x, int y) const;
         void clear_conversation_selection();
         void select_all_conversation();
         bool has_conversation_selection() const;
@@ -96,9 +114,14 @@ class ConversationView : public Panel {
         void apply_conversation_selection(
             int target_message_index,
             int target_label_index,
-            int target_character_index
+            int target_character_index,
+            bool target_is_attachment
         );
         bool handle_context_menu(const UIEvent& event);
+        bool handle_attachment_context_menu(
+            const UIEvent& event,
+            int message_index
+        );
         const char* get_role_context_name(MessageRole role) const;
 
         const char* get_role_prefix(MessageRole role) const;
@@ -108,6 +131,7 @@ class ConversationView : public Panel {
         std::vector<MessageEntry> messages;
         ScrollBar vertical_scroll_bar;
         NativeControlHost* native_control_host;
+        DesktopServices* desktop_services;
         int scroll_offset_y;
         int row_spacing;
         int content_padding;
@@ -118,6 +142,7 @@ class ConversationView : public Panel {
 
         bool conversation_drag_selecting;
         bool selection_context_active;
+        bool selection_anchor_is_attachment;
         int selection_anchor_message_index;
         int selection_anchor_label_index;
         int selection_anchor_character_index;

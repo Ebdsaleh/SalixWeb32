@@ -14,6 +14,7 @@
 #include "ConversationView.h"
 
 class ApplicationRuntime;
+class DesktopServices;
 class FileDialog;
 class NativeControlHost;
 class TextMetrics;
@@ -22,7 +23,8 @@ class StatusView : public View {
     public:
         StatusView(
             ApplicationRuntime* application_runtime,
-            FileDialog* file_dialog
+            FileDialog* file_dialog,
+            DesktopServices* desktop_services
         );
 
         virtual void attach_native_control_host(NativeControlHost* control_host);
@@ -44,11 +46,15 @@ class StatusView : public View {
             void* context
         );
 
+        bool handle_application_command(int command_id);
+        bool attach_files_from_dialog();
         void update_dynamic_text();
         void show_submitted_message(const MessageDraft& draft);
         void update_active_native_controls();
 
         ApplicationRuntime* application_runtime;
+        FileDialog* file_dialog;
+        DesktopServices* desktop_services;
         NativeControlHost* native_control_host;
         int client_width;
         int client_height;

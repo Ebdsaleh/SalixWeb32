@@ -5,9 +5,9 @@
 // =================================================================================
 #pragma once
 
-#include <string>
 #include <vector>
 
+#include "Attachment.h"
 #include "framework/FormattedText.h"
 
 class MessageDraft {
@@ -21,11 +21,12 @@ class MessageDraft {
 
         void add_attachment(const char* path);
         int get_attachment_count() const;
+        const Attachment& get_attachment(int index) const;
         const char* get_attachment_path(int index) const;
 
         bool empty() const;
 
     private:
         FormattedText body;
-        std::vector<std::string> attachment_paths;
+        std::vector<Attachment> attachments;
 };

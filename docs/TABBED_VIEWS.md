@@ -74,7 +74,7 @@ Ctrl+Shift+Tab  -> previous tab
 
 Cycling wraps at both ends.
 
-Close/reopen/reorder shortcuts are intentionally not claimed by this tranche. They will be layered onto the same model after the basic tab lifecycle is target-validated.
+Close/reopen/reorder shortcuts are intentionally not claimed by this tranche. They will be layered onto the same model after the basic tab lifecycle is stable.
 
 ## Initial shell integration
 
@@ -96,8 +96,6 @@ The Runtime tab owns the runtime/host/web-backend/service/client-size diagnostic
 This is deliberately useful rather than a fake tab demo: switching tabs changes which application surface owns the body of the window.
 
 ## Native child-control lifecycle
-
-This tranche also establishes an important rule for future web/chat tabs.
 
 Framework visibility alone is not enough for native child HWNDs. A hidden tab page may contain native combo boxes or scrollbars that would otherwise remain visible above the custom-rendered page.
 
@@ -149,25 +147,24 @@ The first tranche intentionally does not yet provide:
 - persistence/restoration across application launches,
 - multiple independent conversation sessions.
 
-Those are follow-on capabilities. The current goal is to validate the reusable tab model, native header, active-page switching, keyboard cycling, and native-child lifecycle on the real legacy targets first.
+Those remain follow-on capabilities rather than requirements of the validated base tab model.
 
-## Target validation checklist
+## Target validation status
 
-This tranche is not target-validated until exercised on the real Pentium 4 systems.
+**Validated successfully on the real Pentium 4 under both Windows Server 2003 SP2 and MiniXP.**
 
-1. Close Visual Studio before pulling because the `.vcproj` gains new source files and `comctl32.lib`.
-2. Reopen the solution and perform Clean Solution -> Rebuild Solution under Visual C++ 7.1.
-3. Confirm the earlier common-controls include-order errors are gone and there are no new warnings or link errors involving common controls.
-4. Launch on Windows Server 2003 SP2 and confirm a native Windows tab header appears below the Salix header.
-5. Confirm the initial tabs are `Conversation` and `Runtime`.
-6. Click Runtime and verify the conversation/composer disappear and diagnostics occupy the workspace.
-7. Click Conversation and verify the entire conversation/composer state returns unchanged.
-8. Confirm the composer native font/language/indent combos and scrollbars do not remain floating over the Runtime tab.
-9. Return to Conversation and verify those native controls recreate at the correct locations and retain semantic state.
-10. Verify the conversation native scrollbar likewise disappears/reappears correctly.
-11. Press Ctrl+Tab repeatedly and confirm forward cycling wraps between the two tabs.
-12. Press Ctrl+Shift+Tab and confirm reverse cycling.
-13. Resize the window on both tabs and verify the native tab header and active page track the new client size.
-14. Send formatted/list/code messages, switch to Runtime, return, and verify draft/history state has not been reset.
-15. Exercise context menus, conversation selection, mouse-wheel scrolling, code blocks, and the composer after multiple tab switches to catch lifecycle regressions.
-16. Repeat the smoke pass under MiniXP after Server 2003 succeeds.
+The validation pass confirmed:
+
+1. Visual C++ 7.1 clean rebuild succeeds after the common-controls include-order correction.
+2. The native Windows tab header appears correctly.
+3. The initial `Conversation` and `Runtime` pages switch correctly by mouse.
+4. Conversation/composer state survives switching away and back.
+5. Composer native font/language/indent combo boxes and scrollbars detach from the inactive Conversation page instead of floating over Runtime.
+6. Native controls recreate/synchronize correctly when returning to Conversation.
+7. The conversation native scrollbar follows the same lifecycle.
+8. `Ctrl+Tab` and `Ctrl+Shift+Tab` cycle the pages correctly.
+9. Page layout and native tab geometry track resizing.
+10. Existing conversation formatting, lists, code blocks, context menus, selection, and scrolling remain functional after tab switching.
+11. The same architecture and executable behavior remain sound under MiniXP as well as Server 2003 SP2.
+
+This validation closes the first tabbed-workspace tranche and establishes it as a stable baseline for later application-shell work.

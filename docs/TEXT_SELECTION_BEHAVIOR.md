@@ -129,6 +129,41 @@ The same validated tranche includes bounded undo/redo history for editable `Text
 - Repeated Delete is grouped into one undo operation.
 - The history is bounded to avoid unbounded memory growth on the legacy target.
 
+## Attachment selection semantics — pending target validation
+
+The first-class attachment tranche extends document-wide conversation selection without treating image pixels as text.
+
+An inline image attachment has a visible thumbnail plus an ordinary textual surrogate at the same semantic position:
+
+```text
+System: filename.ext
+```
+
+The thumbnail is an atomic selection object. If a drag range crosses an image, begins on an image, or ends on an image, the corresponding surrogate is selected as a whole. A normal `Ctrl+C` therefore produces useful `text/plain` output in source order rather than silently dropping the image.
+
+Example visual conversation:
+
+```text
+You: Check this out
+System: renderware2.jpg
+[thumbnail]
+Remote: Nice.
+```
+
+Plain copied representation:
+
+```text
+You: Check this out
+System: renderware2.jpg
+Remote: Nice.
+```
+
+This first pass deliberately keeps normal copy/paste interoperable and lossy. A later structured-clipboard pass will allow SalixWeb32 to publish attachment-aware data alongside `text/plain` so `Ctrl+Shift+V` can preserve rich formatting and attachment objects in the composer while normal `Ctrl+V` continues to use the plain representation.
+
+The attachment behavior described in this section remains pending until rebuilt and exercised on the Pentium 4 under Server 2003 SP2 and MiniXP.
+
 ## Design boundary
 
 Discontinuous selections belong to the shared framework text-selection layer rather than to the messenger shell. Clipboard export continues to provide an interoperable compact `text/plain` representation plus a Salix-specific preserved-layout representation for paste options. Undo/redo history belongs to the editable text control because it records mutations rather than read-only selection state.
+
+Attachment thumbnails are presentation objects, but their selection semantics are expressed through stable plain-text surrogates in the conversation document. Future rich clipboard support should add representations rather than remove or weaken that interoperable text representation.

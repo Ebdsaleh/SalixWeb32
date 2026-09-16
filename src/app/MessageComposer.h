@@ -43,6 +43,10 @@ class MessageComposer : public Panel {
         int get_attachment_count() const;
         const char* get_attachment_path(int index) const;
 
+        void add_attachment_paths(const std::vector<std::string>& paths) {
+            add_attachments(paths);
+        }
+
         bool get_bold() const;
         bool get_italic() const;
         bool get_underline() const;

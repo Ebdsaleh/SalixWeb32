@@ -12,6 +12,8 @@
 #include "framework/Label.h"
 #include "framework/Button.h"
 #include "framework/TextInput.h"
+#include "framework/ImageView.h"
+#include "framework/RasterImage.h"
 #include "framework/EmoticonRegistry.h"
 #include "framework/Style.h"
 
@@ -254,5 +256,65 @@ void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
     Win32ScrollableTextPainter::render_text_input(
         device_context,
         text_input
+    );
+}
+
+void Win32ComponentRenderer::render_image_view(const ImageView& image_view) {
+    if (
+        device_context == NULL ||
+        !image_view.get_is_visible() ||
+        image_view.get_width() <= 0 ||
+        image_view.get_height() <= 0
+    ) {
+        return;
+    }
+
+    RECT image_rect = component_rect(image_view);
+    fill_rect(
+        device_context,
+        image_rect,
+        image_view.get_style().background_color
+    );
+
+    const RasterImage& image = image_view.get_image();
+    const unsigned char* pixels = image.get_pixels();
+
+    if (!image.empty() && pixels != 0) {
+        BITMAPINFO bitmap_info;
+        ZeroMemory(&bitmap_info, sizeof(bitmap_info));
+        bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bitmap_info.bmiHeader.biWidth = image.get_width();
+        bitmap_info.bmiHeader.biHeight = -image.get_height();
+        bitmap_info.bmiHeader.biPlanes = 1;
+        bitmap_info.bmiHeader.biBitCount = 32;
+        bitmap_info.bmiHeader.biCompression = BI_RGB;
+
+        int old_stretch_mode = SetStretchBltMode(device_context, HALFTONE);
+        SetBrushOrgEx(device_context, 0, 0, NULL);
+
+        StretchDIBits(
+            device_context,
+            image_view.get_x(),
+            image_view.get_y(),
+            image_view.get_width(),
+            image_view.get_height(),
+            0,
+            0,
+            image.get_width(),
+            image.get_height(),
+            pixels,
+            &bitmap_info,
+            DIB_RGB_COLORS,
+            SRCCOPY
+        );
+
+        SetStretchBltMode(device_context, old_stretch_mode);
+    }
+
+    frame_rect(
+        device_context,
+        image_rect,
+        image_view.get_style().border_color,
+        image_view.get_style().border_width
     );
 }

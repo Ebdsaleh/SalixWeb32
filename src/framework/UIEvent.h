@@ -20,7 +20,8 @@ class UIEvent {
             event_context_menu,
             event_key_down,
             event_key_up,
-            event_character
+            event_character,
+            event_command
         };
 
         enum KeyCode {
@@ -49,6 +50,7 @@ class UIEvent {
               y(0),
               key_code(key_none),
               character_code(0),
+              command_id(0),
               shift_down(false),
               control_down(false),
               alt_down(false),
@@ -65,6 +67,7 @@ class UIEvent {
         int y;
         KeyCode key_code;
         int character_code;
+        int command_id;
         bool shift_down;
         bool control_down;
         bool alt_down;
