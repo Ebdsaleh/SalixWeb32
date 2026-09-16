@@ -39,6 +39,7 @@ class FormattedText {
         int get_format_count() const;
         const TextFormat* get_format_data() const;
         TextFormat get_character_format(int index) const;
+        bool set_character_format(int index, const TextFormat& format);
         int get_max_font_size() const;
 
     private:

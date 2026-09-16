@@ -5,13 +5,16 @@
 // =================================================================================
 
 #include <string.h>
+#include <vector>
 
 #include "Win32TextPainter.h"
 #include "Win32EmoticonPainter.h"
+#include "engine/platform/win32/Win32TextMetrics.h"
 #include "framework/EmoticonRegistry.h"
 #include "framework/Label.h"
 #include "framework/TextInput.h"
 #include "framework/TextFormat.h"
+#include "framework/TextWrapLayout.h"
 #include "framework/Style.h"
 
 namespace {
@@ -60,6 +63,10 @@ namespace {
             72
         );
 
+        const char* font_name = format.code_style == TextFormat::code_none
+            ? "Tahoma"
+            : "Courier New";
+
         return CreateFontA(
             logical_height,
             0,
@@ -74,7 +81,7 @@ namespace {
             CLIP_DEFAULT_PRECIS,
             DEFAULT_QUALITY,
             DEFAULT_PITCH | FF_DONTCARE,
-            "Tahoma"
+            font_name
         );
     }
 
@@ -189,13 +196,17 @@ namespace {
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
-            if (EmoticonRegistry::match_at(
+            if (
+                format.code_style == TextFormat::code_none &&
+                EmoticonRegistry::match_at(
                     text,
                     text_length,
                     position,
                     emoticon_id,
                     alias_length
-                ) && position + alias_length <= line_end) {
+                ) &&
+                position + alias_length <= line_end
+            ) {
                 width += EmoticonRegistry::get_visual_size(format.font_size);
                 position += alias_length;
                 continue;
@@ -243,13 +254,17 @@ namespace {
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
-            if (EmoticonRegistry::match_at(
+            if (
+                format.code_style == TextFormat::code_none &&
+                EmoticonRegistry::match_at(
                     text,
                     text_length,
                     position,
                     emoticon_id,
                     alias_length
-                ) && position + alias_length <= line_end) {
+                ) &&
+                position + alias_length <= line_end
+            ) {
                 int visual_size = EmoticonRegistry::get_visual_size(
                     format.font_size
                 );
@@ -374,6 +389,24 @@ namespace {
         );
     }
 
+    bool line_contains_code_block(
+        const void* context,
+        FormatGetter format_getter,
+        int line_start,
+        int line_end
+    ) {
+        for (int index = line_start; index < line_end; ++index) {
+            if (
+                format_getter(context, index).code_style ==
+                TextFormat::code_block
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void draw_line(
         HDC device_context,
         const char* text,
@@ -390,6 +423,20 @@ namespace {
         int line_start,
         int line_end
     ) {
+        bool code_block_line = line_contains_code_block(
+            context,
+            format_getter,
+            line_start,
+            line_end
+        );
+
+        if (code_block_line) {
+            RECT code_rect = line_rect;
+            code_rect.left -= 2;
+            code_rect.right += 2;
+            fill_rect(device_context, code_rect, RGB(244, 244, 244));
+        }
+
         int x = text_x;
         int position = line_start;
 
@@ -398,13 +445,17 @@ namespace {
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
-            if (EmoticonRegistry::match_at(
+            if (
+                format.code_style == TextFormat::code_none &&
+                EmoticonRegistry::match_at(
                     text,
                     text_length,
                     position,
                     emoticon_id,
                     alias_length
-                ) && position + alias_length <= line_end) {
+                ) &&
+                position + alias_length <= line_end
+            ) {
                 int visual_size = EmoticonRegistry::get_visual_size(
                     format.font_size
                 );
@@ -491,6 +542,18 @@ namespace {
                     GetSysColor(COLOR_HIGHLIGHTTEXT)
                 );
             } else {
+                if (
+                    format.code_style == TextFormat::code_inline &&
+                    !code_block_line
+                ) {
+                    RECT code_rect;
+                    code_rect.left = x;
+                    code_rect.top = line_rect.top + 1;
+                    code_rect.right = x + character_size.cx;
+                    code_rect.bottom = line_rect.bottom - 1;
+                    fill_rect(device_context, code_rect, RGB(238, 238, 238));
+                }
+
                 SetTextColor(device_context, normal_text_color);
             }
 
@@ -639,6 +702,101 @@ namespace {
             line_start = line_end + 1;
         }
     }
+
+    void draw_wrapped_label_block(
+        HDC device_context,
+        const char* text,
+        int text_length,
+        const RECT& text_rect,
+        COLORREF normal_text_color,
+        const Label& label,
+        int horizontal_alignment,
+        int line_spacing
+    ) {
+        Win32TextMetrics text_metrics(device_context);
+        std::vector<TextWrapLine> lines;
+
+        TextWrapLayout::build_lines(
+            text,
+            text_length,
+            label.get_format_data(),
+            label.get_format_count(),
+            text_rect.right - text_rect.left,
+            &text_metrics,
+            lines
+        );
+
+        int y = text_rect.top;
+
+        for (int index = 0; index < (int)lines.size(); ++index) {
+            const TextWrapLine& line = lines[index];
+            int line_height = measure_line_height(
+                device_context,
+                text,
+                text_length,
+                &label,
+                get_label_format,
+                line.start,
+                line.end
+            );
+            int line_width = measure_line_width(
+                device_context,
+                text,
+                text_length,
+                &label,
+                get_label_format,
+                line.start,
+                line.end
+            );
+
+            int text_x = text_rect.left;
+            if (horizontal_alignment == 1) {
+                text_x += ((text_rect.right - text_rect.left) - line_width) / 2;
+            } else if (horizontal_alignment == 2) {
+                text_x += (text_rect.right - text_rect.left) - line_width;
+            }
+
+            RECT line_rect;
+            line_rect.left = text_rect.left;
+            line_rect.right = text_rect.right;
+            line_rect.top = y;
+            line_rect.bottom = y + line_height;
+
+            bool draw_caret_on_line =
+                label.get_is_selectable() &&
+                label.get_is_focused() &&
+                label.get_cursor_position() >= line.start &&
+                label.get_cursor_position() <= line.end;
+
+            if (
+                draw_caret_on_line &&
+                index + 1 < (int)lines.size() &&
+                label.get_cursor_position() == line.end &&
+                lines[index + 1].start == line.end
+            ) {
+                draw_caret_on_line = false;
+            }
+
+            draw_line(
+                device_context,
+                text,
+                text_length,
+                line_rect,
+                text_x,
+                normal_text_color,
+                &label,
+                get_label_format,
+                is_label_character_selected,
+                label.has_selection(),
+                draw_caret_on_line,
+                label.get_cursor_position(),
+                line.start,
+                line.end
+            );
+
+            y += line_height + line_spacing;
+        }
+    }
 }
 
 void Win32TextPainter::render_label(
@@ -687,24 +845,37 @@ void Win32TextPainter::render_label(
         to_color_ref(label.get_style().foreground_color)
     );
 
-    bool is_multiline = strchr(text, '\n') != 0;
+    if (label.get_word_wrap()) {
+        draw_wrapped_label_block(
+            device_context,
+            text,
+            text_length,
+            label_rect,
+            to_color_ref(label.get_style().foreground_color),
+            label,
+            alignment,
+            2
+        );
+    } else {
+        bool is_multiline = strchr(text, '\n') != 0;
 
-    draw_text_block(
-        device_context,
-        text,
-        text_length,
-        label_rect,
-        to_color_ref(label.get_style().foreground_color),
-        &label,
-        get_label_format,
-        is_label_character_selected,
-        label.has_selection(),
-        label.get_is_selectable() && label.get_is_focused(),
-        label.get_cursor_position(),
-        alignment,
-        2,
-        is_multiline
-    );
+        draw_text_block(
+            device_context,
+            text,
+            text_length,
+            label_rect,
+            to_color_ref(label.get_style().foreground_color),
+            &label,
+            get_label_format,
+            is_label_character_selected,
+            label.has_selection(),
+            label.get_is_selectable() && label.get_is_focused(),
+            label.get_cursor_position(),
+            alignment,
+            2,
+            is_multiline
+        );
+    }
 
     SetTextColor(device_context, old_text_color);
 

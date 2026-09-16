@@ -7,6 +7,7 @@
 
 class ComponentRenderer;
 class NativeControlHost;
+class TextMetrics;
 class UIEvent;
 
 class View {
@@ -20,7 +21,11 @@ class View {
         virtual void detach_native_control_host() {
         }
 
-        virtual void layout(int width, int height) = 0;
+        virtual void layout(
+            int width,
+            int height,
+            TextMetrics* text_metrics = 0
+        ) = 0;
         virtual bool handle_event(const UIEvent& event) = 0;
         virtual void render(ComponentRenderer& renderer) = 0;
 };

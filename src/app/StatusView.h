@@ -15,6 +15,7 @@
 class ApplicationRuntime;
 class FileDialog;
 class NativeControlHost;
+class TextMetrics;
 
 class StatusView : public View {
     public:
@@ -25,7 +26,7 @@ class StatusView : public View {
 
         virtual void attach_native_control_host(NativeControlHost* control_host);
         virtual void detach_native_control_host();
-        virtual void layout(int width, int height);
+        virtual void layout(int width, int height, TextMetrics* text_metrics = 0);
         virtual bool handle_event(const UIEvent& event);
         virtual void render(ComponentRenderer& renderer);
 

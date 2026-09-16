@@ -141,7 +141,11 @@ void StatusView::detach_native_control_host() {
     message_composer.detach_native_controls();
 }
 
-void StatusView::layout(int width, int height) {
+void StatusView::layout(
+    int width,
+    int height,
+    TextMetrics* text_metrics
+) {
     const int outer_padding = 8;
     const int gap = 6;
     const int header_height = 58;
@@ -241,7 +245,8 @@ void StatusView::layout(int width, int height) {
         outer_padding + 10,
         body_y + 64,
         conversation_width - 20,
-        conversation_view_height
+        conversation_view_height,
+        text_metrics
     );
 
     if (show_sidebar) {

@@ -17,13 +17,15 @@ namespace {
             : bold(false),
               italic(false),
               underline(false),
-              font_size_override(0) {
+              font_size_override(0),
+              code_style(TextFormat::code_none) {
         }
 
         bool bold;
         bool italic;
         bool underline;
         int font_size_override;
+        TextFormat::CodeStyle code_style;
     };
 
     TextFormat apply_semantic_style(
@@ -43,6 +45,9 @@ namespace {
         }
         if (style.font_size_override > 0) {
             format.font_size = style.font_size_override;
+        }
+        if (style.code_style != TextFormat::code_none) {
+            format.code_style = style.code_style;
         }
 
         return format;
@@ -167,6 +172,7 @@ namespace {
                 if (closing > position + 1) {
                     SemanticStyle code_style = inherited_style;
                     code_style.font_size_override = 11;
+                    code_style.code_style = TextFormat::code_inline;
 
                     for (int index = position + 1;
                          index < closing;
@@ -580,6 +586,7 @@ bool MarkdownFormatter::format(
         } else if (in_code_block) {
             SemanticStyle code_style;
             code_style.font_size_override = 11;
+            code_style.code_style = TextFormat::code_block;
             append_source_range(
                 source,
                 line_start,
@@ -594,7 +601,13 @@ bool MarkdownFormatter::format(
                     output_text,
                     output_formats,
                     '\n',
-                    TextFormat(false, false, false, 11)
+                    TextFormat(
+                        false,
+                        false,
+                        false,
+                        11,
+                        TextFormat::code_block
+                    )
                 );
             }
         } else {

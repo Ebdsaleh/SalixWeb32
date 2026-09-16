@@ -38,6 +38,9 @@ class Label : public Component {
         void set_horizontal_alignment(HorizontalAlignment new_alignment);
         HorizontalAlignment get_horizontal_alignment() const;
 
+        void set_word_wrap(bool new_word_wrap);
+        bool get_word_wrap() const;
+
         void set_selectable(bool new_is_selectable);
         bool get_is_selectable() const;
         bool get_is_focused() const;
@@ -64,6 +67,7 @@ class Label : public Component {
         std::string text;
         std::vector<TextFormat> character_formats;
         HorizontalAlignment horizontal_alignment;
+        bool word_wrap;
         bool is_selectable;
         bool is_focused;
         TextSelection selection;

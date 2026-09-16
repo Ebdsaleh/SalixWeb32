@@ -12,10 +12,12 @@
 #include "MimeTypes.h"
 #include "TextMetrics.h"
 #include "TextNavigation.h"
+#include "TextWrapLayout.h"
 #include "rendering/ComponentRenderer.h"
 
 Label::Label()
     : horizontal_alignment(align_left),
+      word_wrap(false),
       is_selectable(false),
       is_focused(false),
       is_mouse_selecting(false),
@@ -102,6 +104,14 @@ void Label::set_horizontal_alignment(HorizontalAlignment new_alignment) {
 
 Label::HorizontalAlignment Label::get_horizontal_alignment() const {
     return horizontal_alignment;
+}
+
+void Label::set_word_wrap(bool new_word_wrap) {
+    word_wrap = new_word_wrap;
+}
+
+bool Label::get_word_wrap() const {
+    return word_wrap;
 }
 
 void Label::set_selectable(bool new_is_selectable) {
@@ -523,6 +533,20 @@ int Label::get_cursor_position_from_event(
 ) const {
     if (event.text_metrics == 0) {
         return (int)text.length();
+    }
+
+    if (word_wrap && horizontal_alignment == align_left) {
+        return TextWrapLayout::get_character_index_at_point(
+            text.c_str(),
+            (int)text.length(),
+            get_format_data(),
+            get_format_count(),
+            get_width(),
+            event.x - get_x(),
+            event.y - get_y(),
+            2,
+            event.text_metrics
+        );
     }
 
     bool is_multiline = text.find('\n') != std::string::npos;

@@ -116,6 +116,19 @@ TextFormat FormattedText::get_character_format(int index) const {
     return character_formats[index];
 }
 
+bool FormattedText::set_character_format(
+    int index,
+    const TextFormat& format
+) {
+    if (index < 0 || index >= (int)text.length()) {
+        return false;
+    }
+
+    normalize_format_count(TextFormat());
+    character_formats[index] = format;
+    return true;
+}
+
 int FormattedText::get_max_font_size() const {
     int maximum = 12;
 

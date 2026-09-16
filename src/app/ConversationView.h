@@ -12,7 +12,9 @@
 #include "framework/FormattedText.h"
 #include "framework/ScrollBar.h"
 
+class ComponentRenderer;
 class NativeControlHost;
+class TextMetrics;
 class UIEvent;
 
 class ConversationView : public Panel {
@@ -40,11 +42,19 @@ class ConversationView : public Panel {
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
 
-        void arrange(int x, int y, int width, int height);
+        void arrange(
+            int x,
+            int y,
+            int width,
+            int height,
+            TextMetrics* text_metrics = 0
+        );
         void scroll_lines(int line_count);
+        void scroll_pixels(int pixel_count);
         void scroll_to_bottom();
 
         virtual bool handle_event(const UIEvent& event);
+        virtual void render(ComponentRenderer& renderer) const;
 
     private:
         struct MessageEntry {
@@ -61,12 +71,20 @@ class ConversationView : public Panel {
         );
 
         void relayout();
-        void clamp_first_visible_index();
-        void update_scrollbar_state(int visible_count);
+        void recalculate_entry_heights(
+            int message_width,
+            TextMetrics* text_metrics
+        );
+        void clamp_scroll_offset();
+        void update_scrollbar_state(int available_height);
         void sync_native_scrollbar();
-        int calculate_entry_height(const Label& label) const;
-        int calculate_first_index_for_bottom() const;
+        int calculate_entry_height(
+            const Label& label,
+            int message_width,
+            TextMetrics* text_metrics
+        ) const;
         int calculate_total_content_height() const;
+        int calculate_max_scroll_offset() const;
         const char* get_role_prefix(MessageRole role) const;
         const char* get_role_label(MessageRole role) const;
         Color get_role_color(MessageRole role) const;
@@ -74,8 +92,11 @@ class ConversationView : public Panel {
         std::vector<MessageEntry> messages;
         ScrollBar vertical_scroll_bar;
         NativeControlHost* native_control_host;
-        int first_visible_index;
+        int scroll_offset_y;
         int row_spacing;
         int content_padding;
         int scroll_bar_width;
+        int line_step_pixels;
+        int last_message_width;
+        bool layout_dirty;
 };

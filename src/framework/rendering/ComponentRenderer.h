@@ -14,6 +14,16 @@ class ComponentRenderer {
     public:
         virtual ~ComponentRenderer() {}
 
+        virtual void push_clip_rect(int x, int y, int width, int height) {
+            (void)x;
+            (void)y;
+            (void)width;
+            (void)height;
+        }
+
+        virtual void pop_clip_rect() {
+        }
+
         virtual void render_panel(const Panel& panel) = 0;
         virtual void render_label(const Label& label) = 0;
         virtual void render_button(const Button& button) = 0;

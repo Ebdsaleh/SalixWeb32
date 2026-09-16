@@ -14,6 +14,9 @@ class Win32ComponentRenderer : public ComponentRenderer {
         Win32ComponentRenderer(HDC device_context);
         virtual ~Win32ComponentRenderer();
 
+        virtual void push_clip_rect(int x, int y, int width, int height);
+        virtual void pop_clip_rect();
+
         virtual void render_panel(const Panel& panel);
         virtual void render_label(const Label& label);
         virtual void render_button(const Button& button);

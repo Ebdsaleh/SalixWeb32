@@ -21,6 +21,10 @@ namespace {
             72
         );
 
+        const char* font_name = format.code_style == TextFormat::code_none
+            ? "Tahoma"
+            : "Courier New";
+
         return CreateFontA(
             logical_height,
             0,
@@ -35,7 +39,7 @@ namespace {
             CLIP_DEFAULT_PRECIS,
             DEFAULT_QUALITY,
             DEFAULT_PITCH | FF_DONTCARE,
-            "Tahoma"
+            font_name
         );
     }
 
@@ -143,13 +147,17 @@ namespace {
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
-            if (EmoticonRegistry::match_at(
+            if (
+                format.code_style == TextFormat::code_none &&
+                EmoticonRegistry::match_at(
                     text,
                     text_length,
                     position,
                     emoticon_id,
                     alias_length
-                ) && position + alias_length <= line_end) {
+                ) &&
+                position + alias_length <= line_end
+            ) {
                 int visual_size = EmoticonRegistry::get_visual_size(
                     format.font_size
                 );
@@ -197,13 +205,17 @@ namespace {
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
-            if (EmoticonRegistry::match_at(
+            if (
+                format.code_style == TextFormat::code_none &&
+                EmoticonRegistry::match_at(
                     text,
                     text_length,
                     position,
                     emoticon_id,
                     alias_length
-                ) && position + alias_length <= line_end) {
+                ) &&
+                position + alias_length <= line_end
+            ) {
                 width += EmoticonRegistry::get_visual_size(format.font_size);
                 position += alias_length;
                 continue;
@@ -247,13 +259,17 @@ namespace {
             EmoticonRegistry::EmoticonId emoticon_id;
             int alias_length = 0;
 
-            if (EmoticonRegistry::match_at(
+            if (
+                format.code_style == TextFormat::code_none &&
+                EmoticonRegistry::match_at(
                     text,
                     text_length,
                     position,
                     emoticon_id,
                     alias_length
-                ) && position + alias_length <= line_end) {
+                ) &&
+                position + alias_length <= line_end
+            ) {
                 int visual_width = EmoticonRegistry::get_visual_size(
                     format.font_size
                 );

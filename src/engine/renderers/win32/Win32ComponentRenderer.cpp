@@ -102,6 +102,41 @@ Win32ComponentRenderer::~Win32ComponentRenderer() {
     SetBkMode(device_context, previous_background_mode);
 }
 
+void Win32ComponentRenderer::push_clip_rect(
+    int x,
+    int y,
+    int width,
+    int height
+) {
+    if (device_context == NULL) {
+        return;
+    }
+
+    if (width < 0) {
+        width = 0;
+    }
+    if (height < 0) {
+        height = 0;
+    }
+
+    SaveDC(device_context);
+    IntersectClipRect(
+        device_context,
+        x,
+        y,
+        x + width,
+        y + height
+    );
+}
+
+void Win32ComponentRenderer::pop_clip_rect() {
+    if (device_context == NULL) {
+        return;
+    }
+
+    RestoreDC(device_context, -1);
+}
+
 void Win32ComponentRenderer::render_panel(const Panel& panel) {
     if (
         device_context == NULL ||

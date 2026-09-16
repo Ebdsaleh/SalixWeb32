@@ -118,6 +118,7 @@
 			<File RelativePath="..\..\src\framework\TextNavigation.cpp"/>
 			<File RelativePath="..\..\src\framework\TextSelection.cpp"/>
 			<File RelativePath="..\..\src\framework\TextViewportState.cpp"/>
+			<File RelativePath="..\..\src\framework\TextWrapLayout.cpp"/>
 			<File RelativePath="..\..\src\framework\ToggleButton.cpp"/>
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.cpp"/>
 			<File RelativePath="..\..\src\runtime\Diagnostics.cpp"/>
@@ -165,6 +166,7 @@
 			<File RelativePath="..\..\src\framework\TextNavigation.h"/>
 			<File RelativePath="..\..\src\framework\TextSelection.h"/>
 			<File RelativePath="..\..\src\framework\TextViewportState.h"/>
+			<File RelativePath="..\..\src\framework\TextWrapLayout.h"/>
 			<File RelativePath="..\..\src\framework\ToggleButton.h"/>
 			<File RelativePath="..\..\src\framework\UIEvent.h"/>
 			<File RelativePath="..\..\src\framework\View.h"/>

@@ -635,5 +635,16 @@ void Win32ApplicationHost::layout_application_view() {
         return;
     }
 
-    application_view->layout(client_width, client_height);
+    HDC metrics_context = GetDC(window_handle);
+    Win32TextMetrics text_metrics(metrics_context);
+
+    application_view->layout(
+        client_width,
+        client_height,
+        metrics_context != NULL ? &text_metrics : 0
+    );
+
+    if (metrics_context != NULL) {
+        ReleaseDC(window_handle, metrics_context);
+    }
 }
