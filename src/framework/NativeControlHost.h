@@ -6,6 +6,7 @@
 #pragma once
 
 class ComboBox;
+class ScrollBar;
 
 class NativeControlHost {
     public:
@@ -14,4 +15,8 @@ class NativeControlHost {
         virtual bool attach_combo_box(ComboBox* combo_box) = 0;
         virtual void detach_combo_box(ComboBox* combo_box) = 0;
         virtual void sync_combo_box(ComboBox* combo_box) = 0;
+
+        virtual bool attach_scroll_bar(ScrollBar* scroll_bar) = 0;
+        virtual void detach_scroll_bar(ScrollBar* scroll_bar) = 0;
+        virtual void sync_scroll_bar(ScrollBar* scroll_bar) = 0;
 };

@@ -36,7 +36,8 @@ class UIEvent {
             key_a,
             key_c,
             key_v,
-            key_x
+            key_x,
+            key_semicolon
         };
 
         UIEvent(Type new_type)

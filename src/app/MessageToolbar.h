@@ -48,6 +48,13 @@ class MessageToolbar : public Panel {
             void* context
         );
 
+        typedef void (*CodeModeChangedHandler)(
+            MessageToolbar* toolbar,
+            bool code_mode,
+            int tab_size,
+            void* context
+        );
+
         MessageToolbar(FileDialog* file_dialog);
         virtual ~MessageToolbar();
 
@@ -76,6 +83,11 @@ class MessageToolbar : public Panel {
             void* new_context
         );
 
+        void set_code_mode_changed_handler(
+            CodeModeChangedHandler new_handler,
+            void* new_context
+        );
+
         void set_attachment_count(int attachment_count);
         void set_list_style(ListPanel::ListStyle new_list_style);
         ListPanel::ListStyle get_list_style() const;
@@ -84,6 +96,12 @@ class MessageToolbar : public Panel {
         bool get_italic() const;
         bool get_underline() const;
         int get_font_size() const;
+        bool get_code_mode() const;
+        int get_tab_size() const;
+
+        void toggle_code_mode_from_shortcut() {
+            toggle_code_mode();
+        }
 
         bool contains_popup_point(int x, int y) const;
 
@@ -93,6 +111,13 @@ class MessageToolbar : public Panel {
 
     private:
         static void on_font_size_changed(
+            ComboBox* combo_box,
+            int selected_value,
+            const char* selected_text,
+            void* context
+        );
+
+        static void on_tab_size_changed(
             ComboBox* combo_box,
             int selected_value,
             const char* selected_text,
@@ -114,7 +139,9 @@ class MessageToolbar : public Panel {
         void toggle_bold();
         void toggle_italic();
         void toggle_underline();
+        void toggle_code_mode();
         void notify_format_changed();
+        void notify_code_mode_changed();
         bool open_attachment_dialog();
 
         FileDialog* file_dialog;
@@ -127,6 +154,8 @@ class MessageToolbar : public Panel {
         void* format_changed_context;
         ListRequestedHandler list_requested_handler;
         void* list_requested_context;
+        CodeModeChangedHandler code_mode_changed_handler;
+        void* code_mode_changed_context;
 
         Button attach_button;
         ToggleButton bold_button;
@@ -135,10 +164,13 @@ class MessageToolbar : public Panel {
         ComboBox font_size_combo;
         ToggleButton list_button;
         Button emoji_button;
+        ToggleButton code_button;
+        ComboBox tab_size_combo;
         Label attachment_status_label;
         EmojiPanel emoji_panel;
         ListPanel list_panel;
 
         int font_size;
         ListPanel::ListStyle list_style;
+        int tab_size;
 };

@@ -124,6 +124,9 @@ namespace {
 
             case 'X':
                 return UIEvent::key_x;
+
+            case VK_OEM_1:
+                return UIEvent::key_semicolon;
         }
 
         return UIEvent::key_none;
@@ -357,6 +360,14 @@ LRESULT Win32ApplicationHost::handle_message(
 
         case WM_COMMAND:
             if (native_control_host.handle_command(w_param, l_param)) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+                return 0;
+            }
+            break;
+
+        case WM_HSCROLL:
+        case WM_VSCROLL:
+            if (native_control_host.handle_scroll(message, w_param, l_param)) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
                 return 0;
             }

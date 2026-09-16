@@ -7,6 +7,7 @@
 #include "Win32ComponentRenderer.h"
 #include "Win32EmoticonPainter.h"
 #include "Win32TextPainter.h"
+#include "Win32ScrollableTextPainter.h"
 #include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/Button.h"
@@ -215,5 +216,8 @@ void Win32ComponentRenderer::render_button(const Button& button) {
 }
 
 void Win32ComponentRenderer::render_text_input(const TextInput& text_input) {
-    Win32TextPainter::render_text_input(device_context, text_input);
+    Win32ScrollableTextPainter::render_text_input(
+        device_context,
+        text_input
+    );
 }

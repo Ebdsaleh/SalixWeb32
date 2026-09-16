@@ -8,9 +8,12 @@
 #include "framework/Panel.h"
 #include "framework/TextInput.h"
 #include "framework/Button.h"
+#include "framework/ScrollBar.h"
 
 class FormattedText;
 class MimeData;
+class NativeControlHost;
+class TextMetrics;
 
 class MessageInputStrip : public Panel {
     public:
@@ -21,6 +24,7 @@ class MessageInputStrip : public Panel {
         );
 
         MessageInputStrip();
+        virtual ~MessageInputStrip();
 
         void set_text(const char* new_text);
         const char* get_text() const;
@@ -35,6 +39,11 @@ class MessageInputStrip : public Panel {
 
         void set_allow_empty_submit(bool new_allow_empty_submit);
         bool get_allow_empty_submit() const;
+
+        void set_code_mode(bool new_code_mode);
+        bool get_code_mode() const;
+        void set_tab_size(int new_tab_size);
+        int get_tab_size() const;
 
         void set_text_format(
             bool bold,
@@ -54,19 +63,43 @@ class MessageInputStrip : public Panel {
             void* new_context
         );
 
+        void attach_native_controls(NativeControlHost* control_host);
+        void detach_native_controls();
+
         void arrange(int x, int y, int width, int height);
 
         virtual bool handle_event(const UIEvent& event);
 
     private:
         static void on_button_clicked(Button* button, void* context);
+        static void on_scroll_changed(
+            ScrollBar* scroll_bar,
+            int value,
+            void* context
+        );
+
         bool continue_current_list();
+        bool insert_indentation();
+        bool handle_text_input_event(const UIEvent& event);
+        void update_scrollbars(TextMetrics* text_metrics);
+        void ensure_caret_visible(TextMetrics* text_metrics);
+        void estimate_content_extent(int& width, int& height) const;
+        void apply_viewport_state();
+        void sync_native_scrollbars();
         void submit();
 
         TextInput message_input;
         Button send_button;
+        ScrollBar horizontal_scroll_bar;
+        ScrollBar vertical_scroll_bar;
+        Panel scroll_corner;
+        NativeControlHost* native_control_host;
+
         bool submit_on_enter;
         bool allow_empty_submit;
+        bool code_mode;
+        int tab_size;
+
         SubmitHandler submit_handler;
         void* submit_context;
 };

@@ -112,10 +112,12 @@
 			<File RelativePath="..\..\src\framework\MarkdownFormatter.cpp"/>
 			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
+			<File RelativePath="..\..\src\framework\ScrollBar.cpp"/>
 			<File RelativePath="..\..\src\framework\StackPanel.cpp"/>
 			<File RelativePath="..\..\src\framework\TextInput.cpp"/>
 			<File RelativePath="..\..\src\framework\TextNavigation.cpp"/>
 			<File RelativePath="..\..\src\framework\TextSelection.cpp"/>
+			<File RelativePath="..\..\src\framework\TextViewportState.cpp"/>
 			<File RelativePath="..\..\src\framework\ToggleButton.cpp"/>
 			<File RelativePath="..\..\src\runtime\ApplicationRuntime.cpp"/>
 			<File RelativePath="..\..\src\runtime\Diagnostics.cpp"/>
@@ -128,6 +130,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.cpp"/>
+			<File RelativePath="..\..\src\engine\renderers\win32\Win32ScrollableTextPainter.cpp"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
@@ -153,6 +156,7 @@
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>
 			<File RelativePath="..\..\src\framework\NativeControlHost.h"/>
 			<File RelativePath="..\..\src\framework\Panel.h"/>
+			<File RelativePath="..\..\src\framework\ScrollBar.h"/>
 			<File RelativePath="..\..\src\framework\StackPanel.h"/>
 			<File RelativePath="..\..\src\framework\Style.h"/>
 			<File RelativePath="..\..\src\framework\TextFormat.h"/>
@@ -160,6 +164,7 @@
 			<File RelativePath="..\..\src\framework\TextMetrics.h"/>
 			<File RelativePath="..\..\src\framework\TextNavigation.h"/>
 			<File RelativePath="..\..\src\framework\TextSelection.h"/>
+			<File RelativePath="..\..\src\framework\TextViewportState.h"/>
 			<File RelativePath="..\..\src\framework\ToggleButton.h"/>
 			<File RelativePath="..\..\src\framework\UIEvent.h"/>
 			<File RelativePath="..\..\src\framework\View.h"/>
@@ -176,6 +181,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.h"/>
+			<File RelativePath="..\..\src\engine\renderers\win32\Win32ScrollableTextPainter.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.h"/>
 		</Filter>
 	</Files>

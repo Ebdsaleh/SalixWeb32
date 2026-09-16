@@ -4,7 +4,7 @@ This document records the post-`v0.0.2` multiline composer tranche. Visual C++ 7
 
 ## Composer input model
 
-`TextInput` now supports a multiline mode while retaining the existing canonical text, per-character `TextFormat`, discontinuous `TextSelection`, clipboard, cut/paste modes, and bounded Undo/Redo history.
+`TextInput` supports a multiline mode while retaining the existing canonical text, per-character `TextFormat`, discontinuous `TextSelection`, clipboard, cut/paste modes, and bounded Undo/Redo history.
 
 The message composer enables multiline mode and expands the input surface to show several explicit lines at once.
 
@@ -12,7 +12,7 @@ Canonical line breaks are stored as `\n` characters. Carriage returns from paste
 
 ## Enter behavior
 
-The messenger interaction remains send-oriented outside lists:
+The messenger interaction remains send-oriented outside lists and code mode:
 
 ```text
 Enter        -> send the current draft
@@ -50,7 +50,7 @@ Shift+Enter  -> insert a plain newline without a new list prefix
 Ctrl+Enter   -> send the current draft
 ```
 
-This makes ordinary Enter useful for rapid list entry without sacrificing a direct keyboard Send command. The canonical document still stores ordinary `\n`, `* `, and `N. ` text rather than hidden paragraph objects.
+Code mode has its own Enter/Tab semantics and is documented in `docs/CODE_COMPOSER.md`.
 
 ## List-state indicator
 
@@ -74,9 +74,9 @@ Multiline editing adds:
 
 Bold, Italic, Underline, and point-size formatting continue to use per-character `TextFormat` values. Line-break characters remain structural rather than visible formatted glyphs.
 
-A sent multiline `MessageDraft` keeps both its line breaks and inline formatting. `ConversationView` now allocates taller rows for multiline messages so sent content does not overlap neighboring history entries.
+A sent multiline `MessageDraft` keeps both its line breaks and inline formatting. `ConversationView` allocates taller rows for multiline messages so sent content does not overlap neighboring history entries.
 
-The Win32 text painter and hit-testing path both understand explicit lines, mixed font sizes, and inline graphical emoticons.
+The Win32 text painter and hit-testing path understand explicit lines, mixed font sizes, and inline graphical emoticons.
 
 ## List popup
 
@@ -114,17 +114,27 @@ Lists remain ordinary message text at this stage. This is intentional: copy/past
 
 A later rich-document layer may add semantic paragraph metadata while preserving this portable text fallback.
 
+## Composer viewport and scrollbars
+
+The composer now reserves horizontal and vertical scrollbars around the editable text viewport.
+
+The vertical scrollbar exposes drafts with more logical lines than fit in the visible input area. The horizontal scrollbar exposes long logical lines because automatic word wrapping is not enabled yet.
+
+The scrollbars support arrow-step movement, page-step track clicks, and draggable thumbs. Scroll offsets are presentation state only; they do not modify the canonical text, formatting, selection ranges, Undo/Redo history, or submitted message payload.
+
+Mouse hit-testing is translated through the same viewport offsets used by the Win32 input painter so caret placement and drag selection continue to address source positions after scrolling.
+
 ## Current limits
 
-This tranche handles explicit line breaks, not automatic word wrapping. Long logical lines are clipped horizontally by the composer surface. The composer also does not yet expose an internal scrollbar; very large drafts can extend below the visible editing area even though the full text remains in the model.
+Automatic word wrapping is still intentionally deferred. Long logical lines are navigated with the new horizontal scrollbar rather than being wrapped.
 
-Those are presentation/viewport follow-ups rather than blockers for validating multiline editing, formatting, lists, transport payloads, and conversation preservation.
+Conversation-history wrapping and richer Markdown block widgets are separate presentation follow-ups; the scrollbar work in this tranche is specifically for the composition input surface.
 
 ## Validation checklist
 
 Before marking this tranche validated, test at minimum:
 
-1. Outside a list, Enter sends while Shift+Enter creates several lines in the composer.
+1. Outside a list/code mode, Enter sends while Shift+Enter creates several lines in the composer.
 2. Ctrl+Enter submits the draft directly.
 3. On a bulleted line, Enter creates the next `* ` item and keeps the List toolbar control checked.
 4. On a numbered line, repeated Enter increments `1.`, `2.`, `3.` and so on.
@@ -138,5 +148,7 @@ Before marking this tranche validated, test at minimum:
 12. Apply Numbered to several lines and verify sequential `1.`, `2.`, `3.` prefixes.
 13. Switch selected numbered lines to Bullets and verify prefixes are replaced rather than stacked.
 14. Ctrl+Z/Ctrl+Y undo and redo one entire list transformation atomically.
-15. Send a multiline/list message and verify conversation row height, selection, copy, and emoticon hit-testing.
-16. Repeat the validation under both Windows Server 2003 SP2 and MiniXP.
+15. Overflow the composer horizontally and vertically and exercise both scrollbars.
+16. Verify caret placement and mouse selection after scrolling.
+17. Send a multiline/list message and verify conversation row height, selection, copy, and emoticon hit-testing.
+18. Repeat the validation under both Windows Server 2003 SP2 and MiniXP.

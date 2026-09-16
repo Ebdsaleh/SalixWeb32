@@ -11,6 +11,7 @@
 #include "framework/NativeControlHost.h"
 
 class ComboBox;
+class ScrollBar;
 
 class Win32NativeControlHost : public NativeControlHost {
     public:
@@ -24,7 +25,12 @@ class Win32NativeControlHost : public NativeControlHost {
         virtual void detach_combo_box(ComboBox* combo_box);
         virtual void sync_combo_box(ComboBox* combo_box);
 
+        virtual bool attach_scroll_bar(ScrollBar* scroll_bar);
+        virtual void detach_scroll_bar(ScrollBar* scroll_bar);
+        virtual void sync_scroll_bar(ScrollBar* scroll_bar);
+
         bool handle_command(WPARAM w_param, LPARAM l_param);
+        bool handle_scroll(UINT message, WPARAM w_param, LPARAM l_param);
 
     private:
         struct ComboPeer {
@@ -36,13 +42,25 @@ class Win32NativeControlHost : public NativeControlHost {
             int item_count;
         };
 
+        struct ScrollPeer {
+            ScrollPeer();
+
+            ScrollBar* scroll_bar;
+            HWND window_handle;
+            int control_id;
+        };
+
         int find_combo_peer(ComboBox* combo_box) const;
         int find_combo_peer(HWND window_handle) const;
         void populate_combo_peer(ComboPeer& peer);
 
+        int find_scroll_peer(ScrollBar* scroll_bar) const;
+        int find_scroll_peer(HWND window_handle) const;
+
         HWND parent_window;
         HINSTANCE instance_handle;
         std::vector<ComboPeer> combo_peers;
+        std::vector<ScrollPeer> scroll_peers;
         int next_control_id;
         bool is_initialized;
 };

@@ -4,8 +4,11 @@
 // Description: Implements the complete messenger composer.
 // =================================================================================
 
+#include <string.h>
+
 #include "MessageComposer.h"
 #include "framework/FormattedText.h"
+#include "framework/TextFormat.h"
 #include "framework/MimeData.h"
 #include "framework/UIEvent.h"
 
@@ -40,6 +43,13 @@ MessageComposer::MessageComposer(FileDialog* file_dialog)
         MessageComposer::on_toolbar_list_requested,
         this
     );
+    message_toolbar.set_code_mode_changed_handler(
+        MessageComposer::on_toolbar_code_mode_changed,
+        this
+    );
+
+    message_input_strip.set_code_mode(message_toolbar.get_code_mode());
+    message_input_strip.set_tab_size(message_toolbar.get_tab_size());
 
     add_child(&message_input_strip);
     add_child(&message_toolbar);
@@ -113,13 +123,23 @@ int MessageComposer::get_font_size() const {
     return message_toolbar.get_font_size();
 }
 
+bool MessageComposer::get_code_mode() const {
+    return message_toolbar.get_code_mode();
+}
+
+int MessageComposer::get_tab_size() const {
+    return message_toolbar.get_tab_size();
+}
+
 void MessageComposer::attach_native_controls(
     NativeControlHost* control_host
 ) {
+    message_input_strip.attach_native_controls(control_host);
     message_toolbar.attach_native_controls(control_host);
 }
 
 void MessageComposer::detach_native_controls() {
+    message_input_strip.detach_native_controls();
     message_toolbar.detach_native_controls();
 }
 
@@ -156,6 +176,28 @@ void MessageComposer::arrange(int x, int y, int width, int height) {
 bool MessageComposer::handle_event(const UIEvent& event) {
     if (!get_is_visible()) {
         return false;
+    }
+
+    if (
+        event.type == UIEvent::event_key_down &&
+        event.control_down &&
+        !event.alt_down &&
+        event.key_code == UIEvent::key_semicolon
+    ) {
+        message_toolbar.toggle_code_mode_from_shortcut();
+        sync_list_state();
+        return true;
+    }
+
+    // TranslateMessage can emit a WM_CHAR for Ctrl+; after the key-down event.
+    // Consume that character so the shortcut does not toggle twice or insert ';'.
+    if (
+        event.type == UIEvent::event_character &&
+        event.control_down &&
+        !event.alt_down &&
+        event.character_code == 59
+    ) {
+        return true;
     }
 
     if (message_toolbar.handle_event(event)) {
@@ -273,12 +315,51 @@ void MessageComposer::on_toolbar_list_requested(
     composer->sync_list_state();
 }
 
+void MessageComposer::on_toolbar_code_mode_changed(
+    MessageToolbar* toolbar,
+    bool code_mode,
+    int tab_size,
+    void* context
+) {
+    (void)toolbar;
+
+    MessageComposer* composer = (MessageComposer*)context;
+    if (composer == 0) {
+        return;
+    }
+
+    composer->message_input_strip.set_code_mode(code_mode);
+    composer->message_input_strip.set_tab_size(tab_size);
+}
+
 void MessageComposer::build_draft(MessageDraft& draft) const {
     draft.clear();
 
     FormattedText body;
     message_input_strip.get_formatted_text(body);
-    draft.set_body(body);
+
+    if (message_toolbar.get_code_mode() && !body.empty()) {
+        FormattedText fenced_body;
+        TextFormat fence_format(false, false, false, 12);
+
+        fenced_body.append_plain_text("```\n", fence_format);
+        fenced_body.append_formatted_text(body);
+
+        const char* body_text = body.get_text();
+        int body_length = body.get_length();
+        if (
+            body_text != 0 &&
+            body_length > 0 &&
+            body_text[body_length - 1] != '\n'
+        ) {
+            fenced_body.append_plain_text("\n", fence_format);
+        }
+
+        fenced_body.append_plain_text("```", fence_format);
+        draft.set_body(fenced_body);
+    } else {
+        draft.set_body(body);
+    }
 
     for (int index = 0; index < (int)attachment_paths.size(); ++index) {
         draft.add_attachment(attachment_paths[index].c_str());

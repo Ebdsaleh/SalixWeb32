@@ -57,6 +57,14 @@ List prefixes remain visible canonical text. This keeps the list readable when s
 
 Fenced-code delimiters are presentation syntax and are omitted from the displayed block. Code contents are not recursively Markdown-formatted.
 
+## Composer code mode
+
+The message toolbar now includes an explicit `<code />` toggle plus a native-backed indentation selector (2/4/6/8 spaces). When a draft is sent while code mode is active, `MessageComposer` wraps the canonical body in a fenced Markdown block before creating the `MessageDraft`.
+
+That means code-mode messages use the same portable Markdown representation expected from future ChatGPT/SaaS responses instead of introducing a private code-message format.
+
+Code mode also changes editing semantics: Enter inserts a newline, Tab inserts the configured number of spaces, and Ctrl+Enter sends. See `docs/CODE_COMPOSER.md` for the full composer/viewport contract.
+
 ## Interaction with existing rich formatting
 
 Toolbar formatting and Markdown formatting are complementary. Existing per-character Bold/Italic/Underline/font-size data is used as the source format, then Markdown semantics are layered over it for presentation.
@@ -67,14 +75,14 @@ For example, a locally formatted message can still contain Markdown list structu
 
 Classic aliases such as `:)`, `:D`, `:'(`, and `<3` remain canonical text after Markdown presentation and therefore continue through the existing graphical-emoticon rendering path.
 
-A future code-span semantic flag should suppress emoticon replacement inside fenced/inline code. The first Markdown tranche does not yet add that renderer-level semantic flag, so an emoticon-looking token inside code can still be interpreted by the graphical-emoticon painter.
+A future code-span semantic flag should suppress emoticon replacement inside fenced/inline code. The current Markdown presenter recognizes code but does not yet add a renderer-level semantic flag, so an emoticon-looking token inside a displayed code block can still be interpreted by the graphical-emoticon painter.
 
-## Deliberate first-tranche limits
+## Deliberate current limits
 
 This is a compact Salix Markdown subset, not a full CommonMark implementation yet. The following remain follow-up work:
 
-- automatic word wrapping and viewport scrolling,
-- monospace font-family support for code spans/blocks,
+- automatic word wrapping in conversation history,
+- monospace font-family semantics for code spans/blocks,
 - dedicated code-block background/chrome and Copy button,
 - clickable links and URL hit-testing,
 - nested-list indentation metadata beyond preserved leading spaces,
@@ -83,6 +91,8 @@ This is a compact Salix Markdown subset, not a full CommonMark implementation ye
 - images,
 - full CommonMark delimiter/flanking rules,
 - syntax highlighting.
+
+The composer now has its own horizontal/vertical viewport scrollbars; conversation-history wrapping/viewport work remains separate.
 
 These features should build on the retained canonical source rather than forcing Markdown syntax into the generic text renderer.
 
@@ -95,7 +105,8 @@ Before marking this tranche target-validated:
 3. Send ordinary single-line text and verify the compact `You: message` layout remains.
 4. Send a multiline plain paragraph and verify role/content block separation.
 5. Test `**bold**`, `*italic*`, headings, blockquotes, horizontal rules, inline code, and fenced code.
-6. Mix Markdown with graphical emoticons and existing toolbar formatting.
-7. Select/copy rendered Markdown text and verify the selectable read-only conversation behavior remains stable.
-8. Send enough Markdown messages to exercise conversation scrolling and resizing.
-9. Repeat the validation under Windows Server 2003 SP2 and MiniXP.
+6. Toggle composer code mode, enter multiline code, send with Ctrl+Enter, and verify the fences become presentation-only code-block syntax.
+7. Mix Markdown with graphical emoticons and existing toolbar formatting.
+8. Select/copy rendered Markdown text and verify the selectable read-only conversation behavior remains stable.
+9. Send enough Markdown messages to exercise conversation scrolling and resizing.
+10. Repeat the validation under Windows Server 2003 SP2 and MiniXP.

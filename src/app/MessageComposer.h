@@ -47,6 +47,8 @@ class MessageComposer : public Panel {
         bool get_italic() const;
         bool get_underline() const;
         int get_font_size() const;
+        bool get_code_mode() const;
+        int get_tab_size() const;
 
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
@@ -88,6 +90,13 @@ class MessageComposer : public Panel {
         static void on_toolbar_list_requested(
             MessageToolbar* toolbar,
             ListPanel::ListStyle style,
+            void* context
+        );
+
+        static void on_toolbar_code_mode_changed(
+            MessageToolbar* toolbar,
+            bool code_mode,
+            int tab_size,
             void* context
         );
 

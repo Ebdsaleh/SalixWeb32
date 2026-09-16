@@ -15,6 +15,7 @@ namespace {
     const int control_character_b = 2;
     const int control_character_i = 9;
     const int control_character_u = 21;
+    const int semicolon_character = 59;
 }
 
 MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
@@ -28,8 +29,11 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
       format_changed_context(0),
       list_requested_handler(0),
       list_requested_context(0),
+      code_mode_changed_handler(0),
+      code_mode_changed_context(0),
       font_size(12),
-      list_style(ListPanel::list_clear) {
+      list_style(ListPanel::list_clear),
+      tab_size(4) {
 
     get_style().background_color = Color(229, 240, 249);
     get_style().border_color = Color(147, 181, 211);
@@ -87,6 +91,23 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     emoji_button.get_style().foreground_color = Color(26, 68, 108);
     emoji_button.get_style().border_color = Color(132, 157, 181);
 
+    code_button.set_text("<code />");
+    code_button.set_unchecked_background_color(Color(238, 245, 251));
+    code_button.set_checked_background_color(Color(177, 213, 239));
+    code_button.get_style().foreground_color = Color(26, 68, 108);
+    code_button.get_style().border_color = Color(132, 157, 181);
+
+    tab_size_combo.add_item("2", 2);
+    tab_size_combo.add_item("4", 4);
+    tab_size_combo.add_item("6", 6);
+    tab_size_combo.add_item("8", 8);
+    tab_size_combo.set_selected_index(1);
+    tab_size_combo.set_drop_direction(ComboBox::drop_up);
+    tab_size_combo.set_selection_changed_handler(
+        MessageToolbar::on_tab_size_changed,
+        this
+    );
+
     attachment_status_label.set_text("");
     attachment_status_label.set_horizontal_alignment(Label::align_left);
     attachment_status_label.get_style().foreground_color = Color(73, 105, 133);
@@ -108,6 +129,8 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     add_child(&font_size_combo);
     add_child(&list_button);
     add_child(&emoji_button);
+    add_child(&code_button);
+    add_child(&tab_size_combo);
     add_child(&attachment_status_label);
     add_child(&list_panel);
     add_child(&emoji_panel);
@@ -131,7 +154,9 @@ void MessageToolbar::attach_native_controls(NativeControlHost* control_host) {
 
     if (native_control_host != 0) {
         native_control_host->attach_combo_box(&font_size_combo);
+        native_control_host->attach_combo_box(&tab_size_combo);
         native_control_host->sync_combo_box(&font_size_combo);
+        native_control_host->sync_combo_box(&tab_size_combo);
     }
 }
 
@@ -141,6 +166,7 @@ void MessageToolbar::detach_native_controls() {
     }
 
     native_control_host->detach_combo_box(&font_size_combo);
+    native_control_host->detach_combo_box(&tab_size_combo);
     native_control_host = 0;
 }
 
@@ -174,6 +200,14 @@ void MessageToolbar::set_list_requested_handler(
 ) {
     list_requested_handler = new_handler;
     list_requested_context = new_context;
+}
+
+void MessageToolbar::set_code_mode_changed_handler(
+    CodeModeChangedHandler new_handler,
+    void* new_context
+) {
+    code_mode_changed_handler = new_handler;
+    code_mode_changed_context = new_context;
 }
 
 void MessageToolbar::set_attachment_count(int attachment_count) {
@@ -212,6 +246,14 @@ int MessageToolbar::get_font_size() const {
     return font_size;
 }
 
+bool MessageToolbar::get_code_mode() const {
+    return code_button.get_is_checked();
+}
+
+int MessageToolbar::get_tab_size() const {
+    return tab_size;
+}
+
 bool MessageToolbar::contains_popup_point(int x, int y) const {
     if (list_panel.get_is_open() && list_panel.contains_point(x, y)) {
         return true;
@@ -221,7 +263,11 @@ bool MessageToolbar::contains_popup_point(int x, int y) const {
         return true;
     }
 
-    return font_size_combo.contains_open_popup_point(x, y);
+    if (font_size_combo.contains_open_popup_point(x, y)) {
+        return true;
+    }
+
+    return tab_size_combo.contains_open_popup_point(x, y);
 }
 
 void MessageToolbar::arrange(int x, int y, int width, int height) {
@@ -232,6 +278,8 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     const int font_width = 58;
     const int list_width = 46;
     const int emoji_width = 38;
+    const int code_width = 68;
+    const int tab_width = 46;
     const int list_popup_width = 128;
     const int list_popup_height = 82;
     const int emoji_popup_width = 188;
@@ -260,11 +308,6 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     cursor_x += toggle_width + gap;
 
     font_size_combo.arrange(cursor_x, control_y, font_width, control_height);
-
-    if (native_control_host != 0) {
-        native_control_host->sync_combo_box(&font_size_combo);
-    }
-
     cursor_x += font_width + gap;
 
     int list_x = cursor_x;
@@ -274,6 +317,17 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     int emoji_x = cursor_x;
     emoji_button.set_bounds(emoji_x, control_y, emoji_width, control_height);
     cursor_x += emoji_width + gap;
+
+    code_button.set_bounds(cursor_x, control_y, code_width, control_height);
+    cursor_x += code_width + gap;
+
+    tab_size_combo.arrange(cursor_x, control_y, tab_width, control_height);
+    cursor_x += tab_width + gap;
+
+    if (native_control_host != 0) {
+        native_control_host->sync_combo_box(&font_size_combo);
+        native_control_host->sync_combo_box(&tab_size_combo);
+    }
 
     int remaining_width = x + width - padding - cursor_x;
     if (remaining_width < 0) {
@@ -342,6 +396,11 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
             toggle_underline();
             return true;
         }
+
+        if (event.character_code == semicolon_character) {
+            toggle_code_mode();
+            return true;
+        }
     }
 
     if (event.type == UIEvent::event_mouse_down) {
@@ -368,6 +427,14 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
             list_panel.set_open(false);
             emoji_panel.set_open(false);
         }
+
+        if (
+            !tab_size_combo.get_native_peer_active() &&
+            tab_size_combo.contains_point(event.x, event.y)
+        ) {
+            list_panel.set_open(false);
+            emoji_panel.set_open(false);
+        }
     }
 
     bool attach_was_pressed = attach_button.get_is_pressed();
@@ -376,11 +443,12 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
     bool bold_was_checked = bold_button.get_is_checked();
     bool italic_was_checked = italic_button.get_is_checked();
     bool underline_was_checked = underline_button.get_is_checked();
+    bool code_was_checked = code_button.get_is_checked();
 
     bool was_handled = Panel::handle_event(event);
 
-    // The List control is a state indicator, not a popup-state toggle. Restore
-    // its visual checked state after ToggleButton processes pointer input.
+    // The List control reflects the caret's paragraph state rather than the
+    // popup's open state, so restore it after ToggleButton pointer handling.
     list_button.set_checked(list_style != ListPanel::list_clear);
 
     if (event.type != UIEvent::event_mouse_up) {
@@ -396,11 +464,19 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         return true;
     }
 
+    if (code_was_checked != code_button.get_is_checked()) {
+        list_panel.set_open(false);
+        emoji_panel.set_open(false);
+        notify_code_mode_changed();
+        return true;
+    }
+
     if (
         attach_was_pressed &&
         attach_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        tab_size_combo.set_open(false);
         list_panel.set_open(false);
         emoji_panel.set_open(false);
         open_attachment_dialog();
@@ -412,6 +488,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         list_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        tab_size_combo.set_open(false);
         emoji_panel.set_open(false);
         list_panel.set_open(!list_panel.get_is_open());
         list_button.set_checked(list_style != ListPanel::list_clear);
@@ -423,6 +500,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         emoji_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        tab_size_combo.set_open(false);
         list_panel.set_open(false);
         emoji_panel.set_open(!emoji_panel.get_is_open());
         return true;
@@ -446,6 +524,24 @@ void MessageToolbar::on_font_size_changed(
         toolbar->list_panel.set_open(false);
         toolbar->emoji_panel.set_open(false);
         toolbar->notify_format_changed();
+    }
+}
+
+void MessageToolbar::on_tab_size_changed(
+    ComboBox* combo_box,
+    int selected_value,
+    const char* selected_text,
+    void* context
+) {
+    (void)combo_box;
+    (void)selected_text;
+
+    MessageToolbar* toolbar = (MessageToolbar*)context;
+    if (toolbar != 0) {
+        toolbar->tab_size = selected_value;
+        toolbar->list_panel.set_open(false);
+        toolbar->emoji_panel.set_open(false);
+        toolbar->notify_code_mode_changed();
     }
 }
 
@@ -505,6 +601,13 @@ void MessageToolbar::toggle_underline() {
     notify_format_changed();
 }
 
+void MessageToolbar::toggle_code_mode() {
+    code_button.set_checked(!code_button.get_is_checked());
+    list_panel.set_open(false);
+    emoji_panel.set_open(false);
+    notify_code_mode_changed();
+}
+
 void MessageToolbar::notify_format_changed() {
     if (format_changed_handler == 0) {
         return;
@@ -517,6 +620,19 @@ void MessageToolbar::notify_format_changed() {
         get_underline(),
         get_font_size(),
         format_changed_context
+    );
+}
+
+void MessageToolbar::notify_code_mode_changed() {
+    if (code_mode_changed_handler == 0) {
+        return;
+    }
+
+    code_mode_changed_handler(
+        this,
+        get_code_mode(),
+        get_tab_size(),
+        code_mode_changed_context
     );
 }
 
