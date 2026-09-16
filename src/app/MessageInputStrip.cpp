@@ -433,13 +433,17 @@ bool MessageInputStrip::handle_event(const UIEvent& event) {
     }
 
     bool handled = handle_text_input_event(event);
+    if (!handled) {
+        return false;
+    }
+
     update_scrollbars(event.text_metrics);
 
-    if (handled && message_input.get_is_focused()) {
+    if (message_input.get_is_focused()) {
         ensure_caret_visible(event.text_metrics);
     }
 
-    return handled;
+    return true;
 }
 
 void MessageInputStrip::on_button_clicked(Button* button, void* context) {
@@ -808,13 +812,16 @@ void MessageInputStrip::estimate_content_extent(
         EmoticonRegistry::EmoticonId emoticon_id;
         int alias_length = 0;
 
-        if (EmoticonRegistry::match_at(
+        if (
+            format.code_style == TextFormat::code_none &&
+            EmoticonRegistry::match_at(
                 text,
                 text_length,
                 position,
                 emoticon_id,
                 alias_length
-            )) {
+            )
+        ) {
             int visual_size = EmoticonRegistry::get_visual_size(
                 format.font_size
             );
