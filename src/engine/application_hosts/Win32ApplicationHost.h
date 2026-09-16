@@ -7,6 +7,10 @@
 
 #include <windows.h>
 
+#ifndef WM_MOUSEWHEEL
+#define WM_MOUSEWHEEL 0x020A
+#endif
+
 #include "engine/platform/win32/Win32NativeControlHost.h"
 
 class ApplicationRuntime;
