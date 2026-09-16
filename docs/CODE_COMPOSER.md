@@ -1,22 +1,47 @@
 # Code Composer Mode and Input Viewport
 
-This document records the post-Markdown composer tranche that adds an explicit code-entry mode, configurable indentation, and scrollbars to the message-composition input surface. Visual C++ 7.1 / Windows Server 2003 SP2 / MiniXP target validation is pending.
+This document records the post-Markdown composer tranche that adds an explicit code-entry mode, configurable language/indentation metadata, and scrollbars to the message-composition input surface. Windows Server 2003 target smoke coverage exists for the earlier code-mode/viewport implementation; the newest language-selector additions remain pending VC7.1/Server 2003/MiniXP validation.
 
 ## Toolbar controls
 
-Two controls sit immediately after the emoticon button:
+Three code-oriented controls sit immediately after the emoticon button:
 
 ```text
-[:)] [<code />] [4 v]
+[:)] [<code />] [Python v] [4 v]
 ```
 
-The second control is a real toggle button. The final control is the existing backend-neutral `ComboBox` using a native Win32 COMBOBOX peer on the Win32 backend. Its allowed indentation widths are:
+`<code />` is the existing toggle button. The language and indentation selectors are backend-neutral `ComboBox` components using native Win32 COMBOBOX peers on the Win32 backend.
+
+The code-language selector is disabled while code mode is off and currently exposes:
+
+```text
+Code
+C
+C++
+C#
+Java
+Python
+JavaScript
+TypeScript
+JSON
+Shell
+Rust
+Lua
+HTML
+CSS
+XML
+Plain text
+```
+
+`Code` means an unlabelled Markdown fence. The registry stores canonical transport tokens (`cpp`, `python`, `javascript`, `bash`, and so on) separately from the display names so the conversation renderer and future transports do not have to infer semantics from UI text.
+
+The indentation selector remains:
 
 ```text
 2, 4, 6, 8
 ```
 
-The default is 4 spaces.
+with 4 spaces as the default. Both language and indentation controls become enabled when code mode is active.
 
 ## Code-mode shortcut
 
@@ -24,7 +49,7 @@ The default is 4 spaces.
 
 The mouse and keyboard paths drive the same toolbar state.
 
-Code mode is message-wide editor state in this tranche. It changes keyboard behavior without replacing the canonical text model.
+Code state is recorded per text range by the composer formatting model, so code typed while the toggle is active can survive toggling back to ordinary prose before Send. The selected language is currently composer-wide metadata: every code range emitted by one draft uses the currently selected language token. Per-block language selection is a future richer-editor refinement.
 
 ## Enter behavior
 
@@ -59,7 +84,15 @@ Outside code mode, Tab remains available for future normal focus-navigation beha
 
 ## Markdown transport/presentation
 
-When a code-mode draft is submitted, `MessageComposer` wraps its body in a canonical fenced Markdown code block before creating the `MessageDraft`:
+Code ranges are serialized as canonical fenced Markdown before `MessageDraft` submission. The selected language becomes the fence token:
+
+````text
+```python
+print("Hello from Pentium 4")
+```
+````
+
+If `Code` is selected, the fence remains unlabelled:
 
 ````text
 ```
@@ -67,15 +100,13 @@ code here
 ```
 ````
 
-The conversation Markdown presenter therefore receives normal portable Markdown rather than a private code-message type. Fences remain transport/source syntax and are removed from the displayed conversation block by `MarkdownFormatter`.
+The conversation block parser therefore receives ordinary portable Markdown rather than a private code-message object. The parser extracts the fence token and passes it to `CodeBlockView`, which uses `CodeLanguageRegistry` for a stable display label and `CodeSyntaxHighlighter` for lightweight language-aware token semantics.
 
-This keeps the composer compatible with future ChatGPT/SaaS responses and with plain Markdown persistence.
-
-A later renderer semantic pass can add monospace font-family metadata, code-block chrome, Copy buttons, language labels, syntax highlighting, and emoticon suppression inside code spans without changing this canonical representation.
+This keeps composer output directly useful to future ChatGPT/SaaS transports and Markdown persistence.
 
 ## Composition scrollbars
 
-The message-entry surface now reserves classic horizontal and vertical scrollbars around the editable viewport. This is necessary because the multiline composer intentionally does not word-wrap long logical lines yet and can also contain more lines than fit vertically.
+The message-entry surface reserves classic horizontal and vertical scrollbars around the editable viewport. This is necessary because the multiline composer intentionally does not word-wrap long logical lines yet and can also contain more lines than fit vertically.
 
 `framework/ScrollBar` owns the backend-neutral semantic range/value/page state and retains a framework-rendered fallback for non-native backends.
 
@@ -98,21 +129,25 @@ Mouse hit-testing is translated through the same viewport offsets before reachin
 
 The composer also keeps the caret visible after editing/navigation by adjusting the scroll values when the caret moves outside the current viewport.
 
+Native scrollbar peer synchronization is delta-based: selection/focus changes do not call `MoveWindow`, `SetScrollInfo`, `ShowWindow`, or `EnableWindow` unless the associated native state actually changed. This prevents click/drag-selection activity from visually activating otherwise inactive scrollbars on the legacy target.
+
 ## Validation checklist
 
-Before marking this tranche target-validated:
+Before marking the newest code-language tranche target-validated:
 
-1. Verify the toolbar shows the `<code />` toggle immediately after the emoticon control.
-2. Verify the indentation selector is a native Windows combo box with 2/4/6/8 and defaults to 4.
+1. Verify the toolbar shows `<code />`, the native language selector, and the native 2/4/6/8 indentation selector after the emoticon control.
+2. Verify language/indent controls are disabled while code mode is off and enabled when it is on.
 3. Toggle code mode with the mouse and with `Ctrl+;`; verify the shortcut toggles once and does not insert `;`.
-4. In code mode, verify Enter and Shift+Enter both create new lines and do not send.
-5. Verify Ctrl+Enter sends from code mode.
-6. Verify Tab inserts exactly 2/4/6/8 spaces according to the combo setting.
-7. Send a code-mode message and verify conversation presentation treats it as a Markdown fenced code block.
-8. Verify the composition area uses the native Server 2003/MiniXP horizontal and vertical scrollbar controls.
-9. Type a logical line wider than the input viewport and use the horizontal scrollbar arrows, track, and thumb.
-10. Create enough lines to overflow vertically and exercise the vertical scrollbar arrows, track, and thumb.
-11. Verify caret placement and drag selection remain correct after scrolling on both axes.
-12. Verify automatic caret-follow scrolling keeps keyboard editing visible near the right/bottom edges.
-13. Verify Undo/Redo, clipboard operations, formatting, list mode, attachments, and emoticon insertion do not regress.
-14. Repeat the validation under Windows Server 2003 SP2 and MiniXP.
+4. Select Python, C++, JavaScript, JSON, and at least one other language; send code and verify the conversation code-block header reports the chosen language.
+5. Verify the canonical Markdown generated for code contains the corresponding language fence token.
+6. In code mode, verify Enter and Shift+Enter both create new lines and do not send.
+7. Verify Ctrl+Enter sends from code mode.
+8. Verify Tab inserts exactly 2/4/6/8 spaces according to the combo setting.
+9. Verify code typed while code mode is active remains a code range if the toggle is switched off before ordinary prose is appended.
+10. Verify the composition area uses native Server 2003/MiniXP horizontal and vertical scrollbar controls without click/selection redraw churn.
+11. Type a logical line wider than the input viewport and use the horizontal scrollbar arrows, track, and thumb.
+12. Create enough lines to overflow vertically and exercise the vertical scrollbar arrows, track, and thumb.
+13. Verify caret placement and drag selection remain correct after scrolling on both axes.
+14. Verify automatic caret-follow scrolling keeps keyboard editing visible near the right/bottom edges.
+15. Verify Undo/Redo, clipboard operations, formatting, list mode, attachments, and emoticon insertion do not regress.
+16. Repeat smoke coverage under Windows Server 2003 SP2 and MiniXP.

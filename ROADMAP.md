@@ -110,12 +110,14 @@ Implemented or active post-baseline work:
 - [~] formatted text model and formatted sent-message preservation
 - [~] multiline composer with explicit line-break rendering/hit-testing
 - [~] native composer horizontal/vertical viewport scrollbars
+- [~] delta-synchronized native scrollbar peers
 - [~] bulleted/numbered list editing and dedicated `ListPanel`
 - [~] list continuation with Enter and `Ctrl+Enter` forced send
 - [~] classic text-emoticon registry
 - [~] `EmojiPanel` composite popup
 - [~] graphical classic-messenger-inspired emoticon rendering provider
 - [~] code composer mode (`Ctrl+;`) with 2/4/6/8-space indentation
+- [~] shared code-language registry and native composer language selector
 - [~] Markdown conversation presentation
 - [~] inline/fenced code semantics with literal emoticons in code
 - [~] native conversation scrollbar and mouse-wheel input
@@ -123,17 +125,17 @@ Implemented or active post-baseline work:
 - [~] block-level Markdown segmentation for mixed messages
 - [~] dedicated `CodeBlockView` with language header and Copy button
 - [~] non-wrapped code with independent horizontal overflow scrolling
-- [ ] syntax highlighting
-- [ ] composer-side code language selector
+- [~] lightweight language-aware code syntax tokenization/highlighting foundation
+- [ ] advanced syntax grammar / richer syntax palette
 - [ ] attachment chips/cards and removal controls
 - [ ] clickable Markdown links
 - [ ] richer Markdown block widgets (quotes/tables/task lists/images)
 
 The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, and wrapped rich-conversation work under Windows Server 2003 SP2. The newest dedicated mixed-message code-block container tranche remains pending target validation; newer post-v0.0.2 work must not be assumed validated under MiniXP until it is exercised there explicitly.
+The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, wrapped rich-conversation, and dedicated code-block-container work under Windows Server 2003 SP2. The newest code-language-selector and syntax-token tranche remains pending VC7.1/Server 2003 validation, and newer post-v0.0.2 work must not be assumed validated under MiniXP until exercised there explicitly.
 
-See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, and `docs/CODE_BLOCKS.md` for the current contracts and validation checklists.
+See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, and `docs/SYNTAX_HIGHLIGHTING.md` for the current contracts and validation checklists.
 
 **Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer/conversation work continues without changing the validated baseline tag.
 

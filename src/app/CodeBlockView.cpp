@@ -4,11 +4,12 @@
 // Description: Implements the dedicated conversation code-block component.
 // =================================================================================
 
-#include <ctype.h>
 #include <string.h>
 
 #include "CodeBlockView.h"
 #include "framework/Clipboard.h"
+#include "framework/CodeLanguageRegistry.h"
+#include "framework/CodeSyntaxHighlighter.h"
 #include "framework/Component.h"
 #include "framework/MimeData.h"
 #include "framework/NativeControlHost.h"
@@ -17,70 +18,6 @@
 #include "framework/rendering/ComponentRenderer.h"
 
 namespace {
-    std::string lower_copy(const std::string& value) {
-        std::string result = value;
-        for (int index = 0; index < (int)result.length(); ++index) {
-            result[index] = (char)tolower((unsigned char)result[index]);
-        }
-        return result;
-    }
-
-    std::string get_display_language(const std::string& language) {
-        if (language.empty()) {
-            return "Code";
-        }
-
-        std::string lower = lower_copy(language);
-
-        if (lower == "c") {
-            return "C";
-        }
-        if (lower == "cpp" || lower == "c++" || lower == "cxx") {
-            return "C++";
-        }
-        if (lower == "python" || lower == "py") {
-            return "Python";
-        }
-        if (lower == "javascript" || lower == "js") {
-            return "JavaScript";
-        }
-        if (lower == "typescript" || lower == "ts") {
-            return "TypeScript";
-        }
-        if (lower == "csharp" || lower == "cs" || lower == "c#") {
-            return "C#";
-        }
-        if (lower == "bash" || lower == "sh" || lower == "shell") {
-            return "Shell";
-        }
-        if (lower == "html") {
-            return "HTML";
-        }
-        if (lower == "css") {
-            return "CSS";
-        }
-        if (lower == "json") {
-            return "JSON";
-        }
-        if (lower == "xml") {
-            return "XML";
-        }
-        if (lower == "lua") {
-            return "Lua";
-        }
-        if (lower == "rust" || lower == "rs") {
-            return "Rust";
-        }
-        if (lower == "java") {
-            return "Java";
-        }
-        if (lower == "text" || lower == "plaintext" || lower == "txt") {
-            return "Plain text";
-        }
-
-        return language;
-    }
-
     bool is_mouse_event(const UIEvent& event) {
         return
             event.type == UIEvent::event_mouse_move ||
@@ -152,7 +89,7 @@ void CodeBlockView::set_code(
     const char* new_language
 ) {
     source_code = new_code.get_text() == 0 ? "" : new_code.get_text();
-    language = new_language == 0 ? "" : new_language;
+    language = CodeLanguageRegistry::canonicalize(new_language);
     scroll_offset_x = 0;
     rebuild_formatted_code();
     update_language_label();
@@ -358,21 +295,28 @@ void CodeBlockView::on_scroll_changed(
 }
 
 void CodeBlockView::rebuild_formatted_code() {
-    TextFormat code_format(
-        false,
-        false,
-        false,
-        11,
-        TextFormat::code_block
-    );
+    if (!CodeSyntaxHighlighter::highlight(
+            language.c_str(),
+            source_code.c_str(),
+            formatted_code
+        )) {
+        TextFormat code_format(
+            false,
+            false,
+            false,
+            11,
+            TextFormat::code_block
+        );
+        formatted_code.set_plain_text(source_code.c_str(), code_format);
+    }
 
-    formatted_code.set_plain_text(source_code.c_str(), code_format);
     code_label.set_formatted_text(formatted_code);
 }
 
 void CodeBlockView::update_language_label() {
-    std::string display = get_display_language(language);
-    language_label.set_text(display.c_str());
+    language_label.set_text(
+        CodeLanguageRegistry::get_display_name_for_token(language.c_str())
+    );
 }
 
 void CodeBlockView::update_content_metrics(TextMetrics* text_metrics) {

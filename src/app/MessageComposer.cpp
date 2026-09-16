@@ -16,6 +16,7 @@ namespace {
     TextFormat get_portable_format(const TextFormat& source_format) {
         TextFormat format = source_format;
         format.code_style = TextFormat::code_none;
+        format.syntax_style = TextFormat::syntax_none;
         return format;
     }
 
@@ -66,9 +67,24 @@ namespace {
             value[length - 1] == '\n';
     }
 
+    void append_open_fence(
+        FormattedText& destination,
+        const char* language,
+        const TextFormat& fence_format
+    ) {
+        destination.append_plain_text("```", fence_format);
+
+        if (language != 0 && language[0] != '\0') {
+            destination.append_plain_text(language, fence_format);
+        }
+
+        destination.append_plain_text("\n", fence_format);
+    }
+
     void serialize_code_ranges(
         const FormattedText& body,
-        FormattedText& serialized
+        FormattedText& serialized,
+        const char* language
     ) {
         serialized.clear();
 
@@ -94,7 +110,7 @@ namespace {
                     serialized.append_plain_text("\n", fence_format);
                 }
 
-                serialized.append_plain_text("```\n", fence_format);
+                append_open_fence(serialized, language, fence_format);
                 in_code = true;
             } else if (!is_code && in_code) {
                 if (!ends_with_newline(serialized)) {
@@ -124,12 +140,13 @@ namespace {
 
     void wrap_whole_body_as_code(
         const FormattedText& body,
-        FormattedText& fenced_body
+        FormattedText& fenced_body,
+        const char* language
     ) {
         fenced_body.clear();
 
         TextFormat fence_format(false, false, false, 12);
-        fenced_body.append_plain_text("```\n", fence_format);
+        append_open_fence(fenced_body, language, fence_format);
 
         for (int index = 0; index < body.get_length(); ++index) {
             append_source_character(fenced_body, body, index);
@@ -261,6 +278,10 @@ bool MessageComposer::get_code_mode() const {
 
 int MessageComposer::get_tab_size() const {
     return message_toolbar.get_tab_size();
+}
+
+const char* MessageComposer::get_code_language() const {
+    return message_toolbar.get_code_language();
 }
 
 void MessageComposer::attach_native_controls(
@@ -451,9 +472,11 @@ void MessageComposer::on_toolbar_code_mode_changed(
     MessageToolbar* toolbar,
     bool code_mode,
     int tab_size,
+    const char* code_language,
     void* context
 ) {
     (void)toolbar;
+    (void)code_language;
 
     MessageComposer* composer = (MessageComposer*)context;
     if (composer == 0) {
@@ -471,13 +494,15 @@ void MessageComposer::build_draft(MessageDraft& draft) const {
     FormattedText body;
     message_input_strip.get_formatted_text(body);
 
+    const char* code_language = message_toolbar.get_code_language();
+
     if (contains_code_ranges(body)) {
         FormattedText serialized_body;
-        serialize_code_ranges(body, serialized_body);
+        serialize_code_ranges(body, serialized_body, code_language);
         draft.set_body(serialized_body);
     } else if (message_toolbar.get_code_mode() && !body.empty()) {
         FormattedText fenced_body;
-        wrap_whole_body_as_code(body, fenced_body);
+        wrap_whole_body_as_code(body, fenced_body, code_language);
         draft.set_body(fenced_body);
     } else {
         draft.set_body(body);

@@ -49,6 +49,7 @@ class MessageComposer : public Panel {
         int get_font_size() const;
         bool get_code_mode() const;
         int get_tab_size() const;
+        const char* get_code_language() const;
 
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
@@ -97,6 +98,7 @@ class MessageComposer : public Panel {
             MessageToolbar* toolbar,
             bool code_mode,
             int tab_size,
+            const char* code_language,
             void* context
         );
 

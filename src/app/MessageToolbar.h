@@ -52,6 +52,7 @@ class MessageToolbar : public Panel {
             MessageToolbar* toolbar,
             bool code_mode,
             int tab_size,
+            const char* code_language,
             void* context
         );
 
@@ -98,6 +99,7 @@ class MessageToolbar : public Panel {
         int get_font_size() const;
         bool get_code_mode() const;
         int get_tab_size() const;
+        const char* get_code_language() const;
 
         void toggle_code_mode_from_shortcut() {
             toggle_code_mode();
@@ -118,6 +120,13 @@ class MessageToolbar : public Panel {
         );
 
         static void on_tab_size_changed(
+            ComboBox* combo_box,
+            int selected_value,
+            const char* selected_text,
+            void* context
+        );
+
+        static void on_code_language_changed(
             ComboBox* combo_box,
             int selected_value,
             const char* selected_text,
@@ -165,6 +174,7 @@ class MessageToolbar : public Panel {
         ToggleButton list_button;
         Button emoji_button;
         ToggleButton code_button;
+        ComboBox code_language_combo;
         ComboBox tab_size_combo;
         Label attachment_status_label;
         EmojiPanel emoji_panel;
@@ -173,4 +183,5 @@ class MessageToolbar : public Panel {
         int font_size;
         ListPanel::ListStyle list_style;
         int tab_size;
+        std::string code_language;
 };

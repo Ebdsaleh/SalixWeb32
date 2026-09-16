@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include "MessageToolbar.h"
+#include "framework/CodeLanguageRegistry.h"
 #include "framework/FileDialog.h"
 #include "framework/NativeControlHost.h"
 #include "framework/UIEvent.h"
@@ -33,7 +34,8 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
       code_mode_changed_context(0),
       font_size(12),
       list_style(ListPanel::list_clear),
-      tab_size(4) {
+      tab_size(4),
+      code_language("") {
 
     get_style().background_color = Color(229, 240, 249);
     get_style().border_color = Color(147, 181, 211);
@@ -97,12 +99,31 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     code_button.get_style().foreground_color = Color(26, 68, 108);
     code_button.get_style().border_color = Color(132, 157, 181);
 
+    for (
+        int language_index = 0;
+        language_index < CodeLanguageRegistry::get_count();
+        ++language_index
+    ) {
+        code_language_combo.add_item(
+            CodeLanguageRegistry::get_display_name(language_index),
+            language_index
+        );
+    }
+    code_language_combo.set_selected_index(0);
+    code_language_combo.set_drop_direction(ComboBox::drop_up);
+    code_language_combo.set_enabled(false);
+    code_language_combo.set_selection_changed_handler(
+        MessageToolbar::on_code_language_changed,
+        this
+    );
+
     tab_size_combo.add_item("2", 2);
     tab_size_combo.add_item("4", 4);
     tab_size_combo.add_item("6", 6);
     tab_size_combo.add_item("8", 8);
     tab_size_combo.set_selected_index(1);
     tab_size_combo.set_drop_direction(ComboBox::drop_up);
+    tab_size_combo.set_enabled(false);
     tab_size_combo.set_selection_changed_handler(
         MessageToolbar::on_tab_size_changed,
         this
@@ -130,6 +151,7 @@ MessageToolbar::MessageToolbar(FileDialog* new_file_dialog)
     add_child(&list_button);
     add_child(&emoji_button);
     add_child(&code_button);
+    add_child(&code_language_combo);
     add_child(&tab_size_combo);
     add_child(&attachment_status_label);
     add_child(&list_panel);
@@ -154,8 +176,10 @@ void MessageToolbar::attach_native_controls(NativeControlHost* control_host) {
 
     if (native_control_host != 0) {
         native_control_host->attach_combo_box(&font_size_combo);
+        native_control_host->attach_combo_box(&code_language_combo);
         native_control_host->attach_combo_box(&tab_size_combo);
         native_control_host->sync_combo_box(&font_size_combo);
+        native_control_host->sync_combo_box(&code_language_combo);
         native_control_host->sync_combo_box(&tab_size_combo);
     }
 }
@@ -166,6 +190,7 @@ void MessageToolbar::detach_native_controls() {
     }
 
     native_control_host->detach_combo_box(&font_size_combo);
+    native_control_host->detach_combo_box(&code_language_combo);
     native_control_host->detach_combo_box(&tab_size_combo);
     native_control_host = 0;
 }
@@ -254,6 +279,10 @@ int MessageToolbar::get_tab_size() const {
     return tab_size;
 }
 
+const char* MessageToolbar::get_code_language() const {
+    return code_language.c_str();
+}
+
 bool MessageToolbar::contains_popup_point(int x, int y) const {
     if (list_panel.get_is_open() && list_panel.contains_point(x, y)) {
         return true;
@@ -264,6 +293,10 @@ bool MessageToolbar::contains_popup_point(int x, int y) const {
     }
 
     if (font_size_combo.contains_open_popup_point(x, y)) {
+        return true;
+    }
+
+    if (code_language_combo.contains_open_popup_point(x, y)) {
         return true;
     }
 
@@ -279,6 +312,7 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     const int list_width = 46;
     const int emoji_width = 38;
     const int code_width = 68;
+    const int language_width = 92;
     const int tab_width = 46;
     const int list_popup_width = 128;
     const int list_popup_height = 82;
@@ -321,11 +355,20 @@ void MessageToolbar::arrange(int x, int y, int width, int height) {
     code_button.set_bounds(cursor_x, control_y, code_width, control_height);
     cursor_x += code_width + gap;
 
+    code_language_combo.arrange(
+        cursor_x,
+        control_y,
+        language_width,
+        control_height
+    );
+    cursor_x += language_width + gap;
+
     tab_size_combo.arrange(cursor_x, control_y, tab_width, control_height);
     cursor_x += tab_width + gap;
 
     if (native_control_host != 0) {
         native_control_host->sync_combo_box(&font_size_combo);
+        native_control_host->sync_combo_box(&code_language_combo);
         native_control_host->sync_combo_box(&tab_size_combo);
     }
 
@@ -429,6 +472,14 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         }
 
         if (
+            !code_language_combo.get_native_peer_active() &&
+            code_language_combo.contains_point(event.x, event.y)
+        ) {
+            list_panel.set_open(false);
+            emoji_panel.set_open(false);
+        }
+
+        if (
             !tab_size_combo.get_native_peer_active() &&
             tab_size_combo.contains_point(event.x, event.y)
         ) {
@@ -476,6 +527,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         attach_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        code_language_combo.set_open(false);
         tab_size_combo.set_open(false);
         list_panel.set_open(false);
         emoji_panel.set_open(false);
@@ -488,6 +540,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         list_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        code_language_combo.set_open(false);
         tab_size_combo.set_open(false);
         emoji_panel.set_open(false);
         list_panel.set_open(!list_panel.get_is_open());
@@ -500,6 +553,7 @@ bool MessageToolbar::handle_event(const UIEvent& event) {
         emoji_button.contains_point(event.x, event.y)
     ) {
         font_size_combo.set_open(false);
+        code_language_combo.set_open(false);
         tab_size_combo.set_open(false);
         list_panel.set_open(false);
         emoji_panel.set_open(!emoji_panel.get_is_open());
@@ -543,6 +597,26 @@ void MessageToolbar::on_tab_size_changed(
         toolbar->emoji_panel.set_open(false);
         toolbar->notify_code_mode_changed();
     }
+}
+
+void MessageToolbar::on_code_language_changed(
+    ComboBox* combo_box,
+    int selected_value,
+    const char* selected_text,
+    void* context
+) {
+    (void)combo_box;
+    (void)selected_text;
+
+    MessageToolbar* toolbar = (MessageToolbar*)context;
+    if (toolbar == 0) {
+        return;
+    }
+
+    toolbar->code_language = CodeLanguageRegistry::get_token(selected_value);
+    toolbar->list_panel.set_open(false);
+    toolbar->emoji_panel.set_open(false);
+    toolbar->notify_code_mode_changed();
 }
 
 void MessageToolbar::on_emoticon_selected(
@@ -624,14 +698,24 @@ void MessageToolbar::notify_format_changed() {
 }
 
 void MessageToolbar::notify_code_mode_changed() {
+    bool enabled = get_code_mode();
+    code_language_combo.set_enabled(enabled);
+    tab_size_combo.set_enabled(enabled);
+
+    if (native_control_host != 0) {
+        native_control_host->sync_combo_box(&code_language_combo);
+        native_control_host->sync_combo_box(&tab_size_combo);
+    }
+
     if (code_mode_changed_handler == 0) {
         return;
     }
 
     code_mode_changed_handler(
         this,
-        get_code_mode(),
+        enabled,
         get_tab_size(),
+        get_code_language(),
         code_mode_changed_context
     );
 }

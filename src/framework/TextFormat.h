@@ -12,12 +12,24 @@ struct TextFormat {
         code_block
     };
 
+    enum SyntaxStyle {
+        syntax_none = 0,
+        syntax_keyword,
+        syntax_string,
+        syntax_comment,
+        syntax_number,
+        syntax_preprocessor,
+        syntax_literal,
+        syntax_tag
+    };
+
     TextFormat()
         : bold(false),
           italic(false),
           underline(false),
           font_size(12),
-          code_style(code_none) {
+          code_style(code_none),
+          syntax_style(syntax_none) {
     }
 
     TextFormat(
@@ -25,12 +37,14 @@ struct TextFormat {
         bool new_italic,
         bool new_underline,
         int new_font_size,
-        CodeStyle new_code_style = code_none
+        CodeStyle new_code_style = code_none,
+        SyntaxStyle new_syntax_style = syntax_none
     ) : bold(new_bold),
         italic(new_italic),
         underline(new_underline),
         font_size(new_font_size),
-        code_style(new_code_style) {
+        code_style(new_code_style),
+        syntax_style(new_syntax_style) {
     }
 
     bool bold;
@@ -38,4 +52,5 @@ struct TextFormat {
     bool underline;
     int font_size;
     CodeStyle code_style;
+    SyntaxStyle syntax_style;
 };

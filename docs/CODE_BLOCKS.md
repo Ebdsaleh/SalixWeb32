@@ -1,10 +1,10 @@
 # Dedicated Conversation Code Blocks
 
-This document records the block-composed conversation tranche that follows the wrapped rich conversation viewport. The implementation is intentionally compatible with the Visual C++ 7.1 / Windows Server 2003 target and remains pending target validation until rebuilt and exercised on the Pentium 4.
+This document records the block-composed conversation presentation built above the wrapped rich conversation viewport. The dedicated container has compiled and rendered on the real Visual C++ 7.1 / Windows Server 2003 Pentium 4 target; exhaustive interaction coverage and MiniXP smoke validation remain pending for the newest refinements.
 
 ## Goal
 
-Fenced Markdown code must no longer be flattened into the same `Label` used for surrounding prose. A single canonical message may contain ordinary text, one or more code blocks, and more ordinary text after the code while the conversation presenter gives each block an appropriate component.
+Fenced Markdown code must not be flattened into the same `Label` used for surrounding prose. A single canonical message may contain ordinary text, one or more code blocks, and more ordinary text after the code while the conversation presenter gives each block an appropriate component.
 
 The intended presentation is:
 
@@ -28,7 +28,7 @@ Hello from Pentium 4
 Normal prose continues here :D
 ```
 
-The ASCII borders above describe structure only. Actual Win32 presentation uses framework panels, labels, buttons, and scrollbars.
+The ASCII borders above describe structure only. Actual Win32 presentation uses framework panels, labels, buttons, text-format semantics, and scrollbars.
 
 ## Canonical source remains authoritative
 
@@ -128,31 +128,54 @@ const char* face = ":D";
 
 while ordinary message text outside the block can still display the graphical classic emoticon for `:D`.
 
-## Language label
+## Shared code-language registry
 
-The opening Markdown fence can identify a language:
+Language identity is centralized in `framework/CodeLanguageRegistry` rather than duplicated between the composer and conversation renderer.
 
-````text
-```python
-...
+The registry separates canonical Markdown tokens from UI display names. Examples include:
+
+```text
+c           -> C
+cpp         -> C++
+csharp      -> C#
+python      -> Python
+javascript  -> JavaScript
+typescript  -> TypeScript
+bash        -> Shell
+rust        -> Rust
+text        -> Plain text
 ```
-````
 
-The first info token becomes the code-block language label. A small display-name mapper currently recognizes common aliases such as:
+It also canonicalizes familiar aliases such as `c++`, `cxx`, `py`, `js`, `ts`, `cs`, `c#`, `sh`, `shell`, `rs`, `plaintext`, and `txt`.
 
-- `c` -> `C`
-- `cpp`, `c++`, `cxx` -> `C++`
-- `python`, `py` -> `Python`
-- `javascript`, `js` -> `JavaScript`
-- `typescript`, `ts` -> `TypeScript`
-- `csharp`, `cs`, `c#` -> `C#`
-- `bash`, `sh`, `shell` -> `Shell`
-- `html`, `css`, `json`, `xml`, `lua`, `rust`, `java`
-- `text`, `plaintext`, `txt` -> `Plain text`
+An empty token displays `Code`. Unknown tokens remain visible rather than being discarded, which matters for SaaS Markdown containing languages we have not specialized yet.
 
-Unknown identifiers remain visible rather than being discarded. An empty info string displays `Code`.
+The composer now exposes the same registry through a native-backed language combo box. Choosing `Python`, for example, causes code ranges to be serialized with a `python` fenced-Markdown info token. The parser passes that token back into `CodeBlockView`, so local and remote Markdown follow the same presentation path.
 
-Composer code mode currently emits an unlabelled fenced block, so local code-mode submissions display `Code` until a composer language selector is introduced. SaaS Markdown containing a language token can display it immediately.
+## Lightweight syntax semantics
+
+`framework/CodeSyntaxHighlighter` performs a deliberately lightweight tokenizer before the code body is handed to `Label`.
+
+It never alters `source_code`. Instead it writes syntax metadata into the per-character `TextFormat` array. Current semantic classes are:
+
+```text
+syntax_none
+syntax_keyword
+syntax_string
+syntax_comment
+syntax_number
+syntax_preprocessor
+syntax_literal
+syntax_tag
+```
+
+The first presentation pass uses those semantics conservatively: keywords/preprocessor/tag tokens receive emphasis and comments receive comment-style emphasis while all code retains the same canonical characters, monospace font, selection indexes, and clipboard output.
+
+Current language families include C-like languages, Python, JSON, Shell, Lua, HTML/XML, and CSS. Unknown/plain-text fences simply retain ordinary code formatting without speculative tokenization.
+
+This is intentionally much smaller than an IDE parser. It does not attempt semantic type resolution, AST construction, diagnostics, completion, or full grammar correctness. The important architecture is that syntax identity now exists above the Win32 renderer and can later drive richer palettes without changing the message model.
+
+See `docs/SYNTAX_HIGHLIGHTING.md` for the detailed contract.
 
 ## Copy button
 
@@ -162,10 +185,11 @@ It intentionally excludes:
 
 - the Markdown fences,
 - the language label,
+- syntax-format metadata,
 - the message role header,
 - surrounding prose.
 
-The Win32 application host now supplies its existing `Win32Clipboard` through pointer-down/up framework events as well as keyboard events, allowing pointer-triggered framework controls to invoke clipboard actions without importing Win32 APIs into `CodeBlockView`.
+The Win32 application host supplies its existing `Win32Clipboard` through pointer-down/up framework events as well as keyboard events, allowing pointer-triggered framework controls to invoke clipboard actions without importing Win32 APIs into `CodeBlockView`.
 
 Normal selectable-label `Ctrl+C` continues to work inside the code body for partial selections.
 
@@ -175,7 +199,7 @@ Code blocks deliberately do **not** soft-wrap. Source-code structure and indenta
 
 If the longest code line is wider than the visible body, `CodeBlockView` exposes its own horizontal scrollbar and shifts only the code viewport. The outer `ConversationView` retains independent vertical pixel scrolling.
 
-For this tranche, the per-code-block scrollbar intentionally uses the framework-rendered scrollbar fallback rather than a native child HWND. A native Win32 `SCROLLBAR` child is not safely clipped by the GDI clip region of a vertically scrolled conversation viewport; attaching nested native peers before defining an HWND clipping/parenting policy could allow the control to bleed outside the conversation surface. The main conversation and composer scrollbars remain native Win32 controls.
+For now, the per-code-block scrollbar intentionally uses the framework-rendered scrollbar fallback rather than a native child HWND. A native Win32 `SCROLLBAR` child is not safely clipped by the GDI clip region of a vertically scrolled conversation viewport; attaching nested native peers before defining an HWND clipping/parenting policy could allow the control to bleed outside the conversation surface. The main conversation and composer scrollbars remain native Win32 controls.
 
 The `CodeBlockView` keeps the native-peer attachment hooks so this can be revisited after the nested-native-control clipping policy is designed.
 
@@ -186,40 +210,44 @@ The code body remains a selectable `Label`:
 - mouse selection works against literal source characters,
 - Ctrl+C copies selected code,
 - code aliases such as `:)` remain literal and therefore have ordinary code hit-testing,
+- syntax metadata does not alter source indexes,
 - horizontal scrolling moves presentation only; it does not rewrite the code text or selection state.
 
 ## Current limits
 
-This tranche does not yet provide:
+The current implementation does not yet provide:
 
-- syntax highlighting,
-- a composer-side language selector,
+- a full syntax grammar or semantic parser,
 - line numbers,
 - code folding,
+- per-code-block language selection inside one rich composer draft,
 - nested native HWND scrollbars inside the conversation viewport,
 - a full CommonMark block parser,
 - tilde fences,
-- syntax-aware indentation or completion.
+- syntax-aware indentation or completion,
+- compiler/LSP diagnostics.
 
 These can be added without reverting the block-composed conversation model.
 
 ## Target validation checklist
 
-Before marking this tranche validated:
+Before marking the newest code-language/syntax tranche validated:
 
 1. Rebuild with Visual C++ 7.1 on the Pentium 4.
-2. Send a normal one-line message and confirm compact `You: message` presentation still works.
-3. Send a mixed Markdown message containing prose, a fenced code block, and prose after the fence.
-4. Verify `You:`/`Remote:` is shown as a separate header for the mixed message.
-5. Verify the code block has one coherent bordered/background container rather than disconnected gray line bands.
-6. Verify the header shows `Python`, `C`, `C++`, or the supplied language token.
-7. Click Copy and paste into Notepad; verify only the raw code body is copied.
+2. Verify the native language selector is disabled with code mode off and enabled with code mode on.
+3. Send Python, C++, JavaScript, JSON, and plain/unlabelled code and confirm the expected code-block header.
+4. Verify the generated Markdown contains the expected canonical fence token.
+5. Send a mixed message containing prose, a code range, and prose after it; verify distinct blocks remain stable.
+6. Verify the code block has one coherent bordered/background container rather than disconnected gray line bands.
+7. Click Copy and paste into Notepad; verify only raw code body characters are copied.
 8. Select part of the code manually and use Ctrl+C; verify partial selection copy still works.
 9. Put `:)`, `:D`, and `<3` inside code and verify they remain literal.
 10. Put the same aliases in prose outside code and verify graphical emoticons still render.
-11. Send a code line wider than the block and exercise the code block horizontal scrollbar.
-12. While horizontally scrolled, select/copy code and verify source positions remain correct.
-13. Resize the main window and verify prose reflows while code remains non-wrapped.
-14. Scroll the outer conversation vertically through a partially visible code block and verify clipping remains clean.
-15. Exercise multiple code blocks in one message.
-16. Repeat the build/runtime smoke test under MiniXP after Server 2003 validation.
+11. Exercise representative keywords, strings, comments, numbers, literals, and preprocessor/tag tokens and verify syntax emphasis does not alter source characters.
+12. Send a code line wider than the block and exercise the code block horizontal scrollbar.
+13. While horizontally scrolled, select/copy code and verify source positions remain correct.
+14. Resize the main window and verify prose reflows while code remains non-wrapped.
+15. Scroll the outer conversation vertically through a partially visible code block and verify clipping remains clean.
+16. Exercise multiple code blocks in one message.
+17. Confirm composer native scrollbars remain inactive during click/drag-selection below overflow thresholds and activate only for real overflow.
+18. Repeat the build/runtime smoke test under MiniXP after Server 2003 validation.

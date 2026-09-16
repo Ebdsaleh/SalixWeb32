@@ -105,6 +105,8 @@
 			<File RelativePath="..\..\src\app\MessageToolbar.cpp"/>
 			<File RelativePath="..\..\src\app\StatusView.cpp"/>
 			<File RelativePath="..\..\src\framework\Button.cpp"/>
+			<File RelativePath="..\..\src\framework\CodeLanguageRegistry.cpp"/>
+			<File RelativePath="..\..\src\framework\CodeSyntaxHighlighter.cpp"/>
 			<File RelativePath="..\..\src\framework\ComboBox.cpp"/>
 			<File RelativePath="..\..\src\framework\Component.cpp"/>
 			<File RelativePath="..\..\src\framework\Container.cpp"/>
@@ -150,6 +152,8 @@
 			<File RelativePath="..\..\src\app\StatusView.h"/>
 			<File RelativePath="..\..\src\framework\Button.h"/>
 			<File RelativePath="..\..\src\framework\Clipboard.h"/>
+			<File RelativePath="..\..\src\framework\CodeLanguageRegistry.h"/>
+			<File RelativePath="..\..\src\framework\CodeSyntaxHighlighter.h"/>
 			<File RelativePath="..\..\src\framework\ComboBox.h"/>
 			<File RelativePath="..\..\src\framework\Component.h"/>
 			<File RelativePath="..\..\src\framework\Container.h"/>
