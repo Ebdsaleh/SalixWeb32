@@ -1,12 +1,12 @@
 # Markdown Conversation Presentation
 
-This document records the first native Markdown presentation layer for SalixWeb32 conversation history. Target validation on Visual C++ 7.1 / Windows Server 2003 SP2 / MiniXP is pending.
+This document records the native Markdown presentation layer for SalixWeb32 conversation history. The initial Markdown/list/code presentation has built successfully on the real Windows Server 2003 Pentium 4 target. Dedicated mixed-message code-block containers are the current pending target-validation tranche.
 
 ## Goal
 
-Conversation messages keep their canonical source text while `ConversationView` derives a presentation-only `FormattedText` representation for display. This gives local and future remote/SaaS messages a richer presentation without replacing the portable message payload.
+Conversation messages keep canonical source text while the presentation layer derives framework components and `FormattedText` for display. This lets local and future remote/SaaS messages use Markdown without replacing the portable message payload.
 
-The immediate motivation is block alignment. A canonical list such as:
+A canonical list such as:
 
 ```text
 1. one
@@ -32,81 +32,181 @@ You: Hello from Pentium 4 :D
 
 ## Architecture
 
-The parser lives in `framework/MarkdownFormatter`. It is backend-neutral and converts canonical message text (including existing per-character `TextFormat`) into presentation `FormattedText`.
+Markdown presentation now has two complementary layers.
 
-`ConversationView::MessageEntry` retains the original `FormattedText` source separately from the rendered `Label`. This is intentional groundwork for future features such as re-rendering, Copy Markdown, transport diagnostics, links, and richer block widgets.
+### Inline / text formatting
 
-The Win32 renderer remains a generic formatted-text renderer. Markdown syntax is interpreted above the platform rendering layer rather than embedding Markdown rules into GDI code.
+`framework/MarkdownFormatter` remains backend-neutral and converts canonical text plus existing per-character `TextFormat` into presentation `FormattedText`.
 
-## Initial supported subset
+It handles inline emphasis, headings, list/quote presentation, inline code semantics, and other text-oriented Markdown behavior.
 
-The first formatter recognizes:
+### Block segmentation
 
-- ATX headings (`#` through `######`) with bold / larger presentation,
+`framework/MarkdownBlockParser` segments a canonical message into presentation blocks where a single flat `Label` is no longer sufficient.
+
+Current segmentation is:
+
+```text
+canonical FormattedText
+        |
+        v
+MarkdownBlockParser
+        |
+        +-- block_text
+        +-- block_code
+        +-- block_text
+```
+
+`ConversationMessageView` then maps those blocks to framework components:
+
+```text
+block_text -> wrapped selectable Label
+block_code -> dedicated CodeBlockView
+```
+
+`ConversationView::MessageEntry` retains the original source separately from this presentation tree. This is intentional groundwork for re-rendering, Copy Markdown, transport diagnostics, links, persistence, and future richer Markdown widgets.
+
+## Supported subset
+
+The Markdown presentation currently recognizes:
+
+- ATX headings (`#` through `######`) with bold/larger presentation,
 - unordered list lines beginning with `* `, `- `, or `+ `,
 - ordered list lines beginning with `N. `,
 - blockquotes beginning with `>`,
 - horizontal rules made from `---`, `***`, or `___`,
 - fenced code blocks delimited by triple backticks,
+- a first language/info token after an opening code fence,
 - inline strong text using `**text**` or `__text__`,
 - inline emphasis using `*text*` or `_text_`,
 - inline code using backticks,
-- backslash escaping for a following Markdown punctuation character.
+- backslash escaping for following Markdown punctuation.
 
-List prefixes remain visible canonical text. This keeps the list readable when selected/copied and works naturally with the existing composer list model.
+List prefixes remain visible canonical text. This keeps lists readable when copied and works naturally with the composer list model.
 
-Fenced-code delimiters are presentation syntax and are omitted from the displayed block. Code contents are not recursively Markdown-formatted.
+Fenced-code delimiters are presentation syntax and are omitted from the dedicated code body.
+
+## Mixed messages
+
+A message is no longer forced to be entirely prose or entirely code. For example:
+
+````text
+Hello from Pentium 4
+
+```python
+print("MSN Messenger :D")
+```
+
+Back to normal :D
+````
+
+is presented as:
+
+```text
+role header
+wrapped text block
+CodeBlockView
+wrapped text block
+```
+
+The role header is separated for block-structured messages so all blocks align beneath the speaker identity.
 
 ## Composer code mode
 
-The message toolbar now includes an explicit `<code />` toggle plus a native-backed indentation selector (2/4/6/8 spaces). When a draft is sent while code mode is active, `MessageComposer` wraps the canonical body in a fenced Markdown block before creating the `MessageDraft`.
+The message toolbar includes an explicit `<code />` toggle plus a native-backed indentation selector (2/4/6/8 spaces). When a draft is sent while code mode is active, `MessageComposer` wraps the canonical body in a fenced Markdown block before creating the `MessageDraft`.
 
-That means code-mode messages use the same portable Markdown representation expected from future ChatGPT/SaaS responses instead of introducing a private code-message format.
+Code mode changes editing semantics:
 
-Code mode also changes editing semantics: Enter inserts a newline, Tab inserts the configured number of spaces, and Ctrl+Enter sends. See `docs/CODE_COMPOSER.md` for the full composer/viewport contract.
+```text
+Enter        -> newline
+Shift+Enter  -> newline
+Tab          -> configured indentation spaces
+Ctrl+Enter   -> send
+Ctrl+;       -> toggle code mode
+```
+
+See `docs/CODE_COMPOSER.md` for the composer/viewport contract.
+
+Local composer code mode currently emits an unlabelled fence, so its dedicated conversation block displays the generic language title `Code`. Markdown received from a future SaaS backend can immediately use language tags such as `python`, `c`, or `cpp`.
 
 ## Interaction with existing rich formatting
 
-Toolbar formatting and Markdown formatting are complementary. Existing per-character Bold/Italic/Underline/font-size data is used as the source format, then Markdown semantics are layered over it for presentation.
+Toolbar formatting and Markdown formatting remain complementary. Existing per-character Bold/Italic/Underline/font-size data is retained by canonical `FormattedText`; Markdown semantic presentation is layered above it.
 
-For example, a locally formatted message can still contain Markdown list structure or inline emphasis without flattening the toolbar formatting first.
+`FormattedText::substring()` preserves per-character formats when the block parser slices canonical text into presentation blocks.
+
+Dedicated code blocks intentionally normalize their visible code body to literal 11pt code presentation so syntax characters are not accidentally displayed with arbitrary prose styling.
 
 ## Interaction with emoticons
 
-Classic aliases such as `:)`, `:D`, `:'(`, and `<3` remain canonical text after Markdown presentation and therefore continue through the existing graphical-emoticon rendering path.
+Classic aliases such as `:)`, `:D`, `:'(`, and `<3` remain canonical text.
 
-A future code-span semantic flag should suppress emoticon replacement inside fenced/inline code. The current Markdown presenter recognizes code but does not yet add a renderer-level semantic flag, so an emoticon-looking token inside a displayed code block can still be interpreted by the graphical-emoticon painter.
+Presentation now distinguishes context:
+
+- ordinary text may render those aliases as graphical classic-messenger-inspired emoticons,
+- inline code and fenced code carry code semantics,
+- the Win32 renderer suppresses emoticon substitution when code semantics are active,
+- dedicated `CodeBlockView` bodies therefore keep aliases literal.
+
+For example:
+
+```text
+Normal :D          -> graphical grin
+`literal :D`       -> literal :D
+fenced code :D     -> literal :D
+```
+
+## Dedicated fenced code presentation
+
+Fenced code is no longer flattened into gray lines inside the main message label. `CodeBlockView` provides:
+
+- one coherent bordered/background container,
+- a header with language label,
+- a Copy button,
+- selectable Courier New code,
+- no soft wrapping,
+- independent horizontal overflow scrolling,
+- literal emoticon-like tokens.
+
+See `docs/CODE_BLOCKS.md` for the detailed contract and validation checklist.
+
+## Conversation wrapping
+
+Ordinary text blocks use presentation-only soft wrapping through `TextWrapLayout`. Soft wraps do not become canonical newlines. Resizing can therefore reflow prose while copied text preserves its original source.
+
+Code blocks deliberately do not use prose wrapping; long source lines scroll horizontally instead.
 
 ## Deliberate current limits
 
-This is a compact Salix Markdown subset, not a full CommonMark implementation yet. The following remain follow-up work:
+This remains a compact Salix Markdown subset rather than full CommonMark. Follow-up work includes:
 
-- automatic word wrapping in conversation history,
-- monospace font-family semantics for code spans/blocks,
-- dedicated code-block background/chrome and Copy button,
 - clickable links and URL hit-testing,
-- nested-list indentation metadata beyond preserved leading spaces,
+- nested-list structure beyond preserved leading spaces,
 - tables,
-- task-list checkboxes,
+- task-list widgets,
 - images,
 - full CommonMark delimiter/flanking rules,
-- syntax highlighting.
+- tilde code fences,
+- syntax highlighting,
+- composer language selection,
+- richer quote/list block components.
 
-The composer now has its own horizontal/vertical viewport scrollbars; conversation-history wrapping/viewport work remains separate.
-
-These features should build on the retained canonical source rather than forcing Markdown syntax into the generic text renderer.
+These features should build on retained canonical source instead of pushing Markdown-specific rules into generic Win32/GDI rendering code.
 
 ## Validation checklist
 
-Before marking this tranche target-validated:
+Before marking the current Markdown/block tranche target-validated:
 
-1. Send a numbered list and verify `You:` appears on its own role line with all list items aligned beneath it.
+1. Send a numbered list and verify the role appears on its own line with all list items aligned beneath it.
 2. Repeat with bullet lists.
-3. Send ordinary single-line text and verify the compact `You: message` layout remains.
+3. Send ordinary single-line text and verify compact `You: message` layout remains.
 4. Send a multiline plain paragraph and verify role/content block separation.
-5. Test `**bold**`, `*italic*`, headings, blockquotes, horizontal rules, inline code, and fenced code.
-6. Toggle composer code mode, enter multiline code, send with Ctrl+Enter, and verify the fences become presentation-only code-block syntax.
-7. Mix Markdown with graphical emoticons and existing toolbar formatting.
-8. Select/copy rendered Markdown text and verify the selectable read-only conversation behavior remains stable.
-9. Send enough Markdown messages to exercise conversation scrolling and resizing.
-10. Repeat the validation under Windows Server 2003 SP2 and MiniXP.
+5. Test `**bold**`, `*italic*`, headings, blockquotes, horizontal rules and inline code.
+6. Send prose + fenced code + prose in one message and verify three distinct presentation blocks.
+7. Verify language-tagged fences produce the correct code header label.
+8. Click the code Copy button and verify only the raw code body reaches Notepad.
+9. Mix Markdown with graphical emoticons and verify code contexts keep aliases literal.
+10. Verify long prose wraps while long code lines use the code-block horizontal scrollbar.
+11. Select/copy rendered prose and code independently.
+12. Send enough mixed Markdown messages to exercise conversation scrolling and resizing.
+13. Repeat validation under Windows Server 2003 SP2 and MiniXP.

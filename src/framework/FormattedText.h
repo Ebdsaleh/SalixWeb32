@@ -34,6 +34,8 @@ class FormattedText {
         );
         void append_formatted_text(const FormattedText& appended_text);
 
+        FormattedText substring(int start, int length) const;
+
         const char* get_text() const;
         int get_length() const;
         int get_format_count() const;

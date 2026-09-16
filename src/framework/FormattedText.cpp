@@ -88,6 +88,46 @@ void FormattedText::append_formatted_text(
     normalize_format_count(TextFormat());
 }
 
+FormattedText FormattedText::substring(int start, int length) const {
+    FormattedText result;
+    int text_length = (int)text.length();
+
+    if (start < 0) {
+        start = 0;
+    }
+    if (start > text_length) {
+        start = text_length;
+    }
+    if (length < 0 || start + length > text_length) {
+        length = text_length - start;
+    }
+
+    if (length <= 0) {
+        return result;
+    }
+
+    std::string sliced_text = text.substr(start, length);
+    std::vector<TextFormat> sliced_formats;
+    sliced_formats.reserve(length);
+
+    for (int index = 0; index < length; ++index) {
+        int source_index = start + index;
+        if (source_index >= 0 && source_index < (int)character_formats.size()) {
+            sliced_formats.push_back(character_formats[source_index]);
+        } else {
+            sliced_formats.push_back(TextFormat());
+        }
+    }
+
+    result.set_formatted_text(
+        sliced_text.c_str(),
+        sliced_formats.empty() ? 0 : &sliced_formats[0],
+        (int)sliced_formats.size(),
+        TextFormat()
+    );
+    return result;
+}
+
 const char* FormattedText::get_text() const {
     return text.c_str();
 }

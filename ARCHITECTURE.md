@@ -117,7 +117,7 @@ Do not prematurely force it to replicate the complete WHATWG DOM API internally.
 
 SalixTorrent demonstrated a useful pattern where semantic application concepts do not directly depend on the concrete presentation toolkit.
 
-SalixWeb32 should preserve that pattern:
+SalixWeb32 preserves that pattern:
 
 ```text
 Button
@@ -133,6 +133,65 @@ Win32 implementation
 ```
 
 This is a conceptual mirror, not a line-for-line port.
+
+Native platform controls can still be used behind framework contracts where they are advantageous. For example, the Win32 backend provides real combo-box and scrollbar peers while the application continues to depend on `ComboBox`, `ScrollBar`, and `NativeControlHost` rather than HWNDs.
+
+## Conversation document relationship
+
+The native messenger shell is also being used to prove document-style presentation concepts before a network/SaaS backend exists.
+
+Canonical message data must remain separate from the component tree used to display it.
+
+```text
+MessageDraft / remote message
+        |
+        v
+canonical FormattedText / Markdown
+        |
+        +-------------------------------+
+        | retained for transport/copy   |
+        v                               |
+MarkdownBlockParser                     |
+        |                               |
+        +-- text block                  |
+        +-- code block                  |
+        |                               |
+        v                               |
+ConversationMessageView                 |
+        |                               |
+        +-- wrapped Label               |
+        +-- CodeBlockView               |
+        +-- wrapped Label               |
+        |                               |
+        v                               |
+ConversationView pixel viewport         |
+                                        |
+canonical source <----------------------+
+```
+
+`MarkdownFormatter` remains responsible for inline/text-oriented Markdown semantics. `MarkdownBlockParser` is responsible for block segmentation where separate components are required. Platform renderers draw semantic components; they do not become Markdown parsers.
+
+This distinction matters for future SaaS integration because a provider response may contain prose, lists, inline code, fenced code, links, attachments, and other blocks in one message. The application should be able to retain the provider's canonical payload while choosing an efficient legacy-friendly presentation tree.
+
+### Code blocks
+
+`CodeBlockView` is a composite application/framework presentation object built from ordinary framework components:
+
+```text
+CodeBlockView
+    +-- header Panel
+    |    +-- language Label
+    |    `-- Copy Button
+    +-- body Panel
+    |    `-- selectable code Label
+    `-- horizontal ScrollBar
+```
+
+The code body uses semantic `TextFormat::code_block` rather than teaching the generic conversation surface to special-case source code. The Win32 text backend maps code semantics to Courier New and suppresses emoticon substitution.
+
+Code blocks keep long logical source lines intact. Horizontal overflow belongs to the code block; vertical conversation scrolling belongs to `ConversationView`.
+
+The current per-code-block horizontal scrollbar deliberately uses the framework fallback inside the clipped conversation viewport. A future nested-native-peer policy must define how child HWNDs are parented/clipped before native scrollbars are used inside vertically scrolled content.
 
 ## Python relationship
 

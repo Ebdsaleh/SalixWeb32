@@ -430,6 +430,9 @@ LRESULT Win32ApplicationHost::handle_message(
             event.click_count = get_left_click_count(event.x, event.y);
             populate_modifier_state(event);
 
+            Win32Clipboard clipboard(current_window_handle);
+            event.clipboard = &clipboard;
+
             HDC metrics_context = GetDC(current_window_handle);
             Win32TextMetrics text_metrics(metrics_context);
             event.text_metrics = metrics_context != NULL ? &text_metrics : 0;
@@ -453,6 +456,9 @@ LRESULT Win32ApplicationHost::handle_message(
             event.y = (int)(short)HIWORD(l_param);
             event.left_button_down = false;
             populate_modifier_state(event);
+
+            Win32Clipboard clipboard(current_window_handle);
+            event.clipboard = &clipboard;
 
             HDC metrics_context = GetDC(current_window_handle);
             Win32TextMetrics text_metrics(metrics_context);

@@ -93,11 +93,11 @@ v0.0.2
 
 The validated baseline includes discontinuous selection, additive/subtractive mouse workflows, dual clipboard representations, compact/keep-formatting cut/paste modes, and bounded Undo/Redo state restoration.
 
-### Post-v0.0.2 composer tranche
+### Post-v0.0.2 composer and conversation presentation
 
-The messenger shell is now expanding around a dedicated `MessageComposer` rather than growing `MessageInputStrip` into a monolithic widget.
+The messenger shell now uses a dedicated `MessageComposer`, richer conversation document presentation, and increasingly reusable framework/platform capabilities rather than growing one monolithic text control.
 
-Active composer work:
+Implemented or active post-baseline work:
 
 - [~] `MessageComposer` composition root
 - [~] `MessageToolbar`
@@ -109,20 +109,33 @@ Active composer work:
 - [~] Bold/Italic/Underline composer state (`Ctrl+B`, `Ctrl+I`, `Ctrl+U`)
 - [~] formatted text model and formatted sent-message preservation
 - [~] multiline composer with explicit line-break rendering/hit-testing
+- [~] native composer horizontal/vertical viewport scrollbars
 - [~] bulleted/numbered list editing and dedicated `ListPanel`
+- [~] list continuation with Enter and `Ctrl+Enter` forced send
 - [~] classic text-emoticon registry
 - [~] `EmojiPanel` composite popup
 - [~] graphical classic-messenger-inspired emoticon rendering provider
-- [ ] automatic word wrapping / multiline composer viewport scrolling
+- [~] code composer mode (`Ctrl+;`) with 2/4/6/8-space indentation
+- [~] Markdown conversation presentation
+- [~] inline/fenced code semantics with literal emoticons in code
+- [~] native conversation scrollbar and mouse-wheel input
+- [~] soft-wrapped, pixel-scrolled conversation viewport
+- [~] block-level Markdown segmentation for mixed messages
+- [~] dedicated `CodeBlockView` with language header and Copy button
+- [~] non-wrapped code with independent horizontal overflow scrolling
+- [ ] syntax highlighting
+- [ ] composer-side code language selector
 - [ ] attachment chips/cards and removal controls
+- [ ] clickable Markdown links
+- [ ] richer Markdown block widgets (quotes/tables/task lists/images)
 
-The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Copy/paste and future transport continue to retain portable text aliases.
+The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The real Pentium 4 target has successfully built and displayed the graphical-emoticon tranche after a VC7.1 basename/object collision was corrected. The newer multiline/list tranche remains pending target validation.
+The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, and wrapped rich-conversation work under Windows Server 2003 SP2. The newest dedicated mixed-message code-block container tranche remains pending target validation; newer post-v0.0.2 work must not be assumed validated under MiniXP until it is exercised there explicitly.
 
-See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, and `docs/MULTILINE_COMPOSER.md` for the current contracts and validation checklists.
+See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, and `docs/CODE_BLOCKS.md` for the current contracts and validation checklists.
 
-**Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer work continues without changing the validated baseline tag.
+**Exit criterion:** core Phase 2 criterion achieved at `v0.0.2`. Post-baseline composer/conversation work continues without changing the validated baseline tag.
 
 ## Phase 3 — WebView and backend contract
 
@@ -284,13 +297,13 @@ translation backend
 remote backend
 ```
 
-- [ ] conversation display
-- [ ] text input
-- [ ] attachments
+- [~] conversation display (native shell proof advancing before network backend)
+- [~] text input (native shell proof advancing before network backend)
+- [~] attachments (local draft plumbing exists; transfer backend pending)
 - [ ] file transfer
-- [ ] copy/paste build logs
+- [~] copy/paste build logs (local UI path exists; remote bridge pending)
 - [ ] session persistence
-- [ ] diagnostics panel
+- [~] diagnostics panel
 - [ ] privacy/network endpoint visibility
 
 **Exit criterion:** modern interactive SaaS communication is usable directly from the P4 without an external transfer workflow.

@@ -94,6 +94,8 @@
 	<Files>
 		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
 			<File RelativePath="..\..\src\main.cpp"/>
+			<File RelativePath="..\..\src\app\CodeBlockView.cpp"/>
+			<File RelativePath="..\..\src\app\ConversationMessageView.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationView.cpp"/>
 			<File RelativePath="..\..\src\app\EmojiPanel.cpp"/>
 			<File RelativePath="..\..\src\app\ListPanel.cpp"/>
@@ -109,6 +111,7 @@
 			<File RelativePath="..\..\src\framework\EmoticonRegistry.cpp"/>
 			<File RelativePath="..\..\src\framework\FormattedText.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
+			<File RelativePath="..\..\src\framework\MarkdownBlockParser.cpp"/>
 			<File RelativePath="..\..\src\framework\MarkdownFormatter.cpp"/>
 			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
@@ -135,6 +138,8 @@
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
+			<File RelativePath="..\..\src\app\CodeBlockView.h"/>
+			<File RelativePath="..\..\src\app\ConversationMessageView.h"/>
 			<File RelativePath="..\..\src\app\ConversationView.h"/>
 			<File RelativePath="..\..\src\app\EmojiPanel.h"/>
 			<File RelativePath="..\..\src\app\ListPanel.h"/>
@@ -152,6 +157,7 @@
 			<File RelativePath="..\..\src\framework\FileDialog.h"/>
 			<File RelativePath="..\..\src\framework\FormattedText.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
+			<File RelativePath="..\..\src\framework\MarkdownBlockParser.h"/>
 			<File RelativePath="..\..\src\framework\MarkdownFormatter.h"/>
 			<File RelativePath="..\..\src\framework\MimeData.h"/>
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>

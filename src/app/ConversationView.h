@@ -8,11 +8,11 @@
 #include <vector>
 
 #include "framework/Panel.h"
-#include "framework/Label.h"
 #include "framework/FormattedText.h"
 #include "framework/ScrollBar.h"
 
 class ComponentRenderer;
+class ConversationMessageView;
 class NativeControlHost;
 class TextMetrics;
 class UIEvent;
@@ -60,7 +60,7 @@ class ConversationView : public Panel {
         struct MessageEntry {
             MessageRole role;
             FormattedText source_text;
-            Label* label;
+            ConversationMessageView* view;
             int row_height;
         };
 
@@ -79,7 +79,7 @@ class ConversationView : public Panel {
         void update_scrollbar_state(int available_height);
         void sync_native_scrollbar();
         int calculate_entry_height(
-            const Label& label,
+            ConversationMessageView& message_view,
             int message_width,
             TextMetrics* text_metrics
         ) const;

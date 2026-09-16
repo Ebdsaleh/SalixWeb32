@@ -4,95 +4,18 @@
 // Description: Implements the append-only scrollable conversation message surface.
 // =================================================================================
 
-#include <string.h>
-
 #include "ConversationView.h"
-#include "framework/MarkdownFormatter.h"
+#include "ConversationMessageView.h"
 #include "framework/NativeControlHost.h"
 #include "framework/TextMetrics.h"
-#include "framework/TextWrapLayout.h"
 #include "framework/UIEvent.h"
 #include "framework/rendering/ComponentRenderer.h"
-
-namespace {
-    bool is_whole_fenced_code_block(const char* text) {
-        if (text == 0 || text[0] == '\0') {
-            return false;
-        }
-
-        int length = (int)strlen(text);
-        int first = 0;
-
-        while (
-            first < length &&
-            (text[first] == ' ' || text[first] == '\t' || text[first] == '\r')
-        ) {
-            ++first;
-        }
-
-        if (
-            first + 3 > length ||
-            text[first] != '`' ||
-            text[first + 1] != '`' ||
-            text[first + 2] != '`'
-        ) {
-            return false;
-        }
-
-        int last = length - 1;
-        while (
-            last >= 0 &&
-            (
-                text[last] == ' ' ||
-                text[last] == '\t' ||
-                text[last] == '\r' ||
-                text[last] == '\n'
-            )
-        ) {
-            --last;
-        }
-
-        if (last < 2) {
-            return false;
-        }
-
-        int last_line_start = last;
-        while (last_line_start > 0 && text[last_line_start - 1] != '\n') {
-            --last_line_start;
-        }
-
-        while (
-            last_line_start <= last &&
-            (text[last_line_start] == ' ' || text[last_line_start] == '\t')
-        ) {
-            ++last_line_start;
-        }
-
-        return
-            last_line_start + 2 <= last &&
-            text[last_line_start] == '`' &&
-            text[last_line_start + 1] == '`' &&
-            text[last_line_start + 2] == '`' &&
-            last_line_start > first;
-    }
-
-    void mark_code_block(FormattedText& text) {
-        for (int index = 0; index < text.get_length(); ++index) {
-            TextFormat format = text.get_character_format(index);
-            format.code_style = TextFormat::code_block;
-            if (format.font_size > 11) {
-                format.font_size = 11;
-            }
-            text.set_character_format(index, format);
-        }
-    }
-}
 
 ConversationView::ConversationView()
     : vertical_scroll_bar(ScrollBar::vertical),
       native_control_host(0),
       scroll_offset_y(0),
-      row_spacing(6),
+      row_spacing(8),
       content_padding(4),
       scroll_bar_width(16),
       line_step_pixels(24),
@@ -138,59 +61,32 @@ bool ConversationView::append_message(
         return false;
     }
 
-    Label* message_label = new Label();
-    if (message_label == 0) {
+    ConversationMessageView* message_view = new ConversationMessageView();
+    if (message_view == 0) {
         return false;
     }
 
-    FormattedText markdown_text;
-    if (!MarkdownFormatter::format(text, markdown_text)) {
-        markdown_text = text;
-    }
-
-    if (is_whole_fenced_code_block(text.get_text())) {
-        mark_code_block(markdown_text);
-    }
-
-    bool block_layout = MarkdownFormatter::has_block_structure(
-        text.get_text()
-    );
-
-    FormattedText display_text;
-    TextFormat role_format(true, false, false, 12);
-
-    if (block_layout) {
-        display_text.append_plain_text(
+    if (!message_view->set_message(
+            text,
             get_role_label(role),
-            role_format
-        );
-        display_text.append_plain_text("\n\n", role_format);
-    } else {
-        display_text.append_plain_text(
             get_role_prefix(role),
-            role_format
-        );
+            get_role_color(role)
+        )) {
+        delete message_view;
+        return false;
     }
 
-    display_text.append_formatted_text(markdown_text);
-
-    message_label->set_formatted_text(display_text);
-    message_label->set_horizontal_alignment(Label::align_left);
-    message_label->set_word_wrap(true);
-    message_label->set_selectable(true);
-    message_label->get_style().foreground_color = get_role_color(role);
-
-    if (!add_child(message_label)) {
-        delete message_label;
+    if (!add_child(message_view)) {
+        delete message_view;
         return false;
     }
 
     MessageEntry entry;
     entry.role = role;
     entry.source_text = text;
-    entry.label = message_label;
+    entry.view = message_view;
     entry.row_height = calculate_entry_height(
-        *message_label,
+        *message_view,
         last_message_width,
         0
     );
@@ -228,10 +124,10 @@ bool ConversationView::append_remote_message(
 
 void ConversationView::clear_messages() {
     for (int index = 0; index < (int)messages.size(); ++index) {
-        Label* label = messages[index].label;
-        if (label != 0) {
-            remove_child(label);
-            delete label;
+        ConversationMessageView* message_view = messages[index].view;
+        if (message_view != 0) {
+            remove_child(message_view);
+            delete message_view;
         }
     }
 
@@ -446,8 +342,8 @@ void ConversationView::relayout() {
     int current_y = viewport_top - scroll_offset_y;
 
     for (int index = 0; index < (int)messages.size(); ++index) {
-        Label* label = messages[index].label;
-        if (label == 0) {
+        ConversationMessageView* message_view = messages[index].view;
+        if (message_view == 0) {
             continue;
         }
 
@@ -461,12 +357,13 @@ void ConversationView::relayout() {
             row_bottom > viewport_top &&
             current_y < viewport_bottom;
 
-        label->set_visible(is_visible);
-        label->set_bounds(
+        message_view->set_visible(is_visible);
+        message_view->arrange(
             view_x + content_padding,
             current_y,
             message_width,
-            row_height
+            row_height,
+            0
         );
 
         current_y = row_bottom + row_spacing;
@@ -497,13 +394,13 @@ void ConversationView::recalculate_entry_heights(
     }
 
     for (int index = 0; index < (int)messages.size(); ++index) {
-        Label* label = messages[index].label;
-        if (label == 0) {
+        ConversationMessageView* message_view = messages[index].view;
+        if (message_view == 0) {
             continue;
         }
 
         messages[index].row_height = calculate_entry_height(
-            *label,
+            *message_view,
             message_width,
             text_metrics
         );
@@ -550,76 +447,16 @@ void ConversationView::sync_native_scrollbar() {
 }
 
 int ConversationView::calculate_entry_height(
-    const Label& label,
+    ConversationMessageView& message_view,
     int message_width,
     TextMetrics* text_metrics
 ) const {
-    const char* text = label.get_text();
-    int text_length = text == 0 ? 0 : (int)strlen(text);
+    int height = message_view.measure_height(
+        message_width,
+        text_metrics
+    );
 
-    if (text_metrics != 0 && message_width > 0) {
-        int measured_height = TextWrapLayout::measure_height(
-            text,
-            text_length,
-            label.get_format_data(),
-            label.get_format_count(),
-            message_width,
-            2,
-            text_metrics
-        );
-
-        if (measured_height > 0) {
-            return measured_height + 8;
-        }
-    }
-
-    int maximum_font_size = label.get_max_font_size();
-    int line_height = maximum_font_size + 8;
-    if (line_height < 20) {
-        line_height = 20;
-    }
-
-    int approximate_character_width = maximum_font_size / 2;
-    if (approximate_character_width < 6) {
-        approximate_character_width = 6;
-    }
-
-    int characters_per_line = message_width > 0
-        ? message_width / approximate_character_width
-        : 80;
-    if (characters_per_line < 1) {
-        characters_per_line = 1;
-    }
-
-    int visual_line_count = 0;
-    int logical_length = 0;
-
-    for (int index = 0; index <= text_length; ++index) {
-        bool line_end =
-            index >= text_length ||
-            (text != 0 && text[index] == '\n');
-
-        if (!line_end) {
-            ++logical_length;
-            continue;
-        }
-
-        int wrapped_lines = logical_length <= 0
-            ? 1
-            : (logical_length + characters_per_line - 1) /
-                characters_per_line;
-        visual_line_count += wrapped_lines;
-        logical_length = 0;
-    }
-
-    if (visual_line_count < 1) {
-        visual_line_count = 1;
-    }
-
-    return
-        (visual_line_count * line_height) +
-        ((visual_line_count - 1) * 2) +
-        8;
+    return height > 0 ? height : 24;
 }
 
 int ConversationView::calculate_total_content_height() const {
