@@ -68,7 +68,44 @@ class TextInput : public Component {
             bool underline,
             int font_size
         );
-        void set_code_style(TextFormat::CodeStyle new_code_style);
+
+        void set_code_style(TextFormat::CodeStyle new_code_style) {
+            typing_format.code_style = new_code_style;
+
+            if (!has_selection()) {
+                end_edit_group();
+                return;
+            }
+
+            begin_edit(edit_none);
+            ensure_format_length();
+
+            std::vector<TextRange> ranges;
+            selection.get_normalized_ranges(ranges);
+
+            for (
+                int range_index = 0;
+                range_index < (int)ranges.size();
+                ++range_index
+            ) {
+                int start = ranges[range_index].start;
+                int end = ranges[range_index].end;
+
+                if (start < 0) {
+                    start = 0;
+                }
+                if (end > (int)character_formats.size()) {
+                    end = (int)character_formats.size();
+                }
+
+                for (int position = start; position < end; ++position) {
+                    character_formats[position].code_style = new_code_style;
+                }
+            }
+
+            end_edit_group();
+        }
+
         TextFormat get_typing_format() const;
         TextFormat get_character_format(int index) const;
         const TextFormat* get_format_data() const;
