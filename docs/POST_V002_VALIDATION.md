@@ -137,17 +137,42 @@ The remaining validation work includes:
 
 See `docs/CODE_BLOCKS.md` for the detailed contract.
 
-## Mouse-move redraw regression
+## Composer/native-scrollbar redraw regression
 
-The same target video exposed a separate native-control rendering regression: moving the mouse around the application caused visible redraw/flicker behaviour in the composer, making the UI appear unstable even though the code-block content itself was working.
+The first target video exposed a native-control rendering regression: moving the mouse around the application caused visible redraw/flicker behaviour in the composer even when no edit was taking place.
 
-Investigation found that `MessageInputStrip::handle_event()` recalculated its text extents and called `update_scrollbars()` after **every** routed event, including an idle `WM_MOUSEMOVE` that the underlying `TextInput` did not handle. `update_scrollbars()` eventually synchronizes the native Win32 scrollbar peers, so ordinary pointer motion could repeatedly drive `MoveWindow`/scrollbar synchronization on the legacy target.
+The first correction stopped `MessageInputStrip::handle_event()` from recalculating its text extents and calling `update_scrollbars()` for an **unhandled** idle `WM_MOUSEMOVE`. The user rebuilt that change on the primary target and confirmed that the idle-mouse "ghost" disappeared.
 
-The corrective change now:
+A second target observation then exposed a narrower residual problem: clicking in the composer and drag-selecting text could still make the native scrollbars visibly refresh or appear temporarily active even though the document dimensions had not changed.
 
-- returns immediately when the text input did not handle the routed event,
-- recalculates/synchronizes composer scrollbars only after a meaningful handled input event,
-- keeps caret visibility updates on handled input only,
-- makes the fallback content-width estimator respect `TextFormat::code_block`, so code aliases are measured as literal text instead of graphical emoticons.
+The reason is architectural rather than text-specific. A handled selection event can legitimately flow through caret/viewport maintenance, and `apply_viewport_state()` may call `sync_scroll_bar()`. The old Win32 peer synchronization performed all of these native operations on every sync request regardless of whether anything changed:
 
-This fix is **pending target validation**. The key regression test is simple: leave the composer idle and move the mouse rapidly across the window. Native scrollbars and the composer surface must remain visually stable. Then repeat normal selection/dragging, code-mode typing, list entry, and scrollbar interaction to confirm no legitimate refresh path was lost.
+```text
+MoveWindow(..., TRUE)
+ShowWindow(...)
+SetScrollInfo(..., TRUE)
+EnableWindow(...)
+```
+
+That is effectively a small "refresh all" for the scrollbar HWND. On the legacy target this is unnecessarily visible.
+
+The new synchronization contract is delta-based. Each Win32 scrollbar peer caches its last native state and only performs an operation when the corresponding state actually changes:
+
+- geometry -> `MoveWindow` only when x/y/width/height changes,
+- visibility -> `ShowWindow` only when visibility changes,
+- range/page/value -> `SetScrollInfo` only when scroll information changes,
+- enabled state -> `EnableWindow` only when overflow availability changes.
+
+Selection/focus changes therefore remain framework events, but they should no longer churn the native scrollbar HWND when geometry and overflow state are unchanged. Actual text growth, resize, scrolling, or range changes still synchronize normally.
+
+The fallback content-width estimator also respects `TextFormat::code_block`, so code aliases are measured as literal text instead of graphical emoticons.
+
+The delta-synchronization refinement is **pending target validation**. Regression tests:
+
+1. Leave the composer empty or below overflow thresholds and click repeatedly inside it; scrollbars must remain visually stable/inactive.
+2. Drag-select short text; the selection should update without native scrollbar flashing.
+3. Type enough rows to exceed the vertical viewport; only then should the vertical scrollbar become enabled.
+4. Type a sufficiently long unwrapped line; only then should the horizontal scrollbar become enabled.
+5. Reduce the document below each threshold and confirm the corresponding scrollbar disables again.
+6. Exercise real scrollbar arrows/thumbs after overflow and confirm value updates still redraw correctly.
+7. Repeat under MiniXP after the Server 2003 result is clean.

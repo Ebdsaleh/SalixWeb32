@@ -18,7 +18,21 @@ Win32NativeControlHost::ComboPeer::ComboPeer()
 Win32NativeControlHost::ScrollPeer::ScrollPeer()
     : scroll_bar(0),
       window_handle(NULL),
-      control_id(0) {
+      control_id(0),
+      geometry_valid(false),
+      last_x(0),
+      last_y(0),
+      last_width(0),
+      last_height(0),
+      visibility_valid(false),
+      last_visible(false),
+      scroll_info_valid(false),
+      last_minimum(0),
+      last_maximum(0),
+      last_page_size(0),
+      last_value(0),
+      enabled_valid(false),
+      last_enabled(false) {
 }
 
 Win32NativeControlHost::Win32NativeControlHost()
@@ -309,43 +323,88 @@ void Win32NativeControlHost::sync_scroll_bar(ScrollBar* scroll_bar) {
         return;
     }
 
-    MoveWindow(
-        peer.window_handle,
-        scroll_bar->get_x(),
-        scroll_bar->get_y(),
-        scroll_bar->get_width(),
-        scroll_bar->get_height(),
-        TRUE
-    );
+    int x = scroll_bar->get_x();
+    int y = scroll_bar->get_y();
+    int width = scroll_bar->get_width();
+    int height = scroll_bar->get_height();
 
-    ShowWindow(
-        peer.window_handle,
-        scroll_bar->get_is_visible() ? SW_SHOW : SW_HIDE
-    );
+    if (
+        !peer.geometry_valid ||
+        peer.last_x != x ||
+        peer.last_y != y ||
+        peer.last_width != width ||
+        peer.last_height != height
+    ) {
+        MoveWindow(
+            peer.window_handle,
+            x,
+            y,
+            width,
+            height,
+            TRUE
+        );
 
-    SCROLLINFO scroll_info;
-    ZeroMemory(&scroll_info, sizeof(scroll_info));
-    scroll_info.cbSize = sizeof(scroll_info);
-    scroll_info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    scroll_info.nMin = scroll_bar->get_minimum();
-    scroll_info.nMax = scroll_bar->get_maximum() +
-        scroll_bar->get_page_size() - 1;
-    scroll_info.nPage = (UINT)scroll_bar->get_page_size();
-    scroll_info.nPos = scroll_bar->get_value();
+        peer.last_x = x;
+        peer.last_y = y;
+        peer.last_width = width;
+        peer.last_height = height;
+        peer.geometry_valid = true;
+    }
 
-    SetScrollInfo(
-        peer.window_handle,
-        SB_CTL,
-        &scroll_info,
-        TRUE
-    );
+    bool visible = scroll_bar->get_is_visible();
+    if (!peer.visibility_valid || peer.last_visible != visible) {
+        ShowWindow(
+            peer.window_handle,
+            visible ? SW_SHOW : SW_HIDE
+        );
+        peer.last_visible = visible;
+        peer.visibility_valid = true;
+    }
 
-    EnableWindow(
-        peer.window_handle,
-        scroll_bar->get_maximum() > scroll_bar->get_minimum()
-            ? TRUE
-            : FALSE
-    );
+    int minimum = scroll_bar->get_minimum();
+    int maximum = scroll_bar->get_maximum();
+    int page_size = scroll_bar->get_page_size();
+    int value = scroll_bar->get_value();
+
+    if (
+        !peer.scroll_info_valid ||
+        peer.last_minimum != minimum ||
+        peer.last_maximum != maximum ||
+        peer.last_page_size != page_size ||
+        peer.last_value != value
+    ) {
+        SCROLLINFO scroll_info;
+        ZeroMemory(&scroll_info, sizeof(scroll_info));
+        scroll_info.cbSize = sizeof(scroll_info);
+        scroll_info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        scroll_info.nMin = minimum;
+        scroll_info.nMax = maximum + page_size - 1;
+        scroll_info.nPage = (UINT)page_size;
+        scroll_info.nPos = value;
+
+        SetScrollInfo(
+            peer.window_handle,
+            SB_CTL,
+            &scroll_info,
+            TRUE
+        );
+
+        peer.last_minimum = minimum;
+        peer.last_maximum = maximum;
+        peer.last_page_size = page_size;
+        peer.last_value = value;
+        peer.scroll_info_valid = true;
+    }
+
+    bool enabled = maximum > minimum;
+    if (!peer.enabled_valid || peer.last_enabled != enabled) {
+        EnableWindow(
+            peer.window_handle,
+            enabled ? TRUE : FALSE
+        );
+        peer.last_enabled = enabled;
+        peer.enabled_valid = true;
+    }
 }
 
 bool Win32NativeControlHost::handle_command(

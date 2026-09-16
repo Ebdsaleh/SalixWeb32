@@ -48,6 +48,24 @@ class Win32NativeControlHost : public NativeControlHost {
             ScrollBar* scroll_bar;
             HWND window_handle;
             int control_id;
+
+            bool geometry_valid;
+            int last_x;
+            int last_y;
+            int last_width;
+            int last_height;
+
+            bool visibility_valid;
+            bool last_visible;
+
+            bool scroll_info_valid;
+            int last_minimum;
+            int last_maximum;
+            int last_page_size;
+            int last_value;
+
+            bool enabled_valid;
+            bool last_enabled;
         };
 
         int find_combo_peer(ComboBox* combo_box) const;
