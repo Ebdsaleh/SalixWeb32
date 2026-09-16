@@ -4,9 +4,9 @@ This document records the first real transport path between SalixWeb32 on the le
 
 ## Goal
 
-The immediate goal is deliberately smaller than "load the modern web":
+The immediate goal of this backend is deliberately smaller than "load the modern web":
 
-> prove that the Pentium 4 can send a backend-neutral request over the LAN to a modern process and receive a response without exposing modern service/TLS details to the SalixWeb32 application shell.
+> prove that the Pentium 4 can send a backend-neutral request over the LAN to another process and receive a response without coupling the SalixWeb32 application shell to one transport implementation.
 
 The architecture is:
 
@@ -27,12 +27,38 @@ Win32HttpTransport (Winsock2, plain HTTP on trusted LAN)
         |
         v
 modern companion: tools/salix_bridge.py
-        |
-        v
-future modern TLS / service / translation logic
 ```
 
 The application still knows only `WebPlatformBackend`. Winsock details stay in the Win32 transport and the remote bridge protocol stays in the remote backend/companion boundary.
+
+## Important architectural position
+
+The remote bridge is **not** the intended replacement for native modern networking on the Pentium 4.
+
+The primary SalixWeb32 goal remains:
+
+```text
+Pentium 4 / Windows Server 2003
+        |
+        v
+SalixWeb32 native network + TLS + HTTP stack
+        |
+        v
+https://chatgpt.com and other modern services
+```
+
+The P4 is expected to communicate, authenticate, transport, and translate service data itself through SalixWeb32 where the selected native dependencies make that practical.
+
+The bridge remains valuable as:
+
+- a validated transport reference,
+- a development harness,
+- a diagnostics path,
+- a compatibility/fallback backend,
+- a way to compare native behavior against a known-good modern endpoint,
+- a future optional translation backend where a service genuinely requires it.
+
+Native and remote backends therefore coexist. Success of the bridge does not remove or weaken the direct native HTTPS goal.
 
 ## What this tranche does
 
@@ -75,7 +101,7 @@ It does not yet:
 - provide WebSocket/SSE streaming,
 - provide TLS on the legacy machine.
 
-The point is to validate the transport seam before placing modern service behavior on top of it.
+Those omissions describe this backend tranche only. They do not change the native SalixWeb32 objective of building a direct modern-HTTPS path on Server 2003.
 
 ## Backend selection
 
@@ -99,7 +125,7 @@ SALIX_BRIDGE_PORT=8765
 
 `SALIX_BRIDGE_HOST` defaults to `127.0.0.1`, but that is only useful when the companion is running on the same Windows machine. For the intended Pentium-4-to-modern-PC test, set it to the modern machine's LAN address or resolvable hostname.
 
-The remote backend is opt-in so a missing companion cannot accidentally make the normal placeholder development path depend on network availability.
+The remote backend is opt-in so a missing companion cannot accidentally make the normal development path depend on network availability.
 
 ## Starting the modern companion
 
@@ -171,25 +197,23 @@ The first bridge transport is intentionally **plain HTTP**.
 
 That is acceptable only because this tranche is a private-LAN architecture/transport proof. It must not be exposed directly to the public Internet and must not carry credentials, session cookies, access tokens, or private service payloads in this state.
 
-Use it only on a trusted local network while validating this tranche.
+Use it only on a trusted local network while validating this backend.
 
-Modern Internet TLS and provider authentication belong on the modern companion side in later work. The legacy machine should not be forced to impersonate a modern browser/TLS stack merely to prove the bridge architecture.
+Direct native HTTPS on the Pentium 4 will use a separately qualified TLS implementation behind a Salix security/transport boundary. See `docs/DEPENDENCY_STRATEGY.md`.
 
-## Why the companion is separate
+## Why keep the companion
 
-This design keeps three concerns independent:
+This backend keeps three concerns independent:
 
 ```text
 legacy UI / interaction
         !=
 bridge transport
         !=
-modern service implementation
+service implementation
 ```
 
-A future ChatGPT service adapter can live behind the modern companion without changing composer, conversation presentation, attachment UI, or the generic `WebPlatformBackend` seam.
-
-Likewise, a future native TLS backend can coexist with the remote bridge rather than requiring an architectural rewrite.
+That makes the companion useful even after native HTTPS exists. It can remain a reference implementation, test oracle, optional translator, and fallback transport without becoming a mandatory architectural dependency.
 
 ## Validated target result
 
