@@ -132,10 +132,12 @@ StatusView::StatusView(
 void StatusView::attach_native_control_host(
     NativeControlHost* control_host
 ) {
+    conversation_view.attach_native_controls(control_host);
     message_composer.attach_native_controls(control_host);
 }
 
 void StatusView::detach_native_control_host() {
+    conversation_view.detach_native_controls();
     message_composer.detach_native_controls();
 }
 
@@ -272,7 +274,8 @@ bool StatusView::handle_event(const UIEvent& event) {
     bool is_mouse_event =
         event.type == UIEvent::event_mouse_move ||
         event.type == UIEvent::event_mouse_down ||
-        event.type == UIEvent::event_mouse_up;
+        event.type == UIEvent::event_mouse_up ||
+        event.type == UIEvent::event_mouse_wheel;
 
     if (
         is_mouse_event &&

@@ -15,6 +15,7 @@ class UIEvent {
             event_mouse_move,
             event_mouse_down,
             event_mouse_up,
+            event_mouse_wheel,
             event_key_down,
             event_key_up,
             event_character
@@ -51,6 +52,7 @@ class UIEvent {
               alt_down(false),
               left_button_down(false),
               click_count(1),
+              wheel_delta(0),
               clipboard(0),
               text_metrics(0) {
         }
@@ -65,6 +67,7 @@ class UIEvent {
         bool alt_down;
         bool left_button_down;
         int click_count;
+        int wheel_delta;
         Clipboard* clipboard;
         TextMetrics* text_metrics;
 };

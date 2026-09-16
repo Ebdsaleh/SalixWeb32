@@ -9,8 +9,11 @@
 
 #include "framework/Panel.h"
 #include "framework/Label.h"
-#include "framework/Button.h"
 #include "framework/FormattedText.h"
+#include "framework/ScrollBar.h"
+
+class NativeControlHost;
+class UIEvent;
 
 class ConversationView : public Panel {
     public:
@@ -34,9 +37,14 @@ class ConversationView : public Panel {
         void clear_messages();
         int get_message_count() const;
 
+        void attach_native_controls(NativeControlHost* control_host);
+        void detach_native_controls();
+
         void arrange(int x, int y, int width, int height);
         void scroll_lines(int line_count);
         void scroll_to_bottom();
+
+        virtual bool handle_event(const UIEvent& event);
 
     private:
         struct MessageEntry {
@@ -46,22 +54,28 @@ class ConversationView : public Panel {
             int row_height;
         };
 
-        static void on_scroll_up(Button* button, void* context);
-        static void on_scroll_down(Button* button, void* context);
+        static void on_scroll_changed(
+            ScrollBar* scroll_bar,
+            int value,
+            void* context
+        );
 
         void relayout();
         void clamp_first_visible_index();
+        void update_scrollbar_state(int visible_count);
+        void sync_native_scrollbar();
         int calculate_entry_height(const Label& label) const;
         int calculate_first_index_for_bottom() const;
+        int calculate_total_content_height() const;
         const char* get_role_prefix(MessageRole role) const;
         const char* get_role_label(MessageRole role) const;
         Color get_role_color(MessageRole role) const;
 
         std::vector<MessageEntry> messages;
-        Button scroll_up_button;
-        Button scroll_down_button;
+        ScrollBar vertical_scroll_bar;
+        NativeControlHost* native_control_host;
         int first_visible_index;
         int row_spacing;
         int content_padding;
-        int scroll_button_width;
+        int scroll_bar_width;
 };

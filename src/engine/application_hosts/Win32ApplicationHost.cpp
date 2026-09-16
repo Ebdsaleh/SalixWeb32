@@ -397,6 +397,28 @@ LRESULT Win32ApplicationHost::handle_message(
             return 0;
         }
 
+        case WM_MOUSEWHEEL: {
+            POINT point;
+            point.x = (int)(short)LOWORD(l_param);
+            point.y = (int)(short)HIWORD(l_param);
+            ScreenToClient(current_window_handle, &point);
+
+            UIEvent event(UIEvent::event_mouse_wheel);
+            event.x = point.x;
+            event.y = point.y;
+            event.wheel_delta = (int)(short)HIWORD(w_param);
+            populate_modifier_state(event);
+
+            bool was_handled = application_view != 0 &&
+                application_view->handle_event(event);
+
+            if (was_handled) {
+                InvalidateRect(current_window_handle, NULL, FALSE);
+                return 0;
+            }
+            break;
+        }
+
         case WM_LBUTTONDOWN: {
             SetFocus(current_window_handle);
             SetCapture(current_window_handle);
