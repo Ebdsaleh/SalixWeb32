@@ -117,6 +117,24 @@ Returning to Conversation recreates/synchronizes those peers from the persistent
 
 This explicit lifecycle is groundwork for future tabs containing `WebView`, multiple chat sessions, inspectors, downloads, diagnostics, or other surfaces with native/platform resources.
 
+## VC7.1 / Platform SDK compatibility note
+
+The first real Pentium 4 rebuild exposed a header-order dependency in the Visual Studio .NET 2003 Platform SDK. `Win32NativeControlHostTabs.cpp` originally included `commctrl.h` before any header that supplied the base Win32 declarations. On that SDK, `commctrl.h`/`PrSht.h` expect types and macros such as `HRESULT`, `CALLBACK`, and `UINT` to have already been declared by `windows.h`.
+
+The failing translation unit therefore produced a cascade beginning with:
+
+```text
+CommCtrl.h(30): error C2146: missing ';' before identifier 'HRESULT'
+CommCtrl.h(30): error C2501: 'HRESULT' missing storage-class or type specifiers
+PrSht.h(97): error C2065: 'CALLBACK' undeclared identifier
+PrSht.h(97): error C2065: 'LPFNPSPCALLBACKA' undeclared identifier
+PrSht.h(97): error C2501: 'UINT' missing storage-class or type specifiers
+```
+
+This was not a broken tab API and did not indicate missing common-controls libraries. The project already links `comctl32.lib`. The compatibility fix is simply to include `Win32NativeControlHost.h` first (which includes `windows.h`) and include `commctrl.h` afterwards.
+
+That ordering rule should be preserved for future Win32 common-control translation units targeting the VC7.1-era SDK.
+
 ## Current limitations
 
 The first tranche intentionally does not yet provide:
@@ -139,7 +157,7 @@ This tranche is not target-validated until exercised on the real Pentium 4 syste
 
 1. Close Visual Studio before pulling because the `.vcproj` gains new source files and `comctl32.lib`.
 2. Reopen the solution and perform Clean Solution -> Rebuild Solution under Visual C++ 7.1.
-3. Confirm there are no new warnings or link errors involving common controls.
+3. Confirm the earlier common-controls include-order errors are gone and there are no new warnings or link errors involving common controls.
 4. Launch on Windows Server 2003 SP2 and confirm a native Windows tab header appears below the Salix header.
 5. Confirm the initial tabs are `Conversation` and `Runtime`.
 6. Click Runtime and verify the conversation/composer disappear and diagnostics occupy the workspace.
