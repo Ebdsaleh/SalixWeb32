@@ -42,6 +42,15 @@ class MessageInputStrip : public Panel {
 
         void set_code_mode(bool new_code_mode);
         bool get_code_mode() const;
+
+        void apply_code_style(bool enabled) {
+            message_input.set_code_style(
+                enabled
+                    ? TextFormat::code_block
+                    : TextFormat::code_none
+            );
+        }
+
         void set_tab_size(int new_tab_size);
         int get_tab_size() const;
 
