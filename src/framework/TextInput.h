@@ -68,6 +68,7 @@ class TextInput : public Component {
             bool underline,
             int font_size
         );
+        void set_code_style(TextFormat::CodeStyle new_code_style);
         TextFormat get_typing_format() const;
         TextFormat get_character_format(int index) const;
         const TextFormat* get_format_data() const;
