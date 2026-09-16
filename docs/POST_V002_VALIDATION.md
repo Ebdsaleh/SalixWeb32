@@ -109,9 +109,9 @@ The following full checklist is still pending before calling the tranche complet
 
 See `docs/RICH_CONVERSATION_VIEWPORT.md`.
 
-## Current pending tranche: block-composed code presentation
+## Block-composed code presentation
 
-The newest tranche replaces flattened fenced-code presentation with a block-composed message tree:
+The block-composed presenter replaces flattened fenced-code presentation with a message tree:
 
 ```text
 ConversationMessageView
@@ -121,21 +121,33 @@ ConversationMessageView
     +-- wrapped text Label
 ```
 
-Target validation must confirm:
+The latest real-target video confirms that the dedicated code block is now being created and presented rather than falling back to ordinary conversation text. The code body is visibly separated from surrounding prose and the `Copy` affordance is present. This is a major target-validation milestone for the block-composition path.
 
-- Visual C++ 7.1 compiles and links the new source files,
-- prose/code/prose in one canonical Markdown message becomes distinct blocks,
-- dedicated code background/border presentation replaces disconnected per-line bands,
-- the fence language token appears in the code-block header,
-- the Copy button places only raw code body text on the clipboard,
-- code text remains selectable with Ctrl+C,
-- emoticon aliases stay literal inside code and graphical outside it,
-- long code lines remain unwrapped and can be moved with the code-block horizontal scrollbar,
-- outer conversation vertical scrolling and inner code horizontal scrolling remain independent,
-- partially visible code blocks remain clipped to the conversation viewport,
-- resize does not corrupt code/text block geometry,
-- multiple code blocks in one message remain stable.
+The remaining validation work includes:
 
-After Windows Server 2003 validation, repeat a smoke test under MiniXP before marking this post-baseline tranche cross-target validated.
+- language-token display from fenced Markdown,
+- Copy-to-Notepad verification for the whole code block,
+- partial code selection with Ctrl+C,
+- literal `:)`, `:D`, and `<3` inside code while prose aliases remain graphical,
+- long unwrapped code lines and the inner horizontal scrollbar,
+- outer vertical scrolling while a code block is partially visible,
+- repeated resize/reflow,
+- multiple code blocks in one message,
+- equivalent MiniXP smoke coverage.
 
 See `docs/CODE_BLOCKS.md` for the detailed contract.
+
+## Mouse-move redraw regression
+
+The same target video exposed a separate native-control rendering regression: moving the mouse around the application caused visible redraw/flicker behaviour in the composer, making the UI appear unstable even though the code-block content itself was working.
+
+Investigation found that `MessageInputStrip::handle_event()` recalculated its text extents and called `update_scrollbars()` after **every** routed event, including an idle `WM_MOUSEMOVE` that the underlying `TextInput` did not handle. `update_scrollbars()` eventually synchronizes the native Win32 scrollbar peers, so ordinary pointer motion could repeatedly drive `MoveWindow`/scrollbar synchronization on the legacy target.
+
+The corrective change now:
+
+- returns immediately when the text input did not handle the routed event,
+- recalculates/synchronizes composer scrollbars only after a meaningful handled input event,
+- keeps caret visibility updates on handled input only,
+- makes the fallback content-width estimator respect `TextFormat::code_block`, so code aliases are measured as literal text instead of graphical emoticons.
+
+This fix is **pending target validation**. The key regression test is simple: leave the composer idle and move the mouse rapidly across the window. Native scrollbars and the composer surface must remain visually stable. Then repeat normal selection/dragging, code-mode typing, list entry, and scrollbar interaction to confirm no legitimate refresh path was lost.
