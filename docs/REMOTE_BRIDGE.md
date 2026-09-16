@@ -191,6 +191,26 @@ A future ChatGPT service adapter can live behind the modern companion without ch
 
 Likewise, a future native TLS backend can coexist with the remote bridge rather than requiring an architectural rewrite.
 
+## Validated target result
+
+The September 16, 2026 target pass validated the complete first bridge round-trip between the real Pentium 4 / Windows Server 2003 SP2 client and the Windows Server 2022 companion machine.
+
+Observed results:
+
+- the Server 2022 companion listened on `0.0.0.0:8765`,
+- local `/v1/health` returned `SALIX-BRIDGE/1`, `status=ok`, and `service=salix_bridge`,
+- the Pentium 4 could reach the companion host on the LAN with 0% ICMP packet loss,
+- the initial blocked-port condition produced a bounded connection timeout/refusal without hanging or crashing SalixWeb32,
+- after an inbound firewall rule was restricted to the Pentium 4 source address and TCP port 8765, the P4 could also reach `/v1/health` directly,
+- `RemoteBridgeWebBackend` completed `POST /v1/navigate`,
+- the Web workspace reported HTTP 200,
+- the returned bridge payload preserved the requested `https://www.chatgpt.com/` target,
+- the round-trip completed through `WebView -> WebPlatformHost -> RemoteBridgeWebBackend -> NetworkTransport -> Win32HttpTransport -> companion` and back.
+
+This validates both the expected failure path and successful LAN request/response path on the primary target hardware.
+
+The firewall used for the validation remained narrowly scoped to the legacy client rather than opening the bridge broadly across the LAN. The transport is still plaintext HTTP and therefore remains unsuitable for credentials, tokens, cookies, or sensitive service payloads.
+
 ## Target validation checklist
 
 ### Build/lifecycle
@@ -218,4 +238,4 @@ Likewise, a future native TLS backend can coexist with the remote bridge rather 
 15. Switch Conversation -> Web -> Runtime repeatedly and confirm normal UI/native-control lifecycle remains stable.
 16. Close SalixWeb32 and confirm Winsock/backend/runtime shutdown is clean.
 
-Only after the VC7.1 build and real LAN round-trip pass should this transport tranche be marked target-validated.
+The core VC7.1 build, bounded-failure behavior, direct P4 `/v1/health` access, and real LAN HTTP 200 navigation round-trip are now target-validated. The tab-cycling/shutdown regression checks remain useful whenever later bridge work changes lifecycle behavior.
