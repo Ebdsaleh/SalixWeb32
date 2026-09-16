@@ -69,6 +69,65 @@ class TextInput : public Component {
             int font_size
         );
 
+        void set_text_format_preserving_code(
+            bool bold,
+            bool italic,
+            bool underline,
+            int font_size
+        ) {
+            if (font_size < 1) {
+                font_size = 1;
+            }
+            if (font_size > 96) {
+                font_size = 96;
+            }
+
+            typing_format.bold = bold;
+            typing_format.italic = italic;
+            typing_format.underline = underline;
+            typing_format.font_size = font_size;
+
+            if (!has_selection()) {
+                end_edit_group();
+                return;
+            }
+
+            begin_edit(edit_none);
+            ensure_format_length();
+
+            std::vector<TextRange> ranges;
+            selection.get_normalized_ranges(ranges);
+
+            for (
+                int range_index = 0;
+                range_index < (int)ranges.size();
+                ++range_index
+            ) {
+                int start = ranges[range_index].start;
+                int end = ranges[range_index].end;
+
+                if (start < 0) {
+                    start = 0;
+                }
+                if (end > (int)character_formats.size()) {
+                    end = (int)character_formats.size();
+                }
+
+                for (int position = start; position < end; ++position) {
+                    if (text[position] == '\n') {
+                        continue;
+                    }
+
+                    character_formats[position].bold = bold;
+                    character_formats[position].italic = italic;
+                    character_formats[position].underline = underline;
+                    character_formats[position].font_size = font_size;
+                }
+            }
+
+            end_edit_group();
+        }
+
         void set_code_style(TextFormat::CodeStyle new_code_style) {
             typing_format.code_style = new_code_style;
 
