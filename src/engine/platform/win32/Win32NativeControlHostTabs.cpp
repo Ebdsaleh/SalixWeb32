@@ -4,9 +4,12 @@
 // Description: Implements the native Win32 peer for framework TabView headers.
 // =================================================================================
 
+// Win32NativeControlHost.h includes windows.h.  Keep it before commctrl.h because
+// the Visual Studio .NET 2003 Platform SDK common-controls header expects core
+// Win32 types such as HRESULT, CALLBACK, and UINT to have already been declared.
+#include "Win32NativeControlHost.h"
 #include <commctrl.h>
 
-#include "Win32NativeControlHost.h"
 #include "framework/TabView.h"
 
 Win32NativeControlHost::TabPeer::TabPeer()
