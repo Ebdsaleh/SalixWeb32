@@ -4,12 +4,25 @@
 // Description: Implements the append-only scrollable conversation message surface.
 // =================================================================================
 
+#include <string>
+
 #include "ConversationView.h"
 #include "ConversationMessageView.h"
+#include "framework/Clipboard.h"
+#include "framework/ContextMenu.h"
+#include "framework/MimeData.h"
 #include "framework/NativeControlHost.h"
 #include "framework/TextMetrics.h"
 #include "framework/UIEvent.h"
 #include "framework/rendering/ComponentRenderer.h"
+
+namespace {
+    enum ConversationContextCommand {
+        context_copy = 1,
+        context_select_message,
+        context_select_conversation
+    };
+}
 
 ConversationView::ConversationView()
     : vertical_scroll_bar(ScrollBar::vertical),
@@ -20,7 +33,12 @@ ConversationView::ConversationView()
       scroll_bar_width(16),
       line_step_pixels(24),
       last_message_width(0),
-      layout_dirty(true) {
+      layout_dirty(true),
+      conversation_drag_selecting(false),
+      selection_context_active(false),
+      selection_anchor_message_index(-1),
+      selection_anchor_label_index(-1),
+      selection_anchor_character_index(0) {
 
     get_style().background_color = Color(255, 255, 255);
     get_style().border_width = 0;
@@ -135,6 +153,11 @@ void ConversationView::clear_messages() {
     scroll_offset_y = 0;
     last_message_width = 0;
     layout_dirty = true;
+    conversation_drag_selecting = false;
+    selection_context_active = false;
+    selection_anchor_message_index = -1;
+    selection_anchor_label_index = -1;
+    selection_anchor_character_index = 0;
     vertical_scroll_bar.set_range(0, 0, 1);
     vertical_scroll_bar.set_value(0);
     vertical_scroll_bar.set_visible(false);
@@ -245,7 +268,23 @@ bool ConversationView::handle_event(const UIEvent& event) {
         event.type == UIEvent::event_mouse_up ||
         event.type == UIEvent::event_mouse_wheel;
 
-    if (is_mouse_event && !contains_point(event.x, event.y)) {
+    bool inside_view = contains_point(event.x, event.y);
+
+    if (event.type == UIEvent::event_mouse_down && !inside_view) {
+        selection_context_active = false;
+    }
+
+    if (
+        is_mouse_event &&
+        !inside_view &&
+        !(
+            conversation_drag_selecting &&
+            (
+                event.type == UIEvent::event_mouse_move ||
+                event.type == UIEvent::event_mouse_up
+            )
+        )
+    ) {
         return false;
     }
 
@@ -253,6 +292,32 @@ bool ConversationView::handle_event(const UIEvent& event) {
         recalculate_entry_heights(last_message_width, event.text_metrics);
         layout_dirty = false;
         relayout();
+    }
+
+    if (
+        event.type == UIEvent::event_context_menu &&
+        inside_view
+    ) {
+        selection_context_active = true;
+        return handle_context_menu(event);
+    }
+
+    if (
+        event.type == UIEvent::event_key_down &&
+        event.control_down &&
+        selection_context_active
+    ) {
+        if (event.key_code == UIEvent::key_c) {
+            if (has_conversation_selection()) {
+                copy_conversation_selection(event.clipboard);
+                return true;
+            }
+        } else if (event.key_code == UIEvent::key_a) {
+            if (!messages.empty()) {
+                select_all_conversation();
+                return true;
+            }
+        }
     }
 
     if (
@@ -265,6 +330,128 @@ bool ConversationView::handle_event(const UIEvent& event) {
         }
 
         scroll_pixels(-notches * line_step_pixels * 3);
+        return true;
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_down &&
+        event.click_count == 1 &&
+        !event.control_down &&
+        !event.alt_down &&
+        !event.shift_down
+    ) {
+        int message_index = find_message_at_point(event.x, event.y);
+
+        if (message_index >= 0 && messages[message_index].view != 0) {
+            int label_index = -1;
+            int character_index = 0;
+
+            if (messages[message_index].view->resolve_presentation_position(
+                    event,
+                    label_index,
+                    character_index
+                )) {
+                clear_conversation_selection();
+                selection_context_active = true;
+                conversation_drag_selecting = true;
+                selection_anchor_message_index = message_index;
+                selection_anchor_label_index = label_index;
+                selection_anchor_character_index = character_index;
+
+                messages[message_index].view->set_presentation_selection(
+                    label_index,
+                    character_index,
+                    label_index,
+                    character_index
+                );
+                return true;
+            }
+        } else if (!vertical_scroll_bar.contains_point(event.x, event.y)) {
+            clear_conversation_selection();
+            selection_context_active = true;
+        }
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_down &&
+        inside_view &&
+        find_message_at_point(event.x, event.y) >= 0
+    ) {
+        selection_context_active = true;
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_move &&
+        conversation_drag_selecting &&
+        event.left_button_down
+    ) {
+        int viewport_top = get_y() + content_padding;
+        int viewport_bottom = get_y() + get_height() - content_padding;
+
+        if (event.y < viewport_top) {
+            scroll_pixels(-line_step_pixels);
+        } else if (event.y >= viewport_bottom) {
+            scroll_pixels(line_step_pixels);
+        }
+
+        int target_message_index = resolve_message_index_for_selection(
+            event.y
+        );
+
+        if (
+            target_message_index >= 0 &&
+            messages[target_message_index].view != 0
+        ) {
+            int target_label_index = -1;
+            int target_character_index = 0;
+
+            if (messages[target_message_index].view->
+                    resolve_presentation_position(
+                        event,
+                        target_label_index,
+                        target_character_index
+                    )) {
+                apply_conversation_selection(
+                    target_message_index,
+                    target_label_index,
+                    target_character_index
+                );
+            }
+        }
+
+        return true;
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_up &&
+        conversation_drag_selecting
+    ) {
+        int target_message_index = resolve_message_index_for_selection(
+            event.y
+        );
+
+        if (
+            target_message_index >= 0 &&
+            messages[target_message_index].view != 0
+        ) {
+            int target_label_index = -1;
+            int target_character_index = 0;
+
+            if (messages[target_message_index].view->
+                    resolve_presentation_position(
+                        event,
+                        target_label_index,
+                        target_character_index
+                    )) {
+                apply_conversation_selection(
+                    target_message_index,
+                    target_label_index,
+                    target_character_index
+                );
+            }
+        }
+
+        conversation_drag_selecting = false;
         return true;
     }
 
@@ -489,6 +676,310 @@ int ConversationView::calculate_max_scroll_offset() const {
 
     int maximum = calculate_total_content_height() - available_height;
     return maximum > 0 ? maximum : 0;
+}
+
+int ConversationView::find_message_at_point(int x, int y) const {
+    for (int index = 0; index < (int)messages.size(); ++index) {
+        const ConversationMessageView* message_view = messages[index].view;
+        if (
+            message_view != 0 &&
+            message_view->get_is_visible() &&
+            message_view->contains_point(x, y)
+        ) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+int ConversationView::resolve_message_index_for_selection(int y) const {
+    if (messages.empty()) {
+        return -1;
+    }
+
+    int first_valid = -1;
+    int last_valid = -1;
+
+    for (int index = 0; index < (int)messages.size(); ++index) {
+        const ConversationMessageView* message_view = messages[index].view;
+        if (message_view == 0) {
+            continue;
+        }
+
+        if (first_valid < 0) {
+            first_valid = index;
+        }
+        last_valid = index;
+
+        int top = message_view->get_y();
+        int bottom = top + message_view->get_height();
+
+        if (y >= top && y < bottom) {
+            return index;
+        }
+
+        if (index + 1 < (int)messages.size()) {
+            const ConversationMessageView* next_view = messages[index + 1].view;
+            if (next_view != 0) {
+                int next_top = next_view->get_y();
+                if (y >= bottom && y < next_top) {
+                    int distance_to_previous = y - bottom;
+                    int distance_to_next = next_top - y;
+                    return distance_to_previous <= distance_to_next
+                        ? index
+                        : index + 1;
+                }
+            }
+        }
+    }
+
+    if (first_valid < 0) {
+        return -1;
+    }
+
+    if (y < messages[first_valid].view->get_y()) {
+        return first_valid;
+    }
+
+    return last_valid;
+}
+
+void ConversationView::clear_conversation_selection() {
+    for (int index = 0; index < (int)messages.size(); ++index) {
+        if (messages[index].view != 0) {
+            messages[index].view->clear_presentation_selection();
+        }
+    }
+}
+
+void ConversationView::select_all_conversation() {
+    for (int index = 0; index < (int)messages.size(); ++index) {
+        if (messages[index].view != 0) {
+            messages[index].view->select_all_presentation();
+        }
+    }
+}
+
+bool ConversationView::has_conversation_selection() const {
+    for (int index = 0; index < (int)messages.size(); ++index) {
+        if (
+            messages[index].view != 0 &&
+            messages[index].view->has_presentation_selection()
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool ConversationView::copy_conversation_selection(
+    Clipboard* clipboard
+) const {
+    if (clipboard == 0) {
+        return false;
+    }
+
+    std::string output;
+
+    for (int index = 0; index < (int)messages.size(); ++index) {
+        const ConversationMessageView* message_view = messages[index].view;
+        if (message_view == 0) {
+            continue;
+        }
+
+        std::string message_text;
+        if (!message_view->get_presentation_selection_text(message_text)) {
+            continue;
+        }
+
+        if (!output.empty()) {
+            output += "\r\n";
+        }
+
+        output += message_text;
+    }
+
+    if (output.empty()) {
+        return false;
+    }
+
+    MimeData data;
+    data.set_text(output.c_str());
+    return clipboard->set_data(data);
+}
+
+void ConversationView::apply_conversation_selection(
+    int target_message_index,
+    int target_label_index,
+    int target_character_index
+) {
+    if (
+        selection_anchor_message_index < 0 ||
+        selection_anchor_message_index >= (int)messages.size() ||
+        target_message_index < 0 ||
+        target_message_index >= (int)messages.size()
+    ) {
+        return;
+    }
+
+    ConversationMessageView* anchor_view =
+        messages[selection_anchor_message_index].view;
+    ConversationMessageView* target_view =
+        messages[target_message_index].view;
+
+    if (anchor_view == 0 || target_view == 0) {
+        return;
+    }
+
+    clear_conversation_selection();
+
+    if (target_message_index == selection_anchor_message_index) {
+        anchor_view->set_presentation_selection(
+            selection_anchor_label_index,
+            selection_anchor_character_index,
+            target_label_index,
+            target_character_index
+        );
+        return;
+    }
+
+    if (target_message_index > selection_anchor_message_index) {
+        int anchor_last_label = anchor_view->get_presentation_label_count() - 1;
+        int anchor_last_character = anchor_view->get_presentation_label_length(
+            anchor_last_label
+        );
+
+        anchor_view->set_presentation_selection(
+            selection_anchor_label_index,
+            selection_anchor_character_index,
+            anchor_last_label,
+            anchor_last_character
+        );
+
+        for (
+            int index = selection_anchor_message_index + 1;
+            index < target_message_index;
+            ++index
+        ) {
+            if (messages[index].view != 0) {
+                messages[index].view->select_all_presentation();
+            }
+        }
+
+        target_view->set_presentation_selection(
+            0,
+            0,
+            target_label_index,
+            target_character_index
+        );
+        return;
+    }
+
+    int target_last_label = target_view->get_presentation_label_count() - 1;
+    int target_last_character = target_view->get_presentation_label_length(
+        target_last_label
+    );
+
+    target_view->set_presentation_selection(
+        target_label_index,
+        target_character_index,
+        target_last_label,
+        target_last_character
+    );
+
+    for (
+        int index = target_message_index + 1;
+        index < selection_anchor_message_index;
+        ++index
+    ) {
+        if (messages[index].view != 0) {
+            messages[index].view->select_all_presentation();
+        }
+    }
+
+    anchor_view->set_presentation_selection(
+        0,
+        0,
+        selection_anchor_label_index,
+        selection_anchor_character_index
+    );
+}
+
+bool ConversationView::handle_context_menu(const UIEvent& event) {
+    NativeControlHost* menu_host = event.native_control_host != 0
+        ? event.native_control_host
+        : native_control_host;
+
+    if (menu_host == 0) {
+        return false;
+    }
+
+    int message_index = find_message_at_point(event.x, event.y);
+    bool has_selection = has_conversation_selection();
+    bool has_messages = !messages.empty();
+
+    ContextMenu menu;
+    menu.add_item(context_copy, "Copy", has_selection);
+    menu.add_separator();
+
+    if (
+        message_index >= 0 &&
+        message_index < (int)messages.size()
+    ) {
+        std::string message_label = "Select All in ";
+        message_label += get_role_context_name(messages[message_index].role);
+        message_label += " Message";
+
+        menu.add_item(
+            context_select_message,
+            message_label.c_str(),
+            true
+        );
+    }
+
+    menu.add_item(
+        context_select_conversation,
+        "Select All Conversation",
+        has_messages
+    );
+
+    int command_id = menu_host->show_context_menu(
+        menu,
+        event.x,
+        event.y
+    );
+
+    if (command_id == context_copy) {
+        copy_conversation_selection(event.clipboard);
+    } else if (
+        command_id == context_select_message &&
+        message_index >= 0 &&
+        message_index < (int)messages.size() &&
+        messages[message_index].view != 0
+    ) {
+        clear_conversation_selection();
+        messages[message_index].view->select_all_presentation();
+    } else if (command_id == context_select_conversation) {
+        select_all_conversation();
+    }
+
+    return true;
+}
+
+const char* ConversationView::get_role_context_name(MessageRole role) const {
+    switch (role) {
+        case message_local:
+            return "User";
+
+        case message_remote:
+            return "Remote";
+
+        case message_system:
+        default:
+            return "System";
+    }
 }
 
 const char* ConversationView::get_role_prefix(MessageRole role) const {

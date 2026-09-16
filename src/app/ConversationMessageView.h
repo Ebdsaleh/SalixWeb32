@@ -5,6 +5,7 @@
 // =================================================================================
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "framework/Panel.h"
@@ -43,6 +44,29 @@ class ConversationMessageView : public Panel {
 
         int get_preferred_height() const;
         bool has_code_blocks() const;
+
+        bool resolve_presentation_position(
+            const UIEvent& event,
+            int& label_index,
+            int& character_index
+        );
+        int get_presentation_label_count() const;
+        int get_presentation_label_length(int label_index) const;
+        void focus_presentation_position(
+            int label_index,
+            int character_index
+        );
+        void set_presentation_selection(
+            int start_label_index,
+            int start_character_index,
+            int end_label_index,
+            int end_character_index
+        );
+        void clear_presentation_selection();
+        void select_all_presentation();
+        bool has_presentation_selection() const;
+        bool get_presentation_selection_text(std::string& output) const;
+        bool copy_presentation_selection(Clipboard* clipboard) const;
 
         virtual bool handle_event(const UIEvent& event);
 
@@ -100,10 +124,7 @@ class ConversationMessageView : public Panel {
             int target_label_index,
             int target_character_index
         );
-        bool has_presentation_selection() const;
         bool has_focused_presentation_label() const;
-        bool copy_presentation_selection(Clipboard* clipboard) const;
-        void select_all_presentation();
         bool handle_context_menu(const UIEvent& event);
 
         Label role_header_label;

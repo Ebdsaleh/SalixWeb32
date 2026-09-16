@@ -240,49 +240,44 @@ Target validation should verify:
 
 See `docs/CODE_COMPOSER.md` for the complete interaction contract.
 
-## Pending native context-menu and read-only selection tranche
+## Pending native context-menu and conversation-selection tranche
 
-The next interaction tranche is implemented in source and remains pending target validation. It adds a backend-neutral `ContextMenu` model, a native-menu presentation method on `NativeControlHost`, Win32 right-click routing, composer edit commands, and presentation-wide selection for one block-composed conversation message.
+The first native context-menu pass established native Win32 popup presentation and message-local selection. Target use then exposed two desktop-behavior ambiguities:
 
-The composer right-click menu currently exposes:
+1. a generic `Select All` menu item did not identify whether it meant one System/User/Remote message or the whole conversation,
+2. normal drag selection stopped at the boundary of the message row where the drag began.
 
-```text
-Copy
-Cut
-Cut - Keep Formatting
-Paste
-Paste - Keep Formatting
------------------------
-Select All
-```
+The current refinement moves read-only selection coordination up to `ConversationView` and makes menu scope explicit.
 
-The menu reuses the existing keyboard editing paths rather than reimplementing clipboard mutations. This is important because compact/preserved selection payloads, Undo/Redo history, formatting-aware cut/paste behavior, caret-follow scrolling, and scrollbar ranges remain owned by the established `TextInput` implementation.
-
-A read-only conversation message exposes:
+When right-clicking a message row, the menu now offers a role-specific command plus a conversation-wide command, for example:
 
 ```text
 Copy
 -----------------------
-Select All
+Select All in System Message
+Select All Conversation
 ```
 
-The message-level selection coordinator can extend a normal drag through the role header, prose labels, code text, and later prose inside that one `ConversationMessageView`. It does not rewrite canonical Markdown or code. Existing double/triple-click and Ctrl/Ctrl+Alt advanced gestures remain local to the individual selectable text surface.
+The role label changes to `User` or `Remote` as appropriate. Right-clicking conversation whitespace omits the role-specific command and exposes only `Select All Conversation` for selection scope.
 
-The current grouping boundary is intentionally one message presentation. Cross-message-row drag selection is not claimed by this tranche and remains a future conversation-document refinement.
+A normal drag may now continue across message rows and across the internal role/prose/code/prose surfaces of those rows. Intermediate messages are fully selected. Backward dragging is symmetric. Dragging above/below the viewport while the mouse is captured performs line-step autoscroll so selection can extend through history that was not initially visible.
+
+Conversation-wide Copy collects selected message presentations in document order with message/block boundaries represented as line breaks. The code-block `Copy` button retains its existing narrower meaning of copying only raw code.
 
 Target validation should verify:
 
-1. Visual C++ 7.1 compiles the new `ContextMenu` model and Win32 popup path without warnings/errors.
-2. Right-clicking inside the composer produces a native Server 2003 popup menu rather than painted framework chrome.
-3. Copy/Cut and Paste enablement follows current selection/clipboard availability.
-4. Cut/Paste and their Keep Formatting variants exactly match the existing keyboard semantics.
-5. Select All covers the complete composer draft.
-6. Right-clicking a conversation message provides Copy and Select All.
-7. Drag selection can cross prose -> code -> prose boundaries inside one message presentation in both directions.
-8. A separated role header participates in selection.
-9. Multi-block Copy produces selected text in presentation order with block boundaries represented as line breaks.
-10. The existing code-block Copy button still copies raw code only.
-11. Context menus do not cause the native scrollbar redraw regression to return.
-12. Validate first on Windows Server 2003 SP2 and then repeat the smoke pass under MiniXP.
+1. Visual C++ 7.1 compiles and links `ConversationMessageSelection.cpp` without warnings/errors.
+2. Message context menus identify `System`, `User`, or `Remote` scope explicitly.
+3. Whitespace context menus do not imply a hidden message scope.
+4. `Select All Conversation` selects every message, including scrollable history outside the current viewport.
+5. Drag selection crosses System -> User -> Remote message boundaries in both directions.
+6. A drag can cross prose -> code -> prose and then continue into another message.
+7. Dragging beyond the top/bottom viewport edge autoscrolls and extends the selection.
+8. Multi-message Copy into Notepad preserves presentation order and useful line breaks.
+9. Ctrl+C and Ctrl+A operate on the conversation after the conversation becomes the active selection context.
+10. Existing composer context-menu editing remains unchanged.
+11. The code-block `Copy` button still copies raw code only.
+12. Native scrollbars do not regress while drag-autoscroll or popup menus are active.
+13. Validate first on Windows Server 2003 SP2 and then repeat the smoke pass under MiniXP.
 
-See `docs/CONTEXT_MENUS.md` for the full interaction contract and checklist.
+See `docs/CONTEXT_MENUS.md` for the complete interaction contract and checklist.

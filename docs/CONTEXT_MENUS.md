@@ -1,6 +1,6 @@
-# Native Context Menus and Read-only Conversation Selection
+# Native Context Menus and Conversation Selection
 
-This document records the post-v0.0.2 context-menu and conversation-selection tranche. The implementation is designed to feel like a native Win32 application while keeping menu contents and text-edit commands backend-neutral above the platform layer.
+This document records the post-v0.0.2 context-menu and conversation-selection work. The implementation is designed to feel like a native desktop application while keeping menu contents and text-edit commands backend-neutral above the platform layer.
 
 ## Context-menu architecture
 
@@ -45,29 +45,56 @@ Copy/Cut commands are disabled when there is no selection. Paste commands are di
 
 The popup does not create a second implementation of cut/copy/paste. It dispatches through the existing `TextInput` editing paths, so Undo/Redo history, compact/preserved clipboard behavior, formatting preservation, caret-follow scrolling, and scrollbar extent updates continue to use one source of truth.
 
-## Read-only conversation context menu
+## Conversation context is explicit
 
-A block-composed conversation message now treats its visible text surfaces as one read-only presentation group. This includes:
+A generic `Select All` command inside conversation history proved ambiguous because the first implementation selected only the message instance under the pointer. That behavior was technically consistent but not sufficiently trustworthy for a desktop-style read-only document surface.
 
-- the separate role header when present,
-- wrapped prose/Markdown labels,
-- selectable code text inside `CodeBlockView`.
+The conversation popup now makes scope explicit.
 
-Right-clicking the message presentation exposes:
+When the pointer is over a message row, the menu is shaped like:
 
 ```text
 Copy
 -----------------------
-Select All
+Select All in System Message
+Select All Conversation
 ```
 
-Copy gathers every currently selected range in presentation order. When a selection spans multiple presentation blocks, block boundaries are copied as line breaks rather than flattening unrelated prose/code fragments into one word stream.
+or:
 
-Select All selects the complete visible text presentation for that message, including the role header where it is rendered separately and code text where present.
+```text
+Copy
+-----------------------
+Select All in User Message
+Select All Conversation
+```
 
-## Cross-block drag selection
+or:
 
-A normal single-click drag can now cross the internal block boundaries of one conversation message. The selection coordinator operates above the individual `Label` controls:
+```text
+Copy
+-----------------------
+Select All in Remote Message
+Select All Conversation
+```
+
+The role-specific item always refers to the message row under the pointer. The conversation-wide item always refers to the complete conversation document.
+
+When the pointer is over conversation whitespace that is not associated with a message row, the role-specific item is omitted:
+
+```text
+Copy
+-----------------------
+Select All Conversation
+```
+
+This removes the previous ambiguity where a user could invoke `Select All` from whitespace without knowing which hidden message scope would be affected.
+
+## Conversation-wide read-only selection
+
+Selection coordination now lives one level above individual message rows in `ConversationView`.
+
+A message may itself contain several selectable surfaces:
 
 ```text
 role header
@@ -76,45 +103,79 @@ role header
     -> prose block
 ```
 
-The initial click records an anchor label and character position. As the pointer crosses later or earlier blocks, the coordinator:
+and the conversation contains several such messages:
 
-1. selects the remainder of the anchor block,
-2. fully selects intermediate blocks,
-3. selects the appropriate prefix/suffix of the current endpoint block.
+```text
+System message
+    -> User message
+    -> Remote message
+    -> User message
+```
 
-Dragging backward uses the symmetric behavior. Gaps between blocks resolve to the nearest adjacent text surface, so crossing the spacing between a paragraph and code block does not abruptly cancel the selection.
+A normal drag can cross both kinds of boundary. The coordinator records:
 
-Existing advanced gestures remain owned by individual text controls. Double/triple click, Ctrl-based additive selection, Ctrl+Alt subtractive selection, and Shift selection are therefore not replaced by the cross-block single-drag coordinator.
+- anchor message index,
+- anchor presentation-label index,
+- anchor character position.
 
-The current grouping boundary is one `ConversationMessageView`. A single drag does not yet continue through a second message row; that is a future conversation-document selection refinement rather than being silently faked in this tranche.
+As the pointer moves, it resolves the target message, target presentation label, and target character. It then:
 
-## Clipboard behavior
+1. selects the remainder of the anchor surface,
+2. selects the remainder of the anchor message,
+3. fully selects every intermediate message,
+4. selects the required prefix of the target message,
+5. selects the required prefix of the target surface.
 
-Editable composer menus continue to expose both compact and formatting-preserving cut/paste modes through the existing private Salix clipboard MIME payload.
+Dragging backward applies the symmetric operation.
 
-Read-only conversation Copy emits ordinary text in presentation order. It never mutates the underlying canonical Markdown/message data.
+This means a drag can begin in `System:` text, continue through one or more `You:`/`Remote:` entries, cross prose/code/prose boundaries, and finish in a later message while remaining one logical read-only selection.
+
+## Drag autoscroll
+
+The Win32 host already captures the mouse during a left-button drag. While conversation-wide selection is active, moving above or below the visible conversation viewport scrolls the conversation by one line step per routed movement and extends the selection into newly revealed messages.
+
+This is intentionally document-like behavior: a long conversation can be selected beyond the initially visible viewport without requiring the user to release the mouse and manipulate the scrollbar manually.
+
+## Copy behavior
+
+`Copy` gathers selected presentation text from every selected message in conversation order. Message boundaries are represented by line breaks. Within one block-composed message, block boundaries are also represented by line breaks.
+
+The operation never mutates canonical Markdown or source code.
 
 Code-block source remains literal. Graphical emoticon presentation does not rewrite copied code characters.
 
+The existing code-block `Copy` button keeps its narrower meaning: it copies the complete raw code body for that one code block.
+
+## Keyboard scope
+
+After the conversation surface becomes the active selection context:
+
+```text
+Ctrl+C -> copy the complete current conversation selection
+Ctrl+A -> select all conversation presentation text
+```
+
+Clicking outside the conversation deactivates that selection context so composer shortcuts remain owned by the composer.
+
 ## Target validation checklist
 
-This tranche is not target-validated until exercised on the real legacy systems.
+This refinement is not target-validated until exercised on the real legacy systems.
 
 1. Rebuild under Visual C++ 7.1 with no new warnings/errors.
-2. Right-click inside the composer and confirm a real native Windows popup menu appears.
-3. Verify Copy/Cut are disabled with no selection and enabled with a selection.
-4. Verify Paste items are disabled when no supported clipboard text exists.
-5. Verify ordinary Cut/Paste match Ctrl+X/Ctrl+V behavior.
-6. Verify Keep Formatting Cut/Paste match Ctrl+Shift+X/Ctrl+Shift+V behavior.
-7. Verify Select All selects the complete draft.
-8. Verify menu operations preserve Undo/Redo behavior and update caret/scroll extents after mutations.
-9. Drag-select a wrapped prose block in conversation history and right-click Copy.
-10. Drag from a prose block through a code block into later prose in the same message; all crossed text surfaces should highlight continuously.
-11. Drag the same mixed message backward and verify the symmetric selection behavior.
-12. Verify the separate `You:`/`Remote:` role header can participate in selection when block layout separates it from content.
-13. Right-click a multi-block selection and verify Copy produces text in presentation order with line breaks between selected blocks.
-14. Use Select All on a mixed prose/code message and verify the complete visible text presentation is selected.
-15. Verify the existing code-block `Copy` button still copies only raw code.
-16. Verify double/triple click and additive/subtractive selection gestures still work inside individual text surfaces.
-17. Verify native scrollbar behavior and mouse-wheel scrolling do not regress while popup menus are used.
+2. Right-click the composer and confirm its native edit menu still works unchanged.
+3. Right-click a System message and confirm the menu says `Select All in System Message` plus `Select All Conversation`.
+4. Right-click a User message and confirm the menu says `Select All in User Message` plus `Select All Conversation`.
+5. Right-click a Remote message and confirm the menu says `Select All in Remote Message` plus `Select All Conversation`.
+6. Right-click whitespace between/below messages and confirm only `Select All Conversation` is offered for selection scope.
+7. Choose the role-specific command and verify only that one message presentation is selected.
+8. Choose `Select All Conversation` and verify every visible and scrollable message presentation is selected.
+9. Drag from a System message into a later User/Remote message and verify all crossed messages highlight continuously.
+10. Drag backward from a later message into an earlier message and verify symmetric selection.
+11. Drag through prose -> code -> prose inside one message and then continue into another message.
+12. Copy a multi-message selection into Notepad and verify message/block ordering and line breaks are sensible.
+13. With a conversation selection active, verify Ctrl+C copies the whole selection and Ctrl+A expands to the entire conversation.
+14. Drag beyond the top/bottom viewport edge and verify autoscroll extends the selection into newly revealed history.
+15. Verify the code-block `Copy` button still copies raw code only.
+16. Verify double/triple click and Ctrl/Ctrl+Alt advanced gestures still work within individual selectable text surfaces.
+17. Verify native scrollbar behavior and mouse-wheel scrolling do not regress while popup menus and drag-autoscroll are used.
 18. Validate first on Windows Server 2003 SP2, then repeat the smoke pass under MiniXP.

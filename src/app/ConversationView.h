@@ -11,6 +11,7 @@
 #include "framework/FormattedText.h"
 #include "framework/ScrollBar.h"
 
+class Clipboard;
 class ComponentRenderer;
 class ConversationMessageView;
 class NativeControlHost;
@@ -85,6 +86,21 @@ class ConversationView : public Panel {
         ) const;
         int calculate_total_content_height() const;
         int calculate_max_scroll_offset() const;
+
+        int find_message_at_point(int x, int y) const;
+        int resolve_message_index_for_selection(int y) const;
+        void clear_conversation_selection();
+        void select_all_conversation();
+        bool has_conversation_selection() const;
+        bool copy_conversation_selection(Clipboard* clipboard) const;
+        void apply_conversation_selection(
+            int target_message_index,
+            int target_label_index,
+            int target_character_index
+        );
+        bool handle_context_menu(const UIEvent& event);
+        const char* get_role_context_name(MessageRole role) const;
+
         const char* get_role_prefix(MessageRole role) const;
         const char* get_role_label(MessageRole role) const;
         Color get_role_color(MessageRole role) const;
@@ -99,4 +115,10 @@ class ConversationView : public Panel {
         int line_step_pixels;
         int last_message_width;
         bool layout_dirty;
+
+        bool conversation_drag_selecting;
+        bool selection_context_active;
+        int selection_anchor_message_index;
+        int selection_anchor_label_index;
+        int selection_anchor_character_index;
 };

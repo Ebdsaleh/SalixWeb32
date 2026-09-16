@@ -96,6 +96,7 @@
 			<File RelativePath="..\..\src\main.cpp"/>
 			<File RelativePath="..\..\src\app\CodeBlockView.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationMessageView.cpp"/>
+			<File RelativePath="..\..\src\app\ConversationMessageSelection.cpp"/>
 			<File RelativePath="..\..\src\app\ConversationView.cpp"/>
 			<File RelativePath="..\..\src\app\EmojiPanel.cpp"/>
 			<File RelativePath="..\..\src\app\ListPanel.cpp"/>
