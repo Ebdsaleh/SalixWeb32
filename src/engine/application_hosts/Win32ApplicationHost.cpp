@@ -489,7 +489,25 @@ LRESULT Win32ApplicationHost::handle_message(
             Win32Clipboard clipboard(current_window_handle);
             event.clipboard = &clipboard;
 
-            if (application_view != 0 && application_view->handle_event(event)) {
+            HDC metrics_context = NULL;
+            if (
+                event.key_code == UIEvent::key_up ||
+                event.key_code == UIEvent::key_down
+            ) {
+                metrics_context = GetDC(current_window_handle);
+            }
+
+            Win32TextMetrics text_metrics(metrics_context);
+            event.text_metrics = metrics_context != NULL ? &text_metrics : 0;
+
+            bool was_handled = application_view != 0 &&
+                application_view->handle_event(event);
+
+            if (metrics_context != NULL) {
+                ReleaseDC(current_window_handle, metrics_context);
+            }
+
+            if (was_handled) {
                 InvalidateRect(current_window_handle, NULL, FALSE);
             }
             return 0;

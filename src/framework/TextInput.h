@@ -14,6 +14,7 @@
 
 class Clipboard;
 class MimeData;
+class TextMetrics;
 class UIEvent;
 
 class TextInput : public Component {
@@ -82,6 +83,7 @@ class TextInput : public Component {
                 font_size = 96;
             }
 
+            reset_vertical_navigation_goal();
             typing_format.bold = bold;
             typing_format.italic = italic;
             typing_format.underline = underline;
@@ -129,6 +131,7 @@ class TextInput : public Component {
         }
 
         void set_code_style(TextFormat::CodeStyle new_code_style) {
+            reset_vertical_navigation_goal();
             typing_format.code_style = new_code_style;
 
             if (!has_selection()) {
@@ -202,7 +205,12 @@ class TextInput : public Component {
         };
 
         void move_cursor(int new_cursor_position, bool extend_selection);
-        void move_cursor_vertical(int direction, bool extend_selection);
+        void move_cursor_vertical(
+            int direction,
+            bool extend_selection,
+            TextMetrics* text_metrics
+        );
+        void reset_vertical_navigation_goal();
         void delete_selection();
         void blank_selection_with_spaces();
         bool insert_plain_text(const char* new_text, EditKind edit_kind);
@@ -241,6 +249,9 @@ class TextInput : public Component {
         bool is_mouse_selecting;
         bool is_mouse_deselecting;
         int mouse_deselect_anchor;
+        bool vertical_navigation_active;
+        int preferred_vertical_x;
+        int preferred_vertical_column;
         int text_padding;
 
         std::vector<EditState> undo_history;

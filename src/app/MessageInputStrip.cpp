@@ -380,6 +380,32 @@ bool MessageInputStrip::handle_event(const UIEvent& event) {
         return true;
     }
 
+    if (
+        event.type == UIEvent::event_mouse_wheel &&
+        event.wheel_delta != 0 &&
+        message_input.contains_point(event.x, event.y)
+    ) {
+        int notches = event.wheel_delta / 120;
+        if (notches == 0) {
+            notches = event.wheel_delta > 0 ? 1 : -1;
+        }
+
+        ScrollBar* target_scroll_bar = event.shift_down
+            ? &horizontal_scroll_bar
+            : &vertical_scroll_bar;
+        int old_value = target_scroll_bar->get_value();
+        int scroll_step = target_scroll_bar->get_line_step() * 3;
+
+        target_scroll_bar->set_value(
+            old_value - (notches * scroll_step)
+        );
+
+        if (target_scroll_bar->get_value() != old_value) {
+            apply_viewport_state();
+            return true;
+        }
+    }
+
     if (send_button.handle_event(event)) {
         return true;
     }

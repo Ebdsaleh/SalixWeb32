@@ -111,6 +111,8 @@ Implemented or active post-baseline work:
 - [~] multiline composer with explicit line-break rendering/hit-testing
 - [~] native composer horizontal/vertical viewport scrollbars
 - [~] delta-synchronized native scrollbar peers
+- [~] composer mouse-wheel scrolling (`Wheel` vertical / `Shift+Wheel` horizontal)
+- [~] persistent visual-column Up/Down caret navigation
 - [~] bulleted/numbered list editing and dedicated `ListPanel`
 - [~] list continuation with Enter and `Ctrl+Enter` forced send
 - [~] classic text-emoticon registry
@@ -133,7 +135,7 @@ Implemented or active post-baseline work:
 
 The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, wrapped rich-conversation, and dedicated code-block-container work under Windows Server 2003 SP2. The newest code-language-selector and syntax-token tranche remains pending VC7.1/Server 2003 validation, and newer post-v0.0.2 work must not be assumed validated under MiniXP until exercised there explicitly.
+The real Pentium 4 target has built and displayed the graphical-emoticon, multiline/list, code-composer, Markdown, native conversation scrolling, wrapped rich-conversation, and dedicated code-block-container work under Windows Server 2003 SP2. The newest code-language/syntax and composer wheel/vertical-navigation work remains pending VC7.1/Server 2003 validation, and newer post-v0.0.2 work must not be assumed validated under MiniXP until exercised there explicitly.
 
 See `docs/COMPOSER_FORMATTING.md`, `docs/EMOTICON_RENDERING.md`, `docs/MULTILINE_COMPOSER.md`, `docs/CODE_COMPOSER.md`, `docs/MARKDOWN_RENDERING.md`, `docs/RICH_CONVERSATION_VIEWPORT.md`, `docs/CONVERSATION_SCROLLING.md`, `docs/CODE_BLOCKS.md`, and `docs/SYNTAX_HIGHLIGHTING.md` for the current contracts and validation checklists.
 

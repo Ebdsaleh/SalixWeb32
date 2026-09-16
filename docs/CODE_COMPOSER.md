@@ -1,6 +1,6 @@
 # Code Composer Mode and Input Viewport
 
-This document records the post-Markdown composer tranche that adds an explicit code-entry mode, configurable language/indentation metadata, and scrollbars to the message-composition input surface. Windows Server 2003 target smoke coverage exists for the earlier code-mode/viewport implementation; the newest language-selector additions remain pending VC7.1/Server 2003/MiniXP validation.
+This document records the post-Markdown composer tranche that adds an explicit code-entry mode, configurable language/indentation metadata, scrolling, and richer multiline navigation to the message-composition input surface. Windows Server 2003 target smoke coverage exists for the earlier code-mode/viewport implementation; the newest language-selector, mouse-wheel, and preferred-column caret additions remain pending VC7.1/Server 2003/MiniXP validation.
 
 ## Toolbar controls
 
@@ -131,23 +131,61 @@ The composer also keeps the caret visible after editing/navigation by adjusting 
 
 Native scrollbar peer synchronization is delta-based: selection/focus changes do not call `MoveWindow`, `SetScrollInfo`, `ShowWindow`, or `EnableWindow` unless the associated native state actually changed. This prevents click/drag-selection activity from visually activating otherwise inactive scrollbars on the legacy target.
 
+## Mouse-wheel scrolling
+
+`MessageInputStrip` now owns mouse-wheel behavior for the editable viewport instead of relying only on the native scrollbar arrows/thumbs.
+
+When the pointer is over the actual text-input viewport:
+
+```text
+Wheel          -> vertical viewport scroll
+Shift + Wheel  -> horizontal viewport scroll
+```
+
+One wheel notch advances three configured scrollbar line steps. The event changes only the semantic scrollbar value and applies the corresponding `TextViewportState`; it does not mutate the draft, move the caret, or recalculate the document extent merely because the wheel moved.
+
+If the selected axis cannot move because there is no overflow or the viewport is already at the requested boundary, the composer does not consume that wheel event. This preserves a path for an enclosing scrollable surface to handle it later rather than trapping the wheel at a dead end.
+
+## Vertical caret navigation
+
+Multiline Up/Down navigation now keeps a persistent preferred horizontal target for a consecutive vertical-navigation sequence.
+
+The original implementation recomputed a character column after every move. That meant moving through a shorter line permanently collapsed the remembered column; going back to a longer line could leave the caret several characters to the left of where the sequence began. It also treated character count as visual position even when Tahoma, bold/italic text, different font sizes, graphical emoticons, or Courier code made glyph widths differ.
+
+The new contract is:
+
+1. The first Up/Down captures the current logical column and, when `TextMetrics` is available, the rendered pixel X of the caret.
+2. Each target line maps that preferred pixel X back to the nearest legal character boundary.
+3. A shorter target line may temporarily clamp the caret to its end, but the preferred X remains unchanged.
+4. Moving again to a longer line restores the original visual column as closely as the target line permits.
+5. `Shift+Up`/`Shift+Down` use the same preferred-X behavior while extending selection.
+6. Horizontal navigation, Home/End, pointer repositioning, text edits, formatting changes, undo/redo restoration, focus changes, and explicit cursor changes reset the vertical-navigation goal.
+
+The Win32 host supplies a `Win32TextMetrics` instance specifically for Up/Down key-down events, so the backend-neutral `TextInput` can request real formatted measurements without importing Win32 APIs or paying the measurement setup cost for unrelated key events.
+
+If a backend does not supply text metrics, `TextInput` falls back to persistent logical-column behavior; this still fixes the short-line collapse even without pixel measurement.
+
 ## Validation checklist
 
-Before marking the newest code-language tranche target-validated:
+Before marking the newest composer tranche target-validated:
 
 1. Verify the toolbar shows `<code />`, the native language selector, and the native 2/4/6/8 indentation selector after the emoticon control.
 2. Verify language/indent controls are disabled while code mode is off and enabled when it is on.
 3. Toggle code mode with the mouse and with `Ctrl+;`; verify the shortcut toggles once and does not insert `;`.
 4. Select Python, C++, JavaScript, JSON, and at least one other language; send code and verify the conversation code-block header reports the chosen language.
 5. Verify the canonical Markdown generated for code contains the corresponding language fence token.
-6. In code mode, verify Enter and Shift+Enter both create new lines and do not send.
-7. Verify Ctrl+Enter sends from code mode.
-8. Verify Tab inserts exactly 2/4/6/8 spaces according to the combo setting.
-9. Verify code typed while code mode is active remains a code range if the toggle is switched off before ordinary prose is appended.
-10. Verify the composition area uses native Server 2003/MiniXP horizontal and vertical scrollbar controls without click/selection redraw churn.
-11. Type a logical line wider than the input viewport and use the horizontal scrollbar arrows, track, and thumb.
-12. Create enough lines to overflow vertically and exercise the vertical scrollbar arrows, track, and thumb.
-13. Verify caret placement and drag selection remain correct after scrolling on both axes.
-14. Verify automatic caret-follow scrolling keeps keyboard editing visible near the right/bottom edges.
-15. Verify Undo/Redo, clipboard operations, formatting, list mode, attachments, and emoticon insertion do not regress.
-16. Repeat smoke coverage under Windows Server 2003 SP2 and MiniXP.
+6. In code mode, verify Enter and Shift+Enter both create new lines and do not send; verify Ctrl+Enter sends.
+7. Verify Tab inserts exactly 2/4/6/8 spaces according to the combo setting.
+8. Verify code typed while code mode is active remains a code range if the toggle is switched off before ordinary prose is appended.
+9. Verify the composition area uses native Server 2003/MiniXP horizontal and vertical scrollbar controls without click/selection redraw churn.
+10. Create vertical overflow, hover over the text viewport, and verify the mouse wheel moves the vertical viewport and native thumb without moving the caret.
+11. Create a long unwrapped line and verify `Shift+Wheel` moves the horizontal viewport.
+12. At a scroll boundary or with no overflow, verify wheel input stops cleanly without spurious native-control redraws.
+13. Test Up/Down between equal-length normal-text lines and verify the caret remains at the same visual X.
+14. Test a long line -> short line -> long line sequence; the short line may clamp to its end, but the following long line must return to the original preferred visual column.
+15. Repeat vertical navigation with mixed formatting and in Courier code mode, and verify `Shift+Up`/`Shift+Down` extends selection along the same preferred X.
+16. Verify Left/Right, Home/End, mouse clicks, and subsequent Up/Down start a fresh vertical goal from the new caret position.
+17. Verify caret placement and drag selection remain correct after scrolling on both axes.
+18. Verify automatic caret-follow scrolling keeps keyboard editing visible near the right/bottom edges.
+19. Verify Undo/Redo, clipboard operations, formatting, list mode, attachments, and emoticon insertion do not regress.
+20. Repeat smoke coverage under Windows Server 2003 SP2 and MiniXP.

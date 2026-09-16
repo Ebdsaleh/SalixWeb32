@@ -206,3 +206,36 @@ Target validation must establish:
 8. MiniXP receives a smoke pass only after Server 2003 succeeds.
 
 See `docs/CODE_COMPOSER.md`, `docs/CODE_BLOCKS.md`, and `docs/SYNTAX_HIGHLIGHTING.md`.
+
+## Pending composer mouse-wheel and vertical-caret tranche
+
+The composer input now has an explicit wheel-routing path and a persistent vertical navigation goal. This work is implemented in source and remains pending target validation.
+
+Mouse-wheel behavior is intentionally viewport-local:
+
+```text
+pointer over composer text viewport
+    Wheel          -> vertical scroll
+    Shift + Wheel  -> horizontal scroll
+```
+
+One notch advances three configured scrollbar line steps. The wheel path changes only the semantic scrollbar value and applies the existing `TextViewportState`; it does not rebuild text layout merely because the mouse wheel moved. If the requested axis cannot move, the event is left unconsumed so a future enclosing scroll container can receive it.
+
+The vertical caret fix addresses a separate editing defect observed on the real target. The previous Up/Down implementation recomputed `column = caret - line_start` after every move. A short intermediate line could therefore collapse the remembered column, causing a later Up movement into a longer line to land several positions to the left. It also ignored the fact that normal formatted text uses proportional widths.
+
+The new behavior captures a preferred visual X on the first Up/Down using backend-neutral `TextMetrics`. Repeated vertical moves keep that goal even if a short line temporarily clamps the caret. Win32 supplies `Win32TextMetrics` only for Up/Down key-down events, avoiding unnecessary measurement setup for unrelated keys. Backends without metrics retain a persistent logical-column fallback.
+
+Target validation should verify:
+
+1. Vertical wheel scrolling works while the pointer is inside the composer text viewport and the vertical scrollbar has overflow.
+2. `Shift+Wheel` scrolls long unwrapped content horizontally.
+3. Wheel movement changes the viewport/thumb but does not move the caret or alter draft text.
+4. Wheel input at a boundary/no-overflow state does not cause scrollbar flashing or unnecessary native-control churn.
+5. Up/Down between sufficiently long lines preserves the caret's visual X.
+6. A long-line -> short-line -> long-line sequence temporarily clamps on the short line but restores the original preferred X on the next long line.
+7. Mixed proportional formatting and Courier code mode behave sensibly.
+8. `Shift+Up`/`Shift+Down` extends selection using the same preferred X.
+9. Left/Right, Home/End, pointer repositioning, editing, and focus changes begin the next vertical sequence from the new caret location.
+10. Server 2003 is validated first, followed by MiniXP smoke coverage.
+
+See `docs/CODE_COMPOSER.md` for the complete interaction contract.

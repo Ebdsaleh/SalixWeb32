@@ -59,6 +59,9 @@ TextInput::TextInput()
       is_mouse_selecting(false),
       is_mouse_deselecting(false),
       mouse_deselect_anchor(0),
+      vertical_navigation_active(false),
+      preferred_vertical_x(0),
+      preferred_vertical_column(0),
       text_padding(6),
       active_edit_kind(edit_none),
       history_limit(100) {
@@ -68,6 +71,7 @@ TextInput::TextInput()
 }
 
 void TextInput::set_text(const char* new_text) {
+    reset_vertical_navigation_goal();
     clear_history();
 
     if (new_text == 0) {
@@ -126,6 +130,7 @@ void TextInput::set_max_length(int new_max_length) {
         }
 
         clear_history();
+        reset_vertical_navigation_goal();
     }
 
     ensure_format_length();
@@ -142,6 +147,7 @@ void TextInput::set_multiline(bool new_is_multiline) {
     }
 
     is_multiline = new_is_multiline;
+    reset_vertical_navigation_goal();
     end_edit_group();
 
     if (!is_multiline) {
@@ -173,6 +179,10 @@ int TextInput::get_line_spacing() const {
 }
 
 void TextInput::set_focused(bool new_is_focused) {
+    if (is_focused != new_is_focused) {
+        reset_vertical_navigation_goal();
+    }
+
     is_focused = new_is_focused;
     selection.clamp_to_length((int)text.length());
 
@@ -188,6 +198,7 @@ bool TextInput::get_is_focused() const {
 }
 
 void TextInput::set_cursor_position(int new_cursor_position) {
+    reset_vertical_navigation_goal();
     end_edit_group();
     selection.reset(new_cursor_position, (int)text.length());
 }
@@ -247,11 +258,13 @@ bool TextInput::is_character_selected(int character_index) const {
 }
 
 void TextInput::clear_selection() {
+    reset_vertical_navigation_goal();
     end_edit_group();
     selection.clear_selection();
 }
 
 void TextInput::select_all() {
+    reset_vertical_navigation_goal();
     end_edit_group();
     selection.select_all((int)text.length());
 }
@@ -262,6 +275,8 @@ void TextInput::set_text_format(
     bool underline,
     int font_size
 ) {
+    reset_vertical_navigation_goal();
+
     if (font_size < 1) {
         font_size = 1;
     }
@@ -547,6 +562,7 @@ bool TextInput::handle_event(const UIEvent& event) {
     }
 
     if (event.type == UIEvent::event_mouse_down) {
+        reset_vertical_navigation_goal();
         end_edit_group();
 
         bool new_is_focused = contains_point(event.x, event.y);
@@ -818,7 +834,11 @@ bool TextInput::handle_event(const UIEvent& event) {
             case UIEvent::key_up:
                 if (is_multiline) {
                     end_edit_group();
-                    move_cursor_vertical(-1, event.shift_down);
+                    move_cursor_vertical(
+                        -1,
+                        event.shift_down,
+                        event.text_metrics
+                    );
                     return true;
                 }
                 break;
@@ -826,7 +846,11 @@ bool TextInput::handle_event(const UIEvent& event) {
             case UIEvent::key_down:
                 if (is_multiline) {
                     end_edit_group();
-                    move_cursor_vertical(1, event.shift_down);
+                    move_cursor_vertical(
+                        1,
+                        event.shift_down,
+                        event.text_metrics
+                    );
                     return true;
                 }
                 break;
@@ -953,6 +977,7 @@ void TextInput::move_cursor(
     int new_cursor_position,
     bool extend_selection
 ) {
+    reset_vertical_navigation_goal();
     selection.move_caret(
         new_cursor_position,
         (int)text.length(),
@@ -962,41 +987,90 @@ void TextInput::move_cursor(
 
 void TextInput::move_cursor_vertical(
     int direction,
-    bool extend_selection
+    bool extend_selection,
+    TextMetrics* text_metrics
 ) {
     int caret = selection.get_caret_position();
     int current_start = get_line_start(caret);
     int current_end = get_line_end(caret);
-    int column = caret - current_start;
-    int target_position = caret;
+    int current_column = caret - current_start;
+
+    if (!vertical_navigation_active) {
+        preferred_vertical_column = current_column;
+        preferred_vertical_x = current_column;
+
+        if (text_metrics != 0) {
+            const TextFormat* formats = get_format_data();
+            preferred_vertical_x = text_metrics->measure_formatted_text_width(
+                text.c_str() + current_start,
+                current_column,
+                formats == 0 ? 0 : formats + current_start,
+                current_column
+            );
+        }
+
+        vertical_navigation_active = true;
+    }
+
+    int target_start = current_start;
+    int target_end = current_end;
 
     if (direction < 0) {
         if (current_start <= 0) {
-            target_position = 0;
-        } else {
-            int previous_end = current_start - 1;
-            int previous_start = get_line_start(previous_end);
-            int previous_length = previous_end - previous_start;
-            if (column > previous_length) {
-                column = previous_length;
-            }
-            target_position = previous_start + column;
+            selection.move_caret(0, (int)text.length(), extend_selection);
+            return;
         }
+
+        target_end = current_start - 1;
+        target_start = get_line_start(target_end);
     } else if (direction > 0) {
         if (current_end >= (int)text.length()) {
-            target_position = (int)text.length();
-        } else {
-            int next_start = current_end + 1;
-            int next_end = get_line_end(next_start);
-            int next_length = next_end - next_start;
-            if (column > next_length) {
-                column = next_length;
-            }
-            target_position = next_start + column;
+            selection.move_caret(
+                (int)text.length(),
+                (int)text.length(),
+                extend_selection
+            );
+            return;
         }
+
+        target_start = current_end + 1;
+        target_end = get_line_end(target_start);
+    } else {
+        return;
     }
 
-    move_cursor(target_position, extend_selection);
+    int target_length = target_end - target_start;
+    int target_column = preferred_vertical_column;
+
+    if (text_metrics != 0) {
+        const TextFormat* formats = get_format_data();
+        target_column = text_metrics->get_formatted_character_index_at_x(
+            text.c_str() + target_start,
+            target_length,
+            formats == 0 ? 0 : formats + target_start,
+            target_length,
+            preferred_vertical_x
+        );
+    }
+
+    if (target_column < 0) {
+        target_column = 0;
+    }
+    if (target_column > target_length) {
+        target_column = target_length;
+    }
+
+    selection.move_caret(
+        target_start + target_column,
+        (int)text.length(),
+        extend_selection
+    );
+}
+
+void TextInput::reset_vertical_navigation_goal() {
+    vertical_navigation_active = false;
+    preferred_vertical_x = 0;
+    preferred_vertical_column = 0;
 }
 
 void TextInput::delete_selection() {
@@ -1409,6 +1483,8 @@ bool TextInput::paste_from_clipboard(
 }
 
 void TextInput::begin_edit(EditKind new_edit_kind) {
+    reset_vertical_navigation_goal();
+
     if (
         new_edit_kind == edit_none ||
         active_edit_kind != new_edit_kind
@@ -1439,6 +1515,7 @@ void TextInput::restore_edit_state(const EditState& state) {
     selection.clamp_to_length((int)text.length());
     is_mouse_selecting = false;
     is_mouse_deselecting = false;
+    reset_vertical_navigation_goal();
 }
 
 void TextInput::push_undo_state() {
