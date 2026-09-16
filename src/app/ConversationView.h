@@ -41,6 +41,7 @@ class ConversationView : public Panel {
     private:
         struct MessageEntry {
             MessageRole role;
+            FormattedText source_text;
             Label* label;
             int row_height;
         };
@@ -53,6 +54,7 @@ class ConversationView : public Panel {
         int calculate_entry_height(const Label& label) const;
         int calculate_first_index_for_bottom() const;
         const char* get_role_prefix(MessageRole role) const;
+        const char* get_role_label(MessageRole role) const;
         Color get_role_color(MessageRole role) const;
 
         std::vector<MessageEntry> messages;

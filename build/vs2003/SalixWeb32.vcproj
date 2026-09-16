@@ -109,6 +109,7 @@
 			<File RelativePath="..\..\src\framework\EmoticonRegistry.cpp"/>
 			<File RelativePath="..\..\src\framework\FormattedText.cpp"/>
 			<File RelativePath="..\..\src\framework\Label.cpp"/>
+			<File RelativePath="..\..\src\framework\MarkdownFormatter.cpp"/>
 			<File RelativePath="..\..\src\framework\MimeData.cpp"/>
 			<File RelativePath="..\..\src\framework\Panel.cpp"/>
 			<File RelativePath="..\..\src\framework\StackPanel.cpp"/>
@@ -147,6 +148,7 @@
 			<File RelativePath="..\..\src\framework\FileDialog.h"/>
 			<File RelativePath="..\..\src\framework\FormattedText.h"/>
 			<File RelativePath="..\..\src\framework\Label.h"/>
+			<File RelativePath="..\..\src\framework\MarkdownFormatter.h"/>
 			<File RelativePath="..\..\src\framework\MimeData.h"/>
 			<File RelativePath="..\..\src\framework\MimeTypes.h"/>
 			<File RelativePath="..\..\src\framework\NativeControlHost.h"/>

@@ -5,6 +5,7 @@
 // =================================================================================
 
 #include "ConversationView.h"
+#include "framework/MarkdownFormatter.h"
 
 ConversationView::ConversationView()
     : first_visible_index(0),
@@ -69,12 +70,32 @@ bool ConversationView::append_message(
         return false;
     }
 
-    FormattedText display_text;
-    display_text.append_plain_text(
-        get_role_prefix(role),
-        TextFormat(false, false, false, 12)
+    FormattedText markdown_text;
+    if (!MarkdownFormatter::format(text, markdown_text)) {
+        markdown_text = text;
+    }
+
+    bool block_layout = MarkdownFormatter::has_block_structure(
+        text.get_text()
     );
-    display_text.append_formatted_text(text);
+
+    FormattedText display_text;
+    TextFormat role_format(true, false, false, 12);
+
+    if (block_layout) {
+        display_text.append_plain_text(
+            get_role_label(role),
+            role_format
+        );
+        display_text.append_plain_text("\n\n", role_format);
+    } else {
+        display_text.append_plain_text(
+            get_role_prefix(role),
+            role_format
+        );
+    }
+
+    display_text.append_formatted_text(markdown_text);
 
     message_label->set_formatted_text(display_text);
     message_label->set_horizontal_alignment(Label::align_left);
@@ -88,6 +109,7 @@ bool ConversationView::append_message(
 
     MessageEntry entry;
     entry.role = role;
+    entry.source_text = text;
     entry.label = message_label;
     entry.row_height = calculate_entry_height(*message_label);
     messages.push_back(entry);
@@ -374,6 +396,20 @@ const char* ConversationView::get_role_prefix(MessageRole role) const {
         case message_system:
         default:
             return "System: ";
+    }
+}
+
+const char* ConversationView::get_role_label(MessageRole role) const {
+    switch (role) {
+        case message_local:
+            return "You:";
+
+        case message_remote:
+            return "Remote:";
+
+        case message_system:
+        default:
+            return "System:";
     }
 }
 
