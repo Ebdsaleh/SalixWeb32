@@ -8,6 +8,13 @@
 #include <string>
 
 #include "BrowserProbeView.h"
+#include "framework/Clipboard.h"
+#include "framework/MimeData.h"
+#include "framework/NativeControlHost.h"
+#include "framework/TextMetrics.h"
+#include "framework/TextWrapLayout.h"
+#include "framework/UIEvent.h"
+#include "framework/rendering/ComponentRenderer.h"
 #include "web/platform/WebBackendCapabilities.h"
 #include "web/platform/WebNavigationRequest.h"
 #include "web/platform/WebPlatformHost.h"
@@ -20,29 +27,89 @@ namespace {
         return value ? "yes" : "no";
     }
 
-    std::string make_probe_display_text(
-        const std::string& source,
-        const char* empty_text
-    ) {
-        if (source.empty()) {
-            return empty_text == 0 ? "" : empty_text;
+    bool is_mouse_event(const UIEvent& event) {
+        return
+            event.type == UIEvent::event_mouse_move ||
+            event.type == UIEvent::event_mouse_down ||
+            event.type == UIEvent::event_mouse_up ||
+            event.type == UIEvent::event_mouse_wheel;
+    }
+
+    std::string normalize_probe_text(const std::string& source) {
+        std::string normalized;
+        normalized.reserve(source.size());
+
+        for (int index = 0; index < (int)source.size(); ++index) {
+            if (source[index] != '\r') {
+                normalized += source[index];
+            }
         }
 
+        return normalized;
+    }
+
+    std::string make_probe_display_text(const std::string& source) {
         if ((int)source.size() <= probe_display_limit) {
             return source;
         }
 
         std::string display = source.substr(0, probe_display_limit);
         display +=
-            "\n\n[Browser Probe display capped at 32 KiB. The backend snapshot "
-            "retains the complete captured probe section.]";
+            "\n\n[Browser Probe display capped at 32 KiB. Use Copy to copy the "
+            "complete captured section.]";
         return display;
+    }
+
+    int estimate_wrapped_height(const char* text, int width) {
+        if (text == 0 || text[0] == '\0') {
+            return 18;
+        }
+
+        int columns_per_line = width / 7;
+        if (columns_per_line < 1) {
+            columns_per_line = 1;
+        }
+
+        int line_count = 1;
+        int column = 0;
+
+        for (int index = 0; text[index] != '\0'; ++index) {
+            char value = text[index];
+
+            if (value == '\n') {
+                ++line_count;
+                column = 0;
+                continue;
+            }
+
+            int advance = value == '\t' ? 4 : 1;
+            column += advance;
+
+            while (column > columns_per_line) {
+                ++line_count;
+                column -= columns_per_line;
+            }
+        }
+
+        return line_count * 18;
     }
 }
 
 BrowserProbeView::BrowserProbeView()
     : web_platform_host(0),
-      probe_mode(probe_summary) {
+      probe_mode(probe_summary),
+      vertical_scroll_bar(ScrollBar::vertical),
+      native_control_host(0),
+      active_clipboard(0),
+      output_x(0),
+      output_y(0),
+      output_width(0),
+      output_height(0),
+      content_height(18),
+      scroll_offset_y(0),
+      scroll_bar_width(16),
+      line_step_pixels(24),
+      layout_dirty(true) {
     get_style().background_color = Color(248, 250, 252);
     get_style().border_color = Color(168, 194, 216);
     get_style().border_width = 1;
@@ -77,11 +144,20 @@ BrowserProbeView::BrowserProbeView()
     headers_button.set_text("Headers");
     raw_button.set_text("Raw");
     extracted_button.set_text("Extracted");
+    copy_button.set_text("Copy");
 
     summary_button.set_click_handler(BrowserProbeView::on_probe_mode_clicked, this);
     headers_button.set_click_handler(BrowserProbeView::on_probe_mode_clicked, this);
     raw_button.set_click_handler(BrowserProbeView::on_probe_mode_clicked, this);
     extracted_button.set_click_handler(BrowserProbeView::on_probe_mode_clicked, this);
+    copy_button.set_click_handler(BrowserProbeView::on_copy_clicked, this);
+
+    vertical_scroll_bar.set_line_step(line_step_pixels);
+    vertical_scroll_bar.set_value_changed_handler(
+        BrowserProbeView::on_scroll_changed,
+        this
+    );
+    vertical_scroll_bar.set_visible(false);
 
     add_child(&title_label);
     add_child(&address_input);
@@ -93,9 +169,15 @@ BrowserProbeView::BrowserProbeView()
     add_child(&headers_button);
     add_child(&raw_button);
     add_child(&extracted_button);
+    add_child(&copy_button);
     add_child(&content_label);
+    add_child(&vertical_scroll_bar);
 
     refresh_labels();
+}
+
+BrowserProbeView::~BrowserProbeView() {
+    detach_native_controls();
 }
 
 void BrowserProbeView::set_web_platform_host(WebPlatformHost* host) {
@@ -129,11 +211,37 @@ void BrowserProbeView::update() {
     refresh_labels();
 }
 
+void BrowserProbeView::attach_native_controls(
+    NativeControlHost* control_host
+) {
+    if (native_control_host == control_host) {
+        return;
+    }
+
+    detach_native_controls();
+    native_control_host = control_host;
+
+    if (native_control_host != 0) {
+        native_control_host->attach_scroll_bar(&vertical_scroll_bar);
+        sync_native_scrollbar();
+    }
+}
+
+void BrowserProbeView::detach_native_controls() {
+    if (native_control_host == 0) {
+        return;
+    }
+
+    native_control_host->detach_scroll_bar(&vertical_scroll_bar);
+    native_control_host = 0;
+}
+
 void BrowserProbeView::arrange(
     int x,
     int y,
     int width,
-    int height
+    int height,
+    TextMetrics* text_metrics
 ) {
     set_bounds(x, y, width, height);
 
@@ -146,11 +254,12 @@ void BrowserProbeView::arrange(
     const int mode_height = 26;
     const int gap = 5;
     const int go_width = 54;
-    const int mode_width = 86;
+    const int copy_width = 58;
+    const int maximum_mode_width = 86;
 
-    int content_width = width - (padding * 2);
-    if (content_width < 0) {
-        content_width = 0;
+    int available_width = width - (padding * 2);
+    if (available_width < 0) {
+        available_width = 0;
     }
 
     int cursor_y = y + padding;
@@ -158,12 +267,12 @@ void BrowserProbeView::arrange(
     title_label.set_bounds(
         x + padding,
         cursor_y,
-        content_width,
+        available_width,
         title_height
     );
     cursor_y += title_height + gap;
 
-    int address_width = content_width - go_width - gap;
+    int address_width = available_width - go_width - gap;
     if (address_width < 0) {
         address_width = 0;
     }
@@ -185,7 +294,7 @@ void BrowserProbeView::arrange(
     backend_label.set_bounds(
         x + padding,
         cursor_y,
-        content_width,
+        available_width,
         backend_height
     );
     cursor_y += backend_height + gap;
@@ -193,7 +302,7 @@ void BrowserProbeView::arrange(
     capability_label.set_bounds(
         x + padding,
         cursor_y,
-        content_width,
+        available_width,
         capability_height
     );
     cursor_y += capability_height + gap;
@@ -201,10 +310,23 @@ void BrowserProbeView::arrange(
     status_label.set_bounds(
         x + padding,
         cursor_y,
-        content_width,
+        available_width,
         status_height
     );
     cursor_y += status_height + gap;
+
+    int mode_area_width = available_width - copy_width - gap;
+    if (mode_area_width < 0) {
+        mode_area_width = 0;
+    }
+
+    int mode_width = (mode_area_width - (gap * 3)) / 4;
+    if (mode_width > maximum_mode_width) {
+        mode_width = maximum_mode_width;
+    }
+    if (mode_width < 0) {
+        mode_width = 0;
+    }
 
     summary_button.set_bounds(
         x + padding,
@@ -230,19 +352,145 @@ void BrowserProbeView::arrange(
         mode_width,
         mode_height
     );
+    copy_button.set_bounds(
+        x + padding + available_width - copy_width,
+        cursor_y,
+        copy_width,
+        mode_height
+    );
     cursor_y += mode_height + gap;
 
-    int remaining_height = y + height - padding - cursor_y;
-    if (remaining_height < 0) {
-        remaining_height = 0;
+    output_x = x + padding;
+    output_y = cursor_y;
+    output_width = available_width;
+    output_height = y + height - padding - cursor_y;
+
+    if (output_width < 0) {
+        output_width = 0;
+    }
+    if (output_height < 0) {
+        output_height = 0;
     }
 
-    content_label.set_bounds(
-        x + padding,
-        cursor_y,
-        content_width,
-        remaining_height
+    update_content_metrics(text_metrics);
+    layout_output();
+}
+
+bool BrowserProbeView::handle_event(const UIEvent& event) {
+    if (!get_is_visible()) {
+        return false;
+    }
+
+    bool mouse_event = is_mouse_event(event);
+    if (mouse_event && !contains_point(event.x, event.y)) {
+        return false;
+    }
+
+    active_clipboard = event.clipboard;
+
+    if (layout_dirty && event.text_metrics != 0) {
+        update_content_metrics(event.text_metrics);
+        layout_output();
+    }
+
+    if (
+        event.type == UIEvent::event_mouse_wheel &&
+        is_output_point(event.x, event.y) &&
+        event.wheel_delta != 0
+    ) {
+        int notches = event.wheel_delta / 120;
+        if (notches == 0) {
+            notches = event.wheel_delta > 0 ? 1 : -1;
+        }
+
+        scroll_pixels(-notches * line_step_pixels * 3);
+        active_clipboard = 0;
+        return true;
+    }
+
+    bool handled = false;
+
+    if (vertical_scroll_bar.handle_event(event)) {
+        handled = true;
+    }
+    if (go_button.handle_event(event)) {
+        handled = true;
+    }
+    if (summary_button.handle_event(event)) {
+        handled = true;
+    }
+    if (headers_button.handle_event(event)) {
+        handled = true;
+    }
+    if (raw_button.handle_event(event)) {
+        handled = true;
+    }
+    if (extracted_button.handle_event(event)) {
+        handled = true;
+    }
+    if (copy_button.handle_event(event)) {
+        handled = true;
+    }
+    if (address_input.handle_event(event)) {
+        handled = true;
+    }
+
+    bool allow_content_event = !mouse_event || is_output_point(event.x, event.y);
+
+    if (
+        !allow_content_event &&
+        content_label.get_is_focused() &&
+        event.left_button_down &&
+        (
+            event.type == UIEvent::event_mouse_move ||
+            event.type == UIEvent::event_mouse_up
+        )
+    ) {
+        allow_content_event = true;
+    }
+
+    if (allow_content_event && content_label.handle_event(event)) {
+        handled = true;
+    }
+
+    active_clipboard = 0;
+    return handled;
+}
+
+void BrowserProbeView::render(ComponentRenderer& renderer) const {
+    if (!get_is_visible()) {
+        return;
+    }
+
+    renderer.render_panel(*this);
+
+    title_label.render(renderer);
+    address_input.render(renderer);
+    go_button.render(renderer);
+    backend_label.render(renderer);
+    capability_label.render(renderer);
+    status_label.render(renderer);
+    summary_button.render(renderer);
+    headers_button.render(renderer);
+    raw_button.render(renderer);
+    extracted_button.render(renderer);
+    copy_button.render(renderer);
+
+    int viewport_width = content_label.get_width();
+    if (viewport_width < 0) {
+        viewport_width = 0;
+    }
+
+    renderer.push_clip_rect(
+        output_x,
+        output_y,
+        viewport_width,
+        output_height
     );
+    content_label.render(renderer);
+    renderer.pop_clip_rect();
+
+    vertical_scroll_bar.render(renderer);
 }
 
 void BrowserProbeView::on_go_clicked(Button* button, void* context) {
@@ -273,6 +521,31 @@ void BrowserProbeView::on_probe_mode_clicked(Button* button, void* context) {
     }
 }
 
+void BrowserProbeView::on_copy_clicked(Button* button, void* context) {
+    (void)button;
+
+    BrowserProbeView* view = (BrowserProbeView*)context;
+    if (view != 0) {
+        view->copy_current_output();
+    }
+}
+
+void BrowserProbeView::on_scroll_changed(
+    ScrollBar* scroll_bar,
+    int value,
+    void* context
+) {
+    (void)scroll_bar;
+
+    BrowserProbeView* view = (BrowserProbeView*)context;
+    if (view == 0) {
+        return;
+    }
+
+    view->scroll_offset_y = value;
+    view->layout_output();
+}
+
 void BrowserProbeView::set_probe_mode(ProbeMode new_mode) {
     probe_mode = new_mode;
     refresh_labels();
@@ -287,7 +560,7 @@ void BrowserProbeView::refresh_labels() {
         backend_label.set_text("Backend: none");
         capability_label.set_text("Capabilities: none");
         status_label.set_text("Status: no web backend selected");
-        content_label.set_text(
+        set_output_text(
             "Select a WebPlatformBackend to begin probing URL responses."
         );
         return;
@@ -326,7 +599,7 @@ void BrowserProbeView::refresh_labels() {
     if (!web_platform_host->get_surface_snapshot(snapshot)) {
         title_label.set_text("Salix Browser Probe");
         status_label.set_text("Status: backend did not provide a surface snapshot");
-        content_label.set_text("");
+        set_output_text("");
         return;
     }
 
@@ -346,38 +619,197 @@ void BrowserProbeView::refresh_labels() {
 void BrowserProbeView::refresh_probe_content(
     const WebSurfaceSnapshot& snapshot
 ) {
-    std::string display;
+    std::string output;
 
     switch (probe_mode) {
         case probe_headers:
-            display = make_probe_display_text(
-                snapshot.response_headers,
-                "No HTTP response headers are available yet."
-            );
+            output = snapshot.response_headers.empty()
+                ? "No HTTP response headers are available yet."
+                : snapshot.response_headers;
             break;
 
         case probe_raw:
-            display = make_probe_display_text(
-                snapshot.raw_content,
-                "No raw response body is available yet."
-            );
+            output = snapshot.raw_content.empty()
+                ? "No raw response body is available yet."
+                : snapshot.raw_content;
             break;
 
         case probe_extracted:
-            display = make_probe_display_text(
-                snapshot.extracted_content,
-                "No extracted document text is available yet."
-            );
+            output = snapshot.extracted_content.empty()
+                ? "No extracted document text is available yet."
+                : snapshot.extracted_content;
             break;
 
         case probe_summary:
         default:
-            display = make_probe_display_text(
-                snapshot.content,
-                "No Browser Probe result is available yet."
-            );
+            output = snapshot.content.empty()
+                ? "No Browser Probe result is available yet."
+                : snapshot.content;
             break;
     }
 
-    content_label.set_text(display.c_str());
+    set_output_text(output);
+}
+
+void BrowserProbeView::set_output_text(const std::string& text) {
+    std::string normalized = normalize_probe_text(text);
+
+    if (normalized == current_output_text) {
+        return;
+    }
+
+    current_output_text = normalized;
+    displayed_output_text = make_probe_display_text(current_output_text);
+    content_label.set_text(displayed_output_text.c_str());
+    scroll_offset_y = 0;
+    layout_dirty = true;
+
+    update_content_metrics(0);
+    layout_output();
+}
+
+void BrowserProbeView::copy_current_output() {
+    if (active_clipboard == 0) {
+        return;
+    }
+
+    MimeData data;
+    data.set_text(current_output_text.c_str());
+    active_clipboard->set_data(data);
+}
+
+void BrowserProbeView::scroll_pixels(int pixel_count) {
+    if (pixel_count == 0) {
+        return;
+    }
+
+    int maximum_scroll = content_height - output_height;
+    if (maximum_scroll < 0) {
+        maximum_scroll = 0;
+    }
+
+    scroll_offset_y += pixel_count;
+    if (scroll_offset_y < 0) {
+        scroll_offset_y = 0;
+    }
+    if (scroll_offset_y > maximum_scroll) {
+        scroll_offset_y = maximum_scroll;
+    }
+
+    vertical_scroll_bar.set_value(scroll_offset_y);
+    layout_output();
+}
+
+void BrowserProbeView::update_content_metrics(TextMetrics* text_metrics) {
+    int viewport_width = output_width;
+    if (viewport_width < 1) {
+        viewport_width = 1;
+    }
+
+    const char* text = content_label.get_text();
+    int text_length = text == 0 ? 0 : (int)displayed_output_text.size();
+
+    if (text_metrics != 0) {
+        content_height = TextWrapLayout::measure_height(
+            text,
+            text_length,
+            content_label.get_format_data(),
+            content_label.get_format_count(),
+            viewport_width,
+            2,
+            text_metrics
+        );
+    } else {
+        content_height = estimate_wrapped_height(text, viewport_width);
+    }
+
+    if (content_height > output_height && output_width > scroll_bar_width + 4) {
+        viewport_width = output_width - scroll_bar_width - 4;
+
+        if (text_metrics != 0) {
+            content_height = TextWrapLayout::measure_height(
+                text,
+                text_length,
+                content_label.get_format_data(),
+                content_label.get_format_count(),
+                viewport_width,
+                2,
+                text_metrics
+            );
+        } else {
+            content_height = estimate_wrapped_height(text, viewport_width);
+        }
+    }
+
+    if (content_height < 18) {
+        content_height = 18;
+    }
+
+    layout_dirty = text_metrics == 0;
+}
+
+void BrowserProbeView::layout_output() {
+    bool show_scrollbar = content_height > output_height && output_height > 0;
+
+    int viewport_width = output_width;
+    if (show_scrollbar) {
+        viewport_width -= scroll_bar_width + 4;
+    }
+    if (viewport_width < 0) {
+        viewport_width = 0;
+    }
+
+    int maximum_scroll = content_height - output_height;
+    if (maximum_scroll < 0) {
+        maximum_scroll = 0;
+    }
+
+    if (scroll_offset_y < 0) {
+        scroll_offset_y = 0;
+    }
+    if (scroll_offset_y > maximum_scroll) {
+        scroll_offset_y = maximum_scroll;
+    }
+
+    content_label.set_bounds(
+        output_x,
+        output_y - scroll_offset_y,
+        viewport_width,
+        content_height
+    );
+
+    vertical_scroll_bar.set_visible(show_scrollbar);
+    vertical_scroll_bar.set_range(
+        0,
+        maximum_scroll,
+        output_height > 0 ? output_height : 1
+    );
+    vertical_scroll_bar.set_value(scroll_offset_y);
+
+    if (show_scrollbar) {
+        vertical_scroll_bar.arrange(
+            output_x + viewport_width + 4,
+            output_y,
+            scroll_bar_width,
+            output_height
+        );
+    } else {
+        vertical_scroll_bar.arrange(0, 0, 0, 0);
+    }
+
+    sync_native_scrollbar();
+}
+
+void BrowserProbeView::sync_native_scrollbar() {
+    if (native_control_host != 0) {
+        native_control_host->sync_scroll_bar(&vertical_scroll_bar);
+    }
+}
+
+bool BrowserProbeView::is_output_point(int x, int y) const {
+    return
+        x >= output_x &&
+        x < output_x + content_label.get_width() &&
+        y >= output_y &&
+        y < output_y + output_height;
 }

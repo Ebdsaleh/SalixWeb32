@@ -55,7 +55,10 @@ It contains:
 - an address field,
 - `Go`,
 - backend/capability/status diagnostics,
-- `Summary`, `Headers`, `Raw`, and `Extracted` views.
+- `Summary`, `Headers`, `Raw`, and `Extracted` views,
+- a right-aligned `Copy` button for the currently selected view,
+- selectable output text,
+- a vertical scrollbar and mouse-wheel scrolling when the current output is taller than the viewport.
 
 The address field starts with:
 
@@ -64,6 +67,23 @@ https://www.chatgpt.com/
 ```
 
 A remote fetch is **not** performed during application startup. Pressing `Go` is explicit so a slow or unreachable Internet target cannot unexpectedly stall startup.
+
+### Copy and selection
+
+The output surface is selectable. Normal text selection plus `Ctrl+C` continues to copy only the selected text.
+
+The dedicated `Copy` button copies the **complete current probe section** for whichever view is active:
+
+```text
+Summary   -> complete summary text
+Headers   -> complete response-header text
+Raw       -> complete captured raw section
+Extracted -> complete extracted-text section
+```
+
+This is intentionally different from the on-screen display limit. Large sections such as Raw remain capped at 32 KiB for presentation on the Pentium 4, while `Copy` uses the complete captured section retained by the backend snapshot. This makes it practical to paste probe results directly into text files without photographing every screen.
+
+Probe text is normalized from CRLF to LF before display/copy so carriage-return glyphs are not exposed by the native text renderer.
 
 ### Summary
 
@@ -87,7 +107,7 @@ Shows response headers returned by the upstream target. Sensitive response heade
 
 ### Raw
 
-Shows the captured textual response body. The companion captures at most 512 KiB in this tranche; the on-screen label intentionally displays at most 32 KiB so a large page cannot turn the diagnostic view itself into a memory/performance test on the Pentium 4.
+Shows the captured textual response body. The companion captures at most 512 KiB in this tranche; the on-screen label intentionally displays at most 32 KiB so a large page cannot turn the diagnostic view itself into a memory/performance test on the Pentium 4. The `Copy` button still copies the complete captured Raw section.
 
 ### Extracted
 
@@ -103,12 +123,13 @@ On the modern companion machine:
 python tools/salix_bridge.py --host 0.0.0.0 --port 8765
 ```
 
-Expected startup output now includes:
+Expected startup output includes:
 
 ```text
 Salix bridge protocol : SALIX-BRIDGE/1
 Browser probe protocol: SALIX-PROBE/1
 Modern HTTPS probe    : enabled (unauthenticated GET only)
+Probe address family  : IPv4
 Credentials/cookies   : never forwarded by Browser Probe
 ```
 
@@ -155,6 +176,7 @@ The first probe deliberately keeps the implementation small:
 - maximum captured upstream body: 512 KiB,
 - maximum extracted text: 64 KiB,
 - maximum on-screen probe section: 32 KiB,
+- `Copy` exports the complete captured current section rather than the display-capped text,
 - no JavaScript execution,
 - no DOM,
 - no authenticated session,
@@ -197,8 +219,12 @@ Those observations drive the next runtime decision. They do not commit SalixWeb3
 11. Confirm Headers contains upstream response headers with `Set-Cookie` redacted if present.
 12. Confirm Raw contains the beginning of the real upstream response body.
 13. Confirm Extracted contains lightweight text when the response is extractable.
-14. Probe a simple known text/HTML URL as a control and compare results.
-15. Switch Conversation -> web/browser -> Runtime repeatedly and confirm the existing tab/native-control lifecycle remains stable.
-16. Close SalixWeb32 and confirm clean shutdown.
+14. Confirm long output exposes a vertical scrollbar and mouse-wheel scrolling works.
+15. Confirm output text can be selected and `Ctrl+C` copies the selection.
+16. For Summary, Headers, Raw, and Extracted in turn, click `Copy` and paste into a text file; confirm each complete current section is copied.
+17. Confirm Headers no longer displays visible carriage-return box glyphs.
+18. Probe a simple known text/HTML URL as a control and compare results.
+19. Switch Conversation -> Browser -> Runtime repeatedly and confirm the existing tab/native-control lifecycle remains stable.
+20. Close SalixWeb32 and confirm clean shutdown.
 
-Only the real P4 build/runtime test should mark Browser Probe v1 target-validated.
+Only the real P4 build/runtime test should mark this Browser Probe interaction tranche target-validated.

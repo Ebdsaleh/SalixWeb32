@@ -5,17 +5,26 @@
 // =================================================================================
 #pragma once
 
+#include <string>
+
 #include "framework/Panel.h"
 #include "framework/Label.h"
 #include "framework/TextInput.h"
 #include "framework/Button.h"
+#include "framework/ScrollBar.h"
 
+class Clipboard;
+class ComponentRenderer;
+class NativeControlHost;
+class TextMetrics;
+class UIEvent;
 class WebPlatformHost;
 class WebSurfaceSnapshot;
 
 class BrowserProbeView : public Panel {
     public:
         BrowserProbeView();
+        virtual ~BrowserProbeView();
 
         void set_web_platform_host(WebPlatformHost* host);
         WebPlatformHost* get_web_platform_host();
@@ -23,7 +32,20 @@ class BrowserProbeView : public Panel {
 
         bool navigate(const char* url);
         void update();
-        void arrange(int x, int y, int width, int height);
+
+        void attach_native_controls(NativeControlHost* control_host);
+        void detach_native_controls();
+
+        void arrange(
+            int x,
+            int y,
+            int width,
+            int height,
+            TextMetrics* text_metrics = 0
+        );
+
+        virtual bool handle_event(const UIEvent& event);
+        virtual void render(ComponentRenderer& renderer) const;
 
     private:
         enum ProbeMode {
@@ -35,10 +57,23 @@ class BrowserProbeView : public Panel {
 
         static void on_go_clicked(Button* button, void* context);
         static void on_probe_mode_clicked(Button* button, void* context);
+        static void on_copy_clicked(Button* button, void* context);
+        static void on_scroll_changed(
+            ScrollBar* scroll_bar,
+            int value,
+            void* context
+        );
 
         void set_probe_mode(ProbeMode new_mode);
         void refresh_labels();
         void refresh_probe_content(const WebSurfaceSnapshot& snapshot);
+        void set_output_text(const std::string& text);
+        void copy_current_output();
+        void scroll_pixels(int pixel_count);
+        void update_content_metrics(TextMetrics* text_metrics);
+        void layout_output();
+        void sync_native_scrollbar();
+        bool is_output_point(int x, int y) const;
 
         WebPlatformHost* web_platform_host;
         ProbeMode probe_mode;
@@ -55,6 +90,24 @@ class BrowserProbeView : public Panel {
         Button headers_button;
         Button raw_button;
         Button extracted_button;
+        Button copy_button;
 
         Label content_label;
+        ScrollBar vertical_scroll_bar;
+
+        NativeControlHost* native_control_host;
+        Clipboard* active_clipboard;
+
+        std::string current_output_text;
+        std::string displayed_output_text;
+
+        int output_x;
+        int output_y;
+        int output_width;
+        int output_height;
+        int content_height;
+        int scroll_offset_y;
+        int scroll_bar_width;
+        int line_step_pixels;
+        bool layout_dirty;
 };
