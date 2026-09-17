@@ -2,16 +2,28 @@
 
 This document records the first real transport path between SalixWeb32 on the legacy machine and a modern companion process.
 
-## Goal
+## Architectural role
 
-The immediate goal of this backend is deliberately smaller than "load the modern web":
+The bridge is a **development/reference backend**, not a replacement for SalixWeb32's long-term native communications path.
 
-> prove that the Pentium 4 can send a backend-neutral request over the LAN to another process and receive a response without coupling the SalixWeb32 application shell to one transport implementation.
-
-The architecture is:
+The primary product goal remains:
 
 ```text
-SalixWeb32 application / WebView
+Pentium 4 / Windows Server 2003
+        |
+        v
+SalixWeb32 native networking / TLS / HTTP / service adapters
+        |
+        v
+modern Internet services
+```
+
+The bridge remains useful as a test oracle, compatibility backend, diagnostics path, and a way to inspect modern HTTPS behavior while native pieces are still being built.
+
+## Transport architecture
+
+```text
+SalixWeb32 application / Browser Probe
         |
         v
 WebPlatformHost
@@ -29,91 +41,42 @@ Win32HttpTransport (Winsock2, plain HTTP on trusted LAN)
 modern companion: tools/salix_bridge.py
 ```
 
-The application still knows only `WebPlatformBackend`. Winsock details stay in the Win32 transport and the remote bridge protocol stays in the remote backend/companion boundary.
+The application still knows only `WebPlatformBackend`. Winsock details remain in the Win32 transport and companion protocol details remain in the remote backend.
 
-## Important architectural position
+## Current companion endpoints
 
-The remote bridge is **not** the intended replacement for native modern networking on the Pentium 4.
-
-The primary SalixWeb32 goal remains:
-
-```text
-Pentium 4 / Windows Server 2003
-        |
-        v
-SalixWeb32 native network + TLS + HTTP stack
-        |
-        v
-https://chatgpt.com and other modern services
-```
-
-The P4 is expected to communicate, authenticate, transport, and translate service data itself through SalixWeb32 where the selected native dependencies make that practical.
-
-The bridge remains valuable as:
-
-- a validated transport reference,
-- a development harness,
-- a diagnostics path,
-- a compatibility/fallback backend,
-- a way to compare native behavior against a known-good modern endpoint,
-- a future optional translation backend where a service genuinely requires it.
-
-Native and remote backends therefore coexist. Success of the bridge does not remove or weaken the direct native HTTPS goal.
-
-## What this tranche does
-
-The legacy client gains:
-
-- `NetworkRequest`
-- `NetworkResponse`
-- `NetworkTransport`
-- `Win32HttpTransport`
-- `RemoteBridgeWebBackend`
-- explicit runtime backend selection through environment variables
-
-The modern side gains the dependency-free Python companion:
-
-```text
-tools/salix_bridge.py
-```
-
-The first protocol supports:
+The companion now supports:
 
 ```text
 GET  /v1/health
 POST /v1/navigate
+POST /v1/fetch
 ```
 
-`POST /v1/navigate` receives the requested URL as `text/plain` and returns a small `SALIX-BRIDGE/1` acknowledgement.
+`/v1/navigate` remains the original transport-proof acknowledgement endpoint.
 
-This is a **real TCP/HTTP transport test**, but the companion intentionally does not fetch the URL yet.
+`/v1/fetch` is used by Browser Probe v1. It receives an absolute `http://` or `https://` URL as `text/plain`, performs an unauthenticated modern HTTPS GET on the companion machine, and returns a framed `SALIX-PROBE/1` diagnostic payload containing:
 
-## What this tranche does not do
+- requested URL,
+- final URL after redirects,
+- upstream HTTP status,
+- MIME type,
+- captured response size,
+- redirect count,
+- lightweight HTML signal counts,
+- response headers,
+- raw textual response content,
+- lightweight extracted text/title.
 
-It does not yet:
+The companion does not execute target JavaScript and does not claim to provide a browser DOM.
 
-- authenticate to ChatGPT or another SaaS provider,
-- send user chat messages,
-- upload files,
-- download remote assets,
-- proxy HTML,
-- execute JavaScript,
-- provide WebSocket/SSE streaming,
-- provide TLS on the legacy machine.
-
-Those omissions describe this backend tranche only. They do not change the native SalixWeb32 objective of building a direct modern-HTTPS path on Server 2003.
+See `docs/BROWSER_PROBE.md` for the Browser Probe workflow and limits.
 
 ## Backend selection
 
-The existing placeholder remains the default.
+The placeholder backend remains the default.
 
-With no environment variables set:
-
-```text
-SalixWeb32 -> PlaceholderWebBackend
-```
-
-To opt into the bridge backend:
+To opt into the remote backend:
 
 ```text
 SALIX_WEB_BACKEND=remote
@@ -121,145 +84,81 @@ SALIX_BRIDGE_HOST=<modern-machine-ip-or-hostname>
 SALIX_BRIDGE_PORT=8765
 ```
 
-`SALIX_BRIDGE_PORT` is optional and defaults to `8765`.
+`SALIX_BRIDGE_PORT` defaults to `8765`.
 
-`SALIX_BRIDGE_HOST` defaults to `127.0.0.1`, but that is only useful when the companion is running on the same Windows machine. For the intended Pentium-4-to-modern-PC test, set it to the modern machine's LAN address or resolvable hostname.
+For the P4-to-modern-machine test, set `SALIX_BRIDGE_HOST` to the modern machine's LAN address.
 
-The remote backend is opt-in so a missing companion cannot accidentally make the normal development path depend on network availability.
+## Starting the companion
 
-## Starting the modern companion
-
-On the modern machine, from the repository root:
+On the modern machine:
 
 ```text
 python tools/salix_bridge.py --host 0.0.0.0 --port 8765
 ```
 
-The server prints its protocol and listen address.
+Binding to `0.0.0.0` permits LAN access. Keep the host firewall rule narrowly scoped to the Pentium 4 source address.
 
-Binding to `0.0.0.0` allows another machine on the LAN to connect. The host firewall may require an inbound private-network rule for TCP port `8765`.
+The current startup banner reports both bridge and Browser Probe protocol versions.
 
-For a local-only test, omit `--host` and the server defaults to `127.0.0.1`.
+## Starting SalixWeb32
 
-## Starting SalixWeb32 with the bridge backend
-
-For the first target test, the simplest route is a Command Prompt on the Pentium 4:
+On the Pentium 4:
 
 ```text
 set SALIX_WEB_BACKEND=remote
-set SALIX_BRIDGE_HOST=192.168.x.x
+set SALIX_BRIDGE_HOST=<modern-machine-LAN-IP>
 set SALIX_BRIDGE_PORT=8765
 bin\Debug\SalixWeb32.exe
 ```
 
-Replace `192.168.x.x` with the modern companion machine's LAN address.
+The Browser Probe no longer performs a real Internet fetch during SalixWeb32 startup. The user explicitly presses `Go` in the Browser workspace.
 
-If Visual Studio is launched before those environment variables are defined, a debug-launched child process may not inherit them. Running the already-built executable from the configured Command Prompt avoids that ambiguity during the first test.
-
-## Expected Web tab when connected
-
-The `Web` workspace should identify:
-
-```text
-Backend: Remote Bridge Web Backend
-family: remote
-network: yes
-```
-
-The initial navigation target remains:
-
-```text
-https://www.chatgpt.com/
-```
-
-The remote backend sends that target to the companion's `/v1/navigate` endpoint. A successful response should show a bridge body similar to:
-
-```text
-SALIX-BRIDGE/1
-status=accepted
-target=https://www.chatgpt.com/
-note=transport boundary verified; modern fetch is not enabled yet
-```
-
-This confirms that the request crossed from the legacy client into the modern companion and back.
-
-## Failure behavior
-
-If the companion is not running or the address/port is wrong, SalixWeb32 should still launch.
-
-The Web tab should expose a transport failure such as connection refused/timeout rather than hiding the problem or crashing the application.
-
-The first Win32 transport uses a short bounded connect/read/write timeout so an unreachable companion cannot block indefinitely.
+Remote mode uses a longer bounded bridge receive timeout so the companion has enough time to complete a modern HTTPS request while still failing cleanly if the companion or target becomes unresponsive.
 
 ## Security boundary
 
-The first bridge transport is intentionally **plain HTTP**.
+The P4-to-companion transport is still intentionally **plain HTTP**.
 
-That is acceptable only because this tranche is a private-LAN architecture/transport proof. It must not be exposed directly to the public Internet and must not carry credentials, session cookies, access tokens, or private service payloads in this state.
+Therefore Browser Probe v1 is deliberately unauthenticated:
 
-Use it only on a trusted local network while validating this backend.
+- no ChatGPT credentials,
+- no authorization headers,
+- no browser cookies,
+- no session tokens,
+- no private conversation payloads,
+- no file uploads.
 
-Direct native HTTPS on the Pentium 4 will use a separately qualified TLS implementation behind a Salix security/transport boundary. See `docs/DEPENDENCY_STRATEGY.md`.
+The companion also redacts sensitive response headers such as `Set-Cookie` before returning probe headers over the plaintext LAN link.
 
-## Why keep the companion
+Only use this path on the existing trusted, tightly firewalled development LAN.
 
-This backend keeps three concerns independent:
+## Validated transport result
 
-```text
-legacy UI / interaction
-        !=
-bridge transport
-        !=
-service implementation
-```
+The September 16, 2026 target pass validated the original bridge transport between the real Pentium 4 / Windows Server 2003 SP2 client and the Windows Server 2022 companion machine.
 
-That makes the companion useful even after native HTTPS exists. It can remain a reference implementation, test oracle, optional translator, and fallback transport without becoming a mandatory architectural dependency.
+Observed results included:
 
-## Validated target result
+- companion listening on `0.0.0.0:8765`,
+- local and P4 `/v1/health` success,
+- 0% packet loss between the P4 and companion host during the test,
+- bounded failure while TCP 8765 was blocked,
+- successful connection after an inbound firewall rule was restricted to the P4 source address,
+- successful `POST /v1/navigate`,
+- HTTP 200 returned to SalixWeb32,
+- preserved `https://www.chatgpt.com/` navigation target,
+- clean round-trip through `WebView -> WebPlatformHost -> RemoteBridgeWebBackend -> NetworkTransport -> Win32HttpTransport -> companion` and back.
 
-The September 16, 2026 target pass validated the complete first bridge round-trip between the real Pentium 4 / Windows Server 2003 SP2 client and the Windows Server 2022 companion machine.
+That validation applies to the transport foundation. Browser Probe v1's new `/v1/fetch` behavior still requires its own real P4 validation.
 
-Observed results:
+## Current limits
 
-- the Server 2022 companion listened on `0.0.0.0:8765`,
-- local `/v1/health` returned `SALIX-BRIDGE/1`, `status=ok`, and `service=salix_bridge`,
-- the Pentium 4 could reach the companion host on the LAN with 0% ICMP packet loss,
-- the initial blocked-port condition produced a bounded connection timeout/refusal without hanging or crashing SalixWeb32,
-- after an inbound firewall rule was restricted to the Pentium 4 source address and TCP port 8765, the P4 could also reach `/v1/health` directly,
-- `RemoteBridgeWebBackend` completed `POST /v1/navigate`,
-- the Web workspace reported HTTP 200,
-- the returned bridge payload preserved the requested `https://www.chatgpt.com/` target,
-- the round-trip completed through `WebView -> WebPlatformHost -> RemoteBridgeWebBackend -> NetworkTransport -> Win32HttpTransport -> companion` and back.
+The bridge is intentionally simple:
 
-This validates both the expected failure path and successful LAN request/response path on the primary target hardware.
+- plain HTTP on the private LAN,
+- IPv4 Winsock2 client transport,
+- bounded response size,
+- explicit requests only,
+- no background polling,
+- no authenticated service data.
 
-The firewall used for the validation remained narrowly scoped to the legacy client rather than opening the bridge broadly across the LAN. The transport is still plaintext HTTP and therefore remains unsuitable for credentials, tokens, cookies, or sensitive service payloads.
-
-## Target validation checklist
-
-### Build/lifecycle
-
-1. Close/reopen Visual Studio .NET 2003 because the `.vcproj` gains new translation units and `ws2_32.lib`.
-2. Clean and rebuild Debug Win32 with VC7.1.
-3. Confirm zero compile/link errors; record warnings separately if any appear.
-4. Launch normally with no bridge environment variables and confirm the existing Placeholder backend still behaves exactly as before.
-
-### Offline remote mode
-
-5. Set `SALIX_WEB_BACKEND=remote` with the companion stopped.
-6. Launch the executable and confirm SalixWeb32 still reaches the normal shell.
-7. Confirm the Web tab identifies the remote backend and reports the bounded connection failure rather than hanging/crashing.
-8. Confirm Conversation and Runtime remain usable after the failed request.
-
-### Real LAN round-trip
-
-9. Start `tools/salix_bridge.py` on a modern machine using `--host 0.0.0.0 --port 8765`.
-10. Set the Pentium 4 bridge host to that machine's LAN address.
-11. Launch SalixWeb32 in remote mode.
-12. Confirm the companion console logs a `POST /v1/navigate` request from the Pentium 4.
-13. Confirm the Web tab shows HTTP 200 and the `SALIX-BRIDGE/1` response body.
-14. Confirm the returned target is `https://www.chatgpt.com/`.
-15. Switch Conversation -> Web -> Runtime repeatedly and confirm normal UI/native-control lifecycle remains stable.
-16. Close SalixWeb32 and confirm Winsock/backend/runtime shutdown is clean.
-
-The core VC7.1 build, bounded-failure behavior, direct P4 `/v1/health` access, and real LAN HTTP 200 navigation round-trip are now target-validated. The tab-cycling/shutdown regression checks remain useful whenever later bridge work changes lifecycle behavior.
+These limits keep the bridge understandable while SalixWeb32 learns which modern web/service capabilities are actually required.

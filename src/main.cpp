@@ -64,6 +64,13 @@ int APIENTRY WinMain(
     bool use_remote_bridge =
         backend_mode != 0 && strcmp(backend_mode, "remote") == 0;
 
+    // Browser Probe asks the companion to perform a bounded modern HTTPS GET.
+    // Keep the request explicit (Go button) and allow enough receive time for
+    // that upstream fetch without making the normal placeholder path slower.
+    if (use_remote_bridge) {
+        bridge_transport.set_timeout_milliseconds(12000);
+    }
+
     WebPlatformBackend* selected_web_backend = use_remote_bridge
         ? (WebPlatformBackend*)&remote_bridge_web_backend
         : (WebPlatformBackend*)&placeholder_web_backend;
@@ -91,7 +98,7 @@ int APIENTRY WinMain(
     Diagnostics::write_line("SalixWeb32 starting.");
     Diagnostics::write_line(
         use_remote_bridge
-            ? "Web backend selection: remote bridge."
+            ? "Web backend selection: remote Browser Probe bridge."
             : "Web backend selection: placeholder."
     );
 
@@ -116,13 +123,16 @@ int APIENTRY WinMain(
         return 1;
     }
 
-    WebNavigationRequest initial_navigation("https://www.chatgpt.com/");
-    if (!web_platform_host.navigate(initial_navigation)) {
-        Diagnostics::write_line(
-            use_remote_bridge
-                ? "Initial remote bridge navigation was not accepted."
-                : "Initial placeholder WebView navigation was not accepted."
-        );
+    // Keep the historical placeholder proof initialized to the ChatGPT target,
+    // but do not make a real remote fetch before the application window exists.
+    // Browser Probe remote requests are user-triggered from the Browser/Web tab.
+    if (!use_remote_bridge) {
+        WebNavigationRequest initial_navigation("https://www.chatgpt.com/");
+        if (!web_platform_host.navigate(initial_navigation)) {
+            Diagnostics::write_line(
+                "Initial placeholder WebView navigation was not accepted."
+            );
+        }
     }
 
     if (!application_host.initialize(

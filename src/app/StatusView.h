@@ -10,9 +10,9 @@
 #include "framework/Label.h"
 #include "framework/StackPanel.h"
 #include "framework/TabView.h"
-#include "framework/WebView.h"
 #include "MessageComposer.h"
 #include "ConversationView.h"
+#include "BrowserProbeView.h"
 
 class ApplicationRuntime;
 class DesktopServices;
@@ -82,7 +82,7 @@ class StatusView : public View {
         Label conversation_hint_label;
         ConversationView conversation_view;
 
-        WebView web_view;
+        BrowserProbeView browser_probe_view;
 
         Panel sidebar_panel;
         Label sidebar_title_label;

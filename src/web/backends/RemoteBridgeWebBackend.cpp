@@ -1,10 +1,11 @@
 // =================================================================================
 // Filename:    web/backends/RemoteBridgeWebBackend.cpp
 // Author:      Ebdsaleh
-// Description: Implements the first remote bridge backend over NetworkTransport.
+// Description: Implements the remote bridge backend over NetworkTransport.
 // =================================================================================
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "RemoteBridgeWebBackend.h"
 #include "web/network/NetworkRequest.h"
@@ -12,6 +13,204 @@
 #include "web/network/NetworkTransport.h"
 #include "web/platform/WebInputEvent.h"
 #include "web/platform/WebNavigationRequest.h"
+
+namespace {
+    std::string get_probe_value(
+        const std::string& metadata,
+        const char* key
+    ) {
+        if (key == 0 || key[0] == '\0') {
+            return "";
+        }
+
+        std::string prefix(key);
+        prefix += "=";
+
+        std::string::size_type position = metadata.find(prefix);
+        while (position != std::string::npos) {
+            if (position == 0 || metadata[position - 1] == '\n') {
+                std::string::size_type value_start = position + prefix.size();
+                std::string::size_type value_end = metadata.find('\n', value_start);
+                if (value_end == std::string::npos) {
+                    value_end = metadata.size();
+                }
+                return metadata.substr(value_start, value_end - value_start);
+            }
+            position = metadata.find(prefix, position + 1);
+        }
+
+        return "";
+    }
+
+    unsigned long get_probe_unsigned(
+        const std::string& metadata,
+        const char* key
+    ) {
+        std::string value = get_probe_value(metadata, key);
+        if (value.empty()) {
+            return 0;
+        }
+        return strtoul(value.c_str(), 0, 10);
+    }
+
+    int get_probe_int(
+        const std::string& metadata,
+        const char* key
+    ) {
+        std::string value = get_probe_value(metadata, key);
+        if (value.empty()) {
+            return 0;
+        }
+        return atoi(value.c_str());
+    }
+
+    bool read_probe_section(
+        const std::string& payload,
+        std::string::size_type& cursor,
+        unsigned long length,
+        std::string& output
+    ) {
+        if (length > (unsigned long)(payload.size() - cursor)) {
+            return false;
+        }
+
+        output.assign(payload, cursor, (std::string::size_type)length);
+        cursor += (std::string::size_type)length;
+        return true;
+    }
+
+    bool parse_probe_payload(
+        const std::string& payload,
+        WebSurfaceSnapshot& snapshot
+    ) {
+        const char* protocol = "SALIX-PROBE/1";
+        std::string::size_type header_end = payload.find("\n\n");
+        if (header_end == std::string::npos) {
+            return false;
+        }
+
+        std::string metadata = payload.substr(0, header_end);
+        if (metadata.compare(0, 13, protocol) != 0) {
+            return false;
+        }
+
+        if (get_probe_value(metadata, "status") != "ok") {
+            return false;
+        }
+
+        unsigned long requested_url_length =
+            get_probe_unsigned(metadata, "requested_url_len");
+        unsigned long final_url_length =
+            get_probe_unsigned(metadata, "final_url_len");
+        unsigned long reason_length =
+            get_probe_unsigned(metadata, "http_reason_len");
+        unsigned long mime_length =
+            get_probe_unsigned(metadata, "mime_type_len");
+        unsigned long headers_length =
+            get_probe_unsigned(metadata, "headers_len");
+        unsigned long raw_length =
+            get_probe_unsigned(metadata, "raw_len");
+        unsigned long extracted_length =
+            get_probe_unsigned(metadata, "extracted_len");
+        unsigned long title_length =
+            get_probe_unsigned(metadata, "title_len");
+
+        std::string requested_url;
+        std::string final_url;
+        std::string reason;
+        std::string mime_type;
+        std::string headers;
+        std::string raw_content;
+        std::string extracted_content;
+        std::string title;
+
+        std::string::size_type cursor = header_end + 2;
+        if (!read_probe_section(payload, cursor, requested_url_length, requested_url) ||
+            !read_probe_section(payload, cursor, final_url_length, final_url) ||
+            !read_probe_section(payload, cursor, reason_length, reason) ||
+            !read_probe_section(payload, cursor, mime_length, mime_type) ||
+            !read_probe_section(payload, cursor, headers_length, headers) ||
+            !read_probe_section(payload, cursor, raw_length, raw_content) ||
+            !read_probe_section(payload, cursor, extracted_length, extracted_content) ||
+            !read_probe_section(payload, cursor, title_length, title)) {
+            return false;
+        }
+
+        snapshot.clear();
+        snapshot.title = title.empty() ? "Salix Browser Probe" : title;
+        snapshot.address = requested_url;
+        snapshot.final_address = final_url;
+        snapshot.http_status_code = get_probe_int(metadata, "http_status");
+        snapshot.http_status_text = reason;
+        snapshot.mime_type = mime_type;
+        snapshot.response_size = get_probe_unsigned(metadata, "response_size");
+        snapshot.response_truncated =
+            get_probe_int(metadata, "truncated") != 0;
+        snapshot.redirect_count = get_probe_int(metadata, "redirect_count");
+        snapshot.script_count = get_probe_int(metadata, "script_count");
+        snapshot.form_count = get_probe_int(metadata, "form_count");
+        snapshot.link_count = get_probe_int(metadata, "link_count");
+        snapshot.response_headers = headers;
+        snapshot.raw_content = raw_content;
+        snapshot.extracted_content = extracted_content;
+
+        char number_text[64];
+        std::string status("HTTP ");
+        sprintf(number_text, "%d", snapshot.http_status_code);
+        status += number_text;
+        if (!reason.empty()) {
+            status += " ";
+            status += reason;
+        }
+        status += " | ";
+        status += mime_type.empty() ? "unknown MIME" : mime_type;
+        status += " | ";
+        sprintf(number_text, "%lu", snapshot.response_size);
+        status += number_text;
+        status += " bytes";
+        if (snapshot.response_truncated) {
+            status += " captured (truncated)";
+        }
+        snapshot.status = status;
+
+        std::string summary;
+        summary += "Requested: ";
+        summary += requested_url;
+        summary += "\nFinal: ";
+        summary += final_url.empty() ? requested_url : final_url;
+        summary += "\nHTTP: ";
+        sprintf(number_text, "%d", snapshot.http_status_code);
+        summary += number_text;
+        if (!reason.empty()) {
+            summary += " ";
+            summary += reason;
+        }
+        summary += "\nMIME: ";
+        summary += mime_type.empty() ? "unknown" : mime_type;
+        summary += "\nCaptured bytes: ";
+        sprintf(number_text, "%lu", snapshot.response_size);
+        summary += number_text;
+        summary += snapshot.response_truncated ? " (truncated)" : "";
+        summary += "\nRedirects: ";
+        sprintf(number_text, "%d", snapshot.redirect_count);
+        summary += number_text;
+        summary += "\nHTML signals: scripts ";
+        sprintf(number_text, "%d", snapshot.script_count);
+        summary += number_text;
+        summary += " | forms ";
+        sprintf(number_text, "%d", snapshot.form_count);
+        summary += number_text;
+        summary += " | links ";
+        sprintf(number_text, "%d", snapshot.link_count);
+        summary += number_text;
+        summary +=
+            "\n\nProbe mode fetches and inspects the response only. It does not "
+            "execute JavaScript or authenticate to the target service.";
+        snapshot.content = summary;
+
+        return true;
+    }
+}
 
 RemoteBridgeWebBackend::RemoteBridgeWebBackend(
     NetworkTransport* new_transport,
@@ -41,7 +240,8 @@ bool RemoteBridgeWebBackend::initialize() {
     }
 
     if (transport == 0 || host.empty() || port == 0) {
-        surface_snapshot.title = "SalixWeb32 Remote Bridge";
+        surface_snapshot.clear();
+        surface_snapshot.title = "Salix Browser Probe";
         surface_snapshot.address = current_url;
         surface_snapshot.status = "Remote bridge configuration is incomplete.";
         surface_snapshot.content =
@@ -63,8 +263,8 @@ bool RemoteBridgeWebBackend::initialize() {
 }
 
 void RemoteBridgeWebBackend::update() {
-    // First transport tranche intentionally avoids polling the bridge every
-    // frame. Requests are explicit so a missing companion cannot stall the UI.
+    // Probe requests are explicit. Never poll a possibly unavailable bridge
+    // from the per-frame update path.
 }
 
 void RemoteBridgeWebBackend::shutdown() {
@@ -89,7 +289,8 @@ void RemoteBridgeWebBackend::get_capabilities(
     capabilities.surface_snapshot = true;
     capabilities.network = true;
 
-    // These remain false until the companion protocol actually supplies them.
+    // Browser Probe can retrieve and inspect HTML, but it does not yet expose
+    // a DOM/runtime to Salix, so HTML/JS capabilities remain conservative.
     capabilities.pointer_input = false;
     capabilities.keyboard_input = false;
     capabilities.html = false;
@@ -108,7 +309,7 @@ bool RemoteBridgeWebBackend::navigate(
 
     current_url = request.get_url();
 
-    NetworkRequest network_request("POST", "/v1/navigate");
+    NetworkRequest network_request("POST", "/v1/fetch");
     network_request.set_content_type("text/plain; charset=utf-8");
     network_request.set_body(current_url);
 
@@ -122,32 +323,37 @@ bool RemoteBridgeWebBackend::navigate(
             response
         )) {
         bridge_online = false;
-        set_transport_failure("Navigation request");
+        set_transport_failure("Browser Probe request");
         return false;
     }
 
-    bridge_online = response.get_is_success();
+    bridge_online = true;
 
-    char number_text[64];
-    std::string status_text("Bridge ");
-    status_text += host;
-    status_text += ":";
-    sprintf(number_text, "%u", (unsigned int)port);
-    status_text += number_text;
-    status_text += " returned HTTP ";
-    sprintf(number_text, "%d", response.get_status_code());
-    status_text += number_text;
-    status_text += " after request ";
-    sprintf(number_text, "%lu", request_count);
-    status_text += number_text;
-    status_text += ".";
+    if (!response.get_is_success()) {
+        char number_text[64];
+        std::string status("Browser Probe bridge returned HTTP ");
+        sprintf(number_text, "%d", response.get_status_code());
+        status += number_text;
+        status += ".";
 
-    surface_snapshot.title = "SalixWeb32 Remote Bridge";
-    surface_snapshot.address = current_url;
-    surface_snapshot.status = status_text;
-    surface_snapshot.content = response.get_body();
+        surface_snapshot.clear();
+        surface_snapshot.title = "Salix Browser Probe";
+        surface_snapshot.address = current_url;
+        surface_snapshot.status = status;
+        surface_snapshot.content = response.get_body();
+        return false;
+    }
 
-    return response.get_is_success();
+    if (!parse_probe_payload(response.get_body(), surface_snapshot)) {
+        surface_snapshot.clear();
+        surface_snapshot.title = "Salix Browser Probe";
+        surface_snapshot.address = current_url;
+        surface_snapshot.status = "Browser Probe returned an invalid probe payload.";
+        surface_snapshot.content = response.get_body();
+        return false;
+    }
+
+    return true;
 }
 
 bool RemoteBridgeWebBackend::get_surface_snapshot(
@@ -176,12 +382,13 @@ void RemoteBridgeWebBackend::set_transport_failure(
         status += "unknown transport error";
     }
 
-    surface_snapshot.title = "SalixWeb32 Remote Bridge";
+    surface_snapshot.clear();
+    surface_snapshot.title = "Salix Browser Probe";
     surface_snapshot.address = current_url;
     surface_snapshot.status = status;
     surface_snapshot.content =
-        "The remote backend remains isolated from the application shell. "
-        "Fix the companion endpoint and retry without changing WebView code.";
+        "The Browser Probe could not reach the companion. The application shell "
+        "remains isolated; fix the bridge endpoint and retry.";
 }
 
 void RemoteBridgeWebBackend::refresh_ready_surface() {
@@ -197,14 +404,15 @@ void RemoteBridgeWebBackend::refresh_ready_surface() {
         ? "online"
         : "ready / not yet contacted";
     endpoint_text +=
-        "\n\nThe first bridge protocol forwards navigation requests only. It does "
-        "not yet fetch pages, authenticate to services, upload files, or expose "
-        "modern TLS directly to the legacy machine.";
+        "\n\nEnter an http:// or https:// URL in the Browser tab and press Go. "
+        "The modern companion will perform an unauthenticated GET and return "
+        "diagnostic response data. No cookies or credentials are forwarded.";
 
-    surface_snapshot.title = "SalixWeb32 Remote Bridge";
+    surface_snapshot.clear();
+    surface_snapshot.title = "Salix Browser Probe";
     surface_snapshot.address = current_url;
     surface_snapshot.status = is_initialized
-        ? "Remote bridge transport initialized."
-        : "Remote bridge transport stopped.";
+        ? "Remote Browser Probe transport initialized."
+        : "Remote Browser Probe transport stopped.";
     surface_snapshot.content = endpoint_text;
 }

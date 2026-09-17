@@ -130,8 +130,8 @@ StatusView::StatusView(
         "Framework components online."
     );
 
-    web_view.set_web_platform_host(web_platform_host);
-    web_page.add_child(&web_view);
+    browser_probe_view.set_web_platform_host(web_platform_host);
+    web_page.add_child(&browser_probe_view);
 
     sidebar_panel.add_child(&sidebar_title_label);
     sidebar_panel.add_child(&diagnostics_stack);
@@ -153,7 +153,7 @@ StatusView::StatusView(
         &conversation_page
     );
     web_tab_index = workspace_tabs.add_tab(
-        "Web",
+        "Browser",
         &web_page
     );
     runtime_tab_index = workspace_tabs.add_tab(
@@ -316,7 +316,7 @@ void StatusView::layout(
         composer_height
     );
 
-    web_view.arrange(
+    browser_probe_view.arrange(
         page_x,
         page_y,
         page_width,
@@ -368,7 +368,7 @@ bool StatusView::handle_event(const UIEvent& event) {
 }
 
 void StatusView::render(ComponentRenderer& renderer) {
-    web_view.update();
+    browser_probe_view.update();
     update_dynamic_text();
     root_panel.render(renderer);
 }
