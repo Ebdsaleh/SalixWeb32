@@ -9,7 +9,9 @@ intentionally unauthenticated and never forward cookies or credentials.
 from __future__ import annotations
 
 import argparse
+import http.client
 import re
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -85,6 +87,68 @@ class CountingRedirectHandler(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def _create_ipv4_connection(
+    address,
+    timeout=socket._GLOBAL_DEFAULT_TIMEOUT,  # type: ignore[attr-defined]
+    source_address=None,
+):  # type: ignore[no-untyped-def]
+    """Create one TCP connection using IPv4 only.
+
+    The Server 2022 probe host used for target validation has a healthy IPv4
+    path to modern services while its IPv6 resolver/connect path is unusable.
+    Keeping the diagnostic fetch deterministic avoids burning the complete
+    probe timeout on an address family that cannot succeed on that host.
+    """
+
+    host, port = address
+    last_error: OSError | None = None
+
+    for family, socktype, proto, _canonname, socket_address in socket.getaddrinfo(
+        host,
+        port,
+        socket.AF_INET,
+        socket.SOCK_STREAM,
+    ):
+        sock = socket.socket(family, socktype, proto)
+        try:
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:  # type: ignore[attr-defined]
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(socket_address)
+            return sock
+        except OSError as error:
+            last_error = error
+            sock.close()
+
+    if last_error is not None:
+        raise last_error
+    raise OSError("IPv4 address resolution returned no usable addresses")
+
+
+class IPv4HTTPConnection(http.client.HTTPConnection):
+    _create_connection = staticmethod(_create_ipv4_connection)
+
+
+class IPv4HTTPSConnection(http.client.HTTPSConnection):
+    _create_connection = staticmethod(_create_ipv4_connection)
+
+
+class IPv4HTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, request):  # type: ignore[no-untyped-def]
+        return self.do_open(IPv4HTTPConnection, request)
+
+
+class IPv4HTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, request):  # type: ignore[no-untyped-def]
+        return self.do_open(
+            IPv4HTTPSConnection,
+            request,
+            context=self._context,
+            check_hostname=self._check_hostname,
+        )
+
+
 def _safe_headers(headers) -> str:  # type: ignore[no-untyped-def]
     """Render response headers while keeping session material off plaintext LAN."""
 
@@ -155,6 +219,7 @@ def _frame_probe_result(
     lines = [
         PROBE_PROTOCOL,
         "status=ok",
+        "address_family=ipv4",
         f"http_status={http_status}",
         f"response_size={response_size}",
         f"truncated={1 if truncated else 0}",
@@ -176,7 +241,11 @@ def _perform_probe(target: str) -> bytes:
         raise ValueError("Browser Probe accepts only absolute http:// or https:// URLs")
 
     redirect_handler = CountingRedirectHandler()
-    opener = urllib.request.build_opener(redirect_handler)
+    opener = urllib.request.build_opener(
+        redirect_handler,
+        IPv4HTTPHandler(),
+        IPv4HTTPSHandler(),
+    )
     request = urllib.request.Request(
         target,
         method="GET",
@@ -403,6 +472,7 @@ def main() -> int:
     print(f"Browser probe protocol: {PROBE_PROTOCOL}")
     print(f"Listening             : http://{args.host}:{args.port}")
     print("Modern HTTPS probe    : enabled (unauthenticated GET only)")
+    print("Probe address family  : IPv4")
     print("Credentials/cookies   : never forwarded by Browser Probe")
     print("Press Ctrl+C to stop.")
 
