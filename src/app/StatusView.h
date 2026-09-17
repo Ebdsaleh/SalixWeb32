@@ -5,6 +5,9 @@
 // =================================================================================
 #pragma once
 
+#include <stdio.h>
+#include <string>
+
 #include "framework/View.h"
 #include "framework/Panel.h"
 #include "framework/Label.h"
@@ -32,6 +35,91 @@ class StatusView : public View {
 
         virtual void attach_native_control_host(NativeControlHost* control_host);
         virtual void detach_native_control_host();
+
+        virtual bool build_diagnostic_report(std::string& report) const {
+            report.clear();
+            report += "SalixWeb32 Diagnostic Report\r\n";
+            report += "===========================\r\n\r\n";
+
+            int active_index = workspace_tabs.get_active_index();
+            const char* active_title = workspace_tabs.get_tab_title(active_index);
+
+            report += "Active view: ";
+            report += active_title == 0 ? "Unknown" : active_title;
+            report += "\r\n";
+
+            char size_text[96];
+            sprintf(
+                size_text,
+                "Client size: %d x %d\r\n",
+                client_width,
+                client_height
+            );
+            report += size_text;
+
+            report += runtime_label.get_text();
+            report += "\r\n";
+            report += host_label.get_text();
+            report += "\r\n";
+            report += web_backend_label.get_text();
+            report += "\r\n";
+            report += web_capability_label.get_text();
+            report += "\r\n";
+            report += runtime_status_label.get_text();
+            report += "\r\n\r\n";
+
+            if (active_index == web_tab_index) {
+                report += "Browser Probe\r\n";
+                report += "-------------\r\n";
+                report += "Title: ";
+                report += browser_probe_view.get_title_text();
+                report += "\r\n";
+                report += "URL: ";
+                report += browser_probe_view.get_address_text();
+                report += "\r\n";
+                report += browser_probe_view.get_backend_text();
+                report += "\r\n";
+                report += browser_probe_view.get_capability_text();
+                report += "\r\n";
+                report += browser_probe_view.get_status_text();
+                report += "\r\n";
+                report += "Selected result: ";
+                report += browser_probe_view.get_probe_mode_name();
+                report += "\r\n\r\n";
+                report += browser_probe_view.get_current_output_text();
+                report += "\r\n";
+            } else if (active_index == runtime_tab_index) {
+                report += "Runtime Diagnostics\r\n";
+                report += "-------------------\r\n";
+                report += runtime_label.get_text();
+                report += "\r\n";
+                report += host_label.get_text();
+                report += "\r\n";
+                report += web_backend_label.get_text();
+                report += "\r\n";
+                report += web_capability_label.get_text();
+                report += "\r\n";
+                report += runtime_status_label.get_text();
+                report += "\r\n";
+                report += client_size_label.get_text();
+                report += "\r\n";
+            } else {
+                report += "Conversation\r\n";
+                report += "------------\r\n";
+                report += "Message count: ";
+
+                char message_count_text[32];
+                sprintf(
+                    message_count_text,
+                    "%d\r\n",
+                    conversation_view.get_message_count()
+                );
+                report += message_count_text;
+            }
+
+            return true;
+        }
+
         virtual void layout(int width, int height, TextMetrics* text_metrics = 0);
         virtual bool handle_event(const UIEvent& event);
         virtual void render(ComponentRenderer& renderer);

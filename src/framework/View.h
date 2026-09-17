@@ -5,6 +5,8 @@
 // =================================================================================
 #pragma once
 
+#include <string>
+
 class ComponentRenderer;
 class NativeControlHost;
 class TextMetrics;
@@ -19,6 +21,11 @@ class View {
         }
 
         virtual void detach_native_control_host() {
+        }
+
+        virtual bool build_diagnostic_report(std::string& report) const {
+            report.clear();
+            return false;
         }
 
         virtual void layout(

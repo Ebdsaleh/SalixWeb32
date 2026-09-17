@@ -23,6 +23,13 @@ class WebSurfaceSnapshot;
 
 class BrowserProbeView : public Panel {
     public:
+        enum ProbeMode {
+            probe_summary = 0,
+            probe_headers,
+            probe_raw,
+            probe_extracted
+        };
+
         BrowserProbeView();
         virtual ~BrowserProbeView();
 
@@ -32,6 +39,48 @@ class BrowserProbeView : public Panel {
 
         bool navigate(const char* url);
         void update();
+
+        const char* get_title_text() const {
+            return title_label.get_text();
+        }
+
+        const char* get_backend_text() const {
+            return backend_label.get_text();
+        }
+
+        const char* get_capability_text() const {
+            return capability_label.get_text();
+        }
+
+        const char* get_status_text() const {
+            return status_label.get_text();
+        }
+
+        const char* get_address_text() const {
+            return address_input.get_text();
+        }
+
+        ProbeMode get_probe_mode() const {
+            return probe_mode;
+        }
+
+        const char* get_probe_mode_name() const {
+            switch (probe_mode) {
+                case probe_headers:
+                    return "Headers";
+                case probe_raw:
+                    return "Raw";
+                case probe_extracted:
+                    return "Extracted";
+                case probe_summary:
+                default:
+                    return "Summary";
+            }
+        }
+
+        const char* get_current_output_text() const {
+            return current_output_text.c_str();
+        }
 
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
@@ -48,13 +97,6 @@ class BrowserProbeView : public Panel {
         virtual void render(ComponentRenderer& renderer) const;
 
     private:
-        enum ProbeMode {
-            probe_summary = 0,
-            probe_headers,
-            probe_raw,
-            probe_extracted
-        };
-
         static void on_go_clicked(Button* button, void* context);
         static void on_probe_mode_clicked(Button* button, void* context);
         static void on_copy_clicked(Button* button, void* context);

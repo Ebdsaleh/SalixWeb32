@@ -4,7 +4,10 @@
 // Description: Implements native Win32 menu bar creation and command routing.
 // =================================================================================
 
+#include <string>
+
 #include "Win32MenuController.h"
+#include "Win32DiagnosticCapture.h"
 #include "framework/ApplicationCommand.h"
 #include "framework/UIEvent.h"
 #include "framework/View.h"
@@ -26,6 +29,7 @@ namespace {
 
         menu_options_conversation,
         menu_options_runtime,
+        menu_options_diagnostic_screenshot,
 
         menu_help_about
     };
@@ -191,6 +195,12 @@ bool Win32MenuController::create_menu_bar() {
         menu_options_runtime,
         "&Runtime Diagnostics"
     );
+    AppendMenuA(options_menu, MF_SEPARATOR, 0, NULL);
+    append_menu_item(
+        options_menu,
+        menu_options_diagnostic_screenshot,
+        "Take &Diagnostic Screenshot"
+    );
 
     append_menu_item(help_menu, menu_help_about, "&About SalixWeb32");
 
@@ -307,6 +317,48 @@ bool Win32MenuController::handle_menu_command(int command_id) {
                 application_command_show_runtime
             );
             return true;
+
+        case menu_options_diagnostic_screenshot: {
+            std::string screenshot_path;
+            std::string report_path;
+            std::string error_text;
+
+            if (Win32DiagnosticCapture::capture(
+                    window_handle,
+                    application_view,
+                    screenshot_path,
+                    report_path,
+                    error_text
+                )) {
+                std::string message(
+                    "Diagnostic capture saved successfully.\r\n\r\nScreenshot: "
+                );
+                message += screenshot_path;
+                message += "\r\nReport: ";
+                message += report_path;
+
+                MessageBoxA(
+                    window_handle,
+                    message.c_str(),
+                    "SalixWeb32 Diagnostic Capture",
+                    MB_OK | MB_ICONINFORMATION
+                );
+            } else {
+                std::string message("Diagnostic capture failed.");
+                if (!error_text.empty()) {
+                    message += "\r\n\r\n";
+                    message += error_text;
+                }
+
+                MessageBoxA(
+                    window_handle,
+                    message.c_str(),
+                    "SalixWeb32 Diagnostic Capture",
+                    MB_OK | MB_ICONERROR
+                );
+            }
+            return true;
+        }
 
         case menu_help_about:
             MessageBoxA(

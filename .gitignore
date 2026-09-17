@@ -31,6 +31,9 @@ dist/
 Thumbs.db
 Desktop.ini
 
+# Local diagnostic captures
+diagnostics/
+
 # Archives / downloaded third-party sources
 *.zip
 *.7z

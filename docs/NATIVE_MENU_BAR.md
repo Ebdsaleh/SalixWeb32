@@ -1,22 +1,24 @@
 # Native Application Menu Bar
 
-This document records the first SalixWeb32 native application-menu tranche.
+This document records the SalixWeb32 native application-menu behavior.
 
 ## Architectural boundary
 
-The application describes menu actions as backend-neutral `ApplicationCommand` identifiers. The current Win32 implementation uses a real Windows `HMENU` through `Win32MenuController`; `StatusView` receives semantic command events and remains unaware of Win32 menu handles or numeric native command IDs.
+The application describes ordinary menu actions as backend-neutral `ApplicationCommand` identifiers. The current Win32 implementation uses a real Windows `HMENU` through `Win32MenuController`; `StatusView` receives semantic command events and remains unaware of Win32 menu handles or numeric native command IDs.
+
+Platform-owned diagnostic capture is the deliberate exception: taking a screenshot of the real native application window belongs to the Win32 host/menu layer. The application view only supplies backend-neutral diagnostic text through `View::build_diagnostic_report()`.
 
 This follows the project rule:
 
 ```text
-application intent
-    -> framework command
+application intent / diagnostic state
+    -> framework view contract
     -> current platform implementation
 ```
 
-The native menu is therefore a Win32 implementation detail rather than an application dependency.
+The native menu and screenshot mechanism therefore remain Win32 implementation details rather than application dependencies.
 
-## Initial menu structure
+## Menu structure
 
 ```text
 File
@@ -36,6 +38,8 @@ Edit
 Options
     Conversation
     Runtime Diagnostics
+    ----------------
+    Take Diagnostic Screenshot
 
 Help
     About SalixWeb32
@@ -45,9 +49,34 @@ The Edit commands reuse the existing framework keyboard/character command paths 
 
 `File -> Attach File...` uses the same `FileDialog`/composer attachment path used by the existing attachment button. `Ctrl+O` is intercepted by the Win32 menu controller and dispatches the same semantic Attach command. `Options` changes the active top-level `TabView` page through application commands.
 
+## Diagnostic screenshot
+
+`Options -> Take Diagnostic Screenshot` creates a timestamped pair in a local `diagnostics/` directory under the current working directory:
+
+```text
+diagnostics/SalixWeb32-YYYYMMDD-HHMMSS-mmm.bmp
+diagnostics/SalixWeb32-YYYYMMDD-HHMMSS-mmm.txt
+```
+
+The BMP is a capture of the visible SalixWeb32 application window, including its real Win32 non-client area and native controls. The implementation intentionally uses GDI-era APIs that are available on the Windows Server 2003 target; no modern screenshot API or image codec is required.
+
+The companion text report records the active top-level view plus useful application state. When Browser is active it includes:
+
+- Browser title and URL,
+- Browser Probe backend, capabilities, and status,
+- selected Browser Probe result (`Summary`, `Headers`, `Raw`, or `Extracted`),
+- the complete current probe output rather than only the visible scrolled region,
+- runtime/client-size diagnostics.
+
+When Runtime is active it includes the runtime diagnostic labels. When Conversation is active it records the current message count plus the common runtime/backend state.
+
+The generated `diagnostics/` directory is ignored by Git so captures can be copied over a network share or sneaker-netted without polluting the repository.
+
 ## Win32 implementation
 
 `engine/application_hosts/Win32MenuController` owns the native menu bar. It subclasses the already-created application HWND only to intercept its own menu command IDs and the menu-owned `Ctrl+O` shortcut, forwarding every other window message to the original `Win32ApplicationHost` procedure.
+
+`engine/application_hosts/Win32DiagnosticCapture.h` contains the small Win32/GDI capture helper. The helper asks the active application `View` for a text report, captures the visible window rectangle, writes a 24-bit BMP directly, and writes the text report beside it.
 
 The controller does not replace the application host or its message pump.
 
@@ -55,7 +84,9 @@ The controller does not replace the application host or its message pump.
 
 - The menu does not yet expose preferences/configuration pages.
 - Menu item enable/disable state is not yet dynamically synchronized with control focus, edit-history availability, or clipboard contents.
-- Only the new Attach shortcut is owned by the menu controller; existing text shortcuts continue through the framework input path.
+- Only the Attach shortcut is owned by the menu controller; existing text shortcuts continue through the framework input path.
+- Diagnostic capture records the visible window pixels. If another window is deliberately placed over SalixWeb32 at capture time, those visible pixels can appear in the BMP.
+- BMP is used deliberately for NT5 simplicity and zero codec dependencies; PNG export can be added later if it becomes useful.
 
 ## Target validation
 
@@ -67,6 +98,10 @@ Validation points:
 2. `File -> Attach File...` and `Ctrl+O` open the existing multi-file picker and update the composer attachment count.
 3. `Edit -> Undo / Cut / Copy / Paste / Select All` follow the same active-control behavior as the corresponding keyboard shortcuts.
 4. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
-5. `Help -> About SalixWeb32` opens a normal native message box.
-6. `File -> Exit` follows the normal application close/shutdown path.
-7. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.
+5. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` under `diagnostics/`.
+6. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
+7. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
+8. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
+9. `Help -> About SalixWeb32` opens a normal native message box.
+10. `File -> Exit` follows the normal application close/shutdown path.
+11. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.
