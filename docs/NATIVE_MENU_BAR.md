@@ -70,6 +70,14 @@ The companion text report records the active top-level view plus useful applicat
 
 When Runtime is active it includes the runtime diagnostic labels. When Conversation is active it records the current message count plus the common runtime/backend state.
 
+After a successful capture, SalixWeb32 shows an NT5-compatible custom result dialog with two actions:
+
+```text
+[ Go to Files ] [ OK ]
+```
+
+`Go to Files` opens the generated diagnostics directory in the system shell and closes the result dialog. If Explorer cannot be opened, the result dialog stays open and reports the shell error instead. `OK` simply closes the dialog.
+
 The generated `diagnostics/` directory is ignored by Git so captures can be copied over a network share or sneaker-netted without polluting the repository.
 
 ## Win32 implementation
@@ -77,6 +85,8 @@ The generated `diagnostics/` directory is ignored by Git so captures can be copi
 `engine/application_hosts/Win32MenuController` owns the native menu bar. It subclasses the already-created application HWND only to intercept its own menu command IDs and the menu-owned `Ctrl+O` shortcut, forwarding every other window message to the original `Win32ApplicationHost` procedure.
 
 `engine/application_hosts/Win32DiagnosticCapture.h` contains the small Win32/GDI capture helper. The helper asks the active application `View` for a text report, captures the visible window rectangle, writes a 24-bit BMP directly, and writes the text report beside it.
+
+The success notification is implemented as a small owned Win32 window rather than a modern TaskDialog, because the Server 2003 target needs custom button text while remaining independent of Vista-era common controls. Folder opening uses the existing `shell32.lib` dependency through `ShellExecuteA`.
 
 The controller does not replace the application host or its message pump.
 
@@ -99,9 +109,11 @@ Validation points:
 3. `Edit -> Undo / Cut / Copy / Paste / Select All` follow the same active-control behavior as the corresponding keyboard shortcuts.
 4. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
 5. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` under `diagnostics/`.
-6. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
-7. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
-8. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
-9. `Help -> About SalixWeb32` opens a normal native message box.
-10. `File -> Exit` follows the normal application close/shutdown path.
-11. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.
+6. Confirm the capture result dialog shows both `Go to Files` and `OK`.
+7. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
+8. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
+9. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
+10. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
+11. `Help -> About SalixWeb32` opens a normal native message box.
+12. `File -> Exit` follows the normal application close/shutdown path.
+13. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.

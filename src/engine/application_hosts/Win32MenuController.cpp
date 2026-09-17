@@ -4,6 +4,7 @@
 // Description: Implements native Win32 menu bar creation and command routing.
 // =================================================================================
 
+#include <shellapi.h>
 #include <string>
 
 #include "Win32MenuController.h"
@@ -15,7 +16,10 @@
 
 namespace {
     const char* menu_controller_property = "SalixWeb32MenuController";
+    const char* diagnostic_dialog_class = "SalixWeb32DiagnosticCaptureDialog";
     const int control_character_z = 26;
+    const int diagnostic_dialog_ok = 44101;
+    const int diagnostic_dialog_open_folder = 44102;
 
     enum NativeMenuCommand {
         menu_file_attach = 43001,
@@ -34,12 +38,351 @@ namespace {
         menu_help_about
     };
 
+    struct DiagnosticDialogState {
+        std::string diagnostics_directory;
+    };
+
     void append_menu_item(
         HMENU menu,
         UINT command_id,
         const char* text
     ) {
         AppendMenuA(menu, MF_STRING, command_id, text);
+    }
+
+    std::string get_parent_directory(const std::string& path) {
+        std::string::size_type separator = path.find_last_of("\\/");
+        if (separator == std::string::npos) {
+            return std::string();
+        }
+
+        return path.substr(0, separator);
+    }
+
+    void set_default_gui_font(HWND control) {
+        if (control == NULL) {
+            return;
+        }
+
+        HFONT font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        if (font != NULL) {
+            SendMessageA(control, WM_SETFONT, (WPARAM)font, TRUE);
+        }
+    }
+
+    LRESULT CALLBACK diagnostic_dialog_window_proc(
+        HWND dialog_handle,
+        UINT message,
+        WPARAM w_param,
+        LPARAM l_param
+    ) {
+        DiagnosticDialogState* state =
+            (DiagnosticDialogState*)GetWindowLongA(
+                dialog_handle,
+                GWL_USERDATA
+            );
+
+        if (message == WM_NCCREATE) {
+            CREATESTRUCTA* create_struct = (CREATESTRUCTA*)l_param;
+            SetWindowLongA(
+                dialog_handle,
+                GWL_USERDATA,
+                (LONG)create_struct->lpCreateParams
+            );
+            return TRUE;
+        }
+
+        if (message == WM_COMMAND) {
+            int command_id = (int)LOWORD(w_param);
+
+            if (command_id == diagnostic_dialog_ok) {
+                DestroyWindow(dialog_handle);
+                return 0;
+            }
+
+            if (
+                command_id == diagnostic_dialog_open_folder &&
+                state != 0 &&
+                !state->diagnostics_directory.empty()
+            ) {
+                HINSTANCE result = ShellExecuteA(
+                    dialog_handle,
+                    "open",
+                    state->diagnostics_directory.c_str(),
+                    NULL,
+                    NULL,
+                    SW_SHOWNORMAL
+                );
+
+                if ((INT_PTR)result <= 32) {
+                    MessageBoxA(
+                        dialog_handle,
+                        "Windows could not open the diagnostics folder.",
+                        "SalixWeb32 Diagnostic Capture",
+                        MB_OK | MB_ICONERROR
+                    );
+                } else {
+                    DestroyWindow(dialog_handle);
+                }
+                return 0;
+            }
+        }
+
+        if (message == WM_CLOSE) {
+            DestroyWindow(dialog_handle);
+            return 0;
+        }
+
+        return DefWindowProcA(
+            dialog_handle,
+            message,
+            w_param,
+            l_param
+        );
+    }
+
+    bool register_diagnostic_dialog_class(HINSTANCE instance_handle) {
+        WNDCLASSA window_class;
+        ZeroMemory(&window_class, sizeof(window_class));
+        window_class.style = CS_HREDRAW | CS_VREDRAW;
+        window_class.lpfnWndProc = diagnostic_dialog_window_proc;
+        window_class.hInstance = instance_handle;
+        window_class.hIcon = LoadIconA(NULL, IDI_INFORMATION);
+        window_class.hCursor = LoadCursorA(NULL, IDC_ARROW);
+        window_class.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+        window_class.lpszClassName = diagnostic_dialog_class;
+
+        if (RegisterClassA(&window_class) != 0) {
+            return true;
+        }
+
+        return GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
+    }
+
+    void center_window_over_owner(HWND dialog_handle, HWND owner_handle) {
+        RECT dialog_rect;
+        RECT owner_rect;
+
+        if (
+            dialog_handle == NULL ||
+            !GetWindowRect(dialog_handle, &dialog_rect)
+        ) {
+            return;
+        }
+
+        int width = dialog_rect.right - dialog_rect.left;
+        int height = dialog_rect.bottom - dialog_rect.top;
+        int x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+        int y = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+
+        if (
+            owner_handle != NULL &&
+            IsWindow(owner_handle) &&
+            GetWindowRect(owner_handle, &owner_rect)
+        ) {
+            x = owner_rect.left +
+                ((owner_rect.right - owner_rect.left - width) / 2);
+            y = owner_rect.top +
+                ((owner_rect.bottom - owner_rect.top - height) / 2);
+        }
+
+        if (x < 0) {
+            x = 0;
+        }
+        if (y < 0) {
+            y = 0;
+        }
+
+        SetWindowPos(
+            dialog_handle,
+            HWND_TOP,
+            x,
+            y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOACTIVATE
+        );
+    }
+
+    void show_diagnostic_capture_success(
+        HWND owner_handle,
+        const std::string& screenshot_path,
+        const std::string& report_path
+    ) {
+        HINSTANCE instance_handle = NULL;
+        if (owner_handle != NULL) {
+            instance_handle = (HINSTANCE)GetWindowLongA(
+                owner_handle,
+                GWL_HINSTANCE
+            );
+        }
+
+        std::string message(
+            "Diagnostic capture saved successfully.\r\n\r\nScreenshot: "
+        );
+        message += screenshot_path;
+        message += "\r\nReport: ";
+        message += report_path;
+
+        if (
+            instance_handle == NULL ||
+            !register_diagnostic_dialog_class(instance_handle)
+        ) {
+            MessageBoxA(
+                owner_handle,
+                message.c_str(),
+                "SalixWeb32 Diagnostic Capture",
+                MB_OK | MB_ICONINFORMATION
+            );
+            return;
+        }
+
+        DiagnosticDialogState state;
+        state.diagnostics_directory = get_parent_directory(report_path);
+
+        HWND dialog_handle = CreateWindowExA(
+            WS_EX_DLGMODALFRAME,
+            diagnostic_dialog_class,
+            "SalixWeb32 Diagnostic Capture",
+            WS_POPUP | WS_CAPTION | WS_SYSMENU,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            650,
+            220,
+            owner_handle,
+            NULL,
+            instance_handle,
+            &state
+        );
+
+        if (dialog_handle == NULL) {
+            MessageBoxA(
+                owner_handle,
+                message.c_str(),
+                "SalixWeb32 Diagnostic Capture",
+                MB_OK | MB_ICONINFORMATION
+            );
+            return;
+        }
+
+        HWND icon_control = CreateWindowExA(
+            0,
+            "STATIC",
+            "",
+            WS_CHILD | WS_VISIBLE | SS_ICON,
+            18,
+            20,
+            34,
+            34,
+            dialog_handle,
+            NULL,
+            instance_handle,
+            NULL
+        );
+
+        if (icon_control != NULL) {
+            HICON information_icon = LoadIconA(NULL, IDI_INFORMATION);
+            SendMessageA(
+                icon_control,
+                STM_SETICON,
+                (WPARAM)information_icon,
+                0
+            );
+        }
+
+        HWND message_control = CreateWindowExA(
+            0,
+            "STATIC",
+            message.c_str(),
+            WS_CHILD | WS_VISIBLE | SS_LEFT | SS_NOPREFIX,
+            66,
+            18,
+            558,
+            124,
+            dialog_handle,
+            NULL,
+            instance_handle,
+            NULL
+        );
+
+        HWND open_button = CreateWindowExA(
+            0,
+            "BUTTON",
+            "Go to Files",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+            424,
+            154,
+            105,
+            27,
+            dialog_handle,
+            (HMENU)diagnostic_dialog_open_folder,
+            instance_handle,
+            NULL
+        );
+
+        HWND ok_button = CreateWindowExA(
+            0,
+            "BUTTON",
+            "OK",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
+            540,
+            154,
+            84,
+            27,
+            dialog_handle,
+            (HMENU)diagnostic_dialog_ok,
+            instance_handle,
+            NULL
+        );
+
+        set_default_gui_font(message_control);
+        set_default_gui_font(open_button);
+        set_default_gui_font(ok_button);
+
+        center_window_over_owner(dialog_handle, owner_handle);
+
+        if (owner_handle != NULL && IsWindow(owner_handle)) {
+            EnableWindow(owner_handle, FALSE);
+        }
+
+        ShowWindow(dialog_handle, SW_SHOW);
+        UpdateWindow(dialog_handle);
+        SetForegroundWindow(dialog_handle);
+
+        MSG message_data;
+        bool repost_quit = false;
+        int quit_code = 0;
+
+        while (IsWindow(dialog_handle)) {
+            BOOL get_result = GetMessageA(
+                &message_data,
+                NULL,
+                0,
+                0
+            );
+
+            if (get_result <= 0) {
+                if (get_result == 0) {
+                    repost_quit = true;
+                    quit_code = (int)message_data.wParam;
+                }
+                break;
+            }
+
+            if (!IsDialogMessageA(dialog_handle, &message_data)) {
+                TranslateMessage(&message_data);
+                DispatchMessageA(&message_data);
+            }
+        }
+
+        if (owner_handle != NULL && IsWindow(owner_handle)) {
+            EnableWindow(owner_handle, TRUE);
+            SetForegroundWindow(owner_handle);
+        }
+
+        if (repost_quit) {
+            PostQuitMessage(quit_code);
+        }
     }
 }
 
@@ -330,18 +673,10 @@ bool Win32MenuController::handle_menu_command(int command_id) {
                     report_path,
                     error_text
                 )) {
-                std::string message(
-                    "Diagnostic capture saved successfully.\r\n\r\nScreenshot: "
-                );
-                message += screenshot_path;
-                message += "\r\nReport: ";
-                message += report_path;
-
-                MessageBoxA(
+                show_diagnostic_capture_success(
                     window_handle,
-                    message.c_str(),
-                    "SalixWeb32 Diagnostic Capture",
-                    MB_OK | MB_ICONINFORMATION
+                    screenshot_path,
+                    report_path
                 );
             } else {
                 std::string message("Diagnostic capture failed.");
