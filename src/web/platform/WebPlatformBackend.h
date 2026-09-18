@@ -31,6 +31,8 @@ class WebPlatformBackend {
             const WebNavigationRequest& request
         ) = 0;
 
+        virtual unsigned long get_surface_revision() const = 0;
+
         virtual bool get_surface_snapshot(
             WebSurfaceSnapshot& snapshot
         ) const = 0;

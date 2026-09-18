@@ -18,6 +18,7 @@
 #include "engine/platform/win32/Win32FileDialog.h"
 #include "engine/platform/win32/Win32GraphicsRuntime.h"
 #include "engine/platform/win32/Win32HttpTransport.h"
+#include "engine/platform/win32/Win32NetworkRequestExecutor.h"
 #include "web/backends/PlaceholderWebBackend.h"
 #include "web/backends/RemoteBridgeWebBackend.h"
 #include "web/platform/WebNavigationRequest.h"
@@ -36,9 +37,12 @@ int APIENTRY WinMain(
     ApplicationRuntime application_runtime;
     PlaceholderWebBackend placeholder_web_backend;
     Win32HttpTransport bridge_transport;
+    Win32NetworkRequestExecutor bridge_request_executor(
+        &bridge_transport
+    );
 
     RemoteBridgeWebBackend remote_bridge_web_backend(
-        &bridge_transport,
+        &bridge_request_executor,
         settings.get_bridge_host(),
         settings.get_bridge_port()
     );

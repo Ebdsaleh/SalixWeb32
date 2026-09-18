@@ -32,6 +32,12 @@ WebPlatformHost
 RemoteBridgeWebBackend
         |
         v
+NetworkRequestExecutor
+        |
+        v
+Win32NetworkRequestExecutor (background worker)
+        |
+        v
 NetworkTransport
         |
         v
@@ -41,7 +47,10 @@ Win32HttpTransport (Winsock2, plain HTTP on trusted LAN)
 modern companion: tools/salix_bridge.py
 ```
 
-The application still knows only `WebPlatformBackend`. Winsock details remain in the Win32 transport and companion protocol details remain in the remote backend.
+The application still knows only `WebPlatformBackend`. The remote backend sees
+only the backend-neutral request-executor contract; Win32 thread ownership stays
+in the engine/platform adapter and Winsock details remain in the Win32 transport.
+Companion protocol details remain in the remote backend.
 
 ## Current companion endpoints
 
@@ -169,9 +178,10 @@ The bridge is intentionally simple:
 
 - plain HTTP on the private LAN,
 - IPv4 Winsock2 client transport,
-- bounded response size,
-- explicit requests only,
-- no background polling,
+- one bounded background request at a time,
+- explicit user-triggered requests only,
+- completion consumed from the normal application update thread,
+- no background polling of the companion,
 - no authenticated service data.
 
 These limits keep the bridge understandable while SalixWeb32 learns which modern web/service capabilities are actually required.

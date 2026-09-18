@@ -170,7 +170,8 @@ The P4-to-companion hop is still plaintext HTTP and is therefore suitable only f
 
 The first probe deliberately keeps the implementation small:
 
-- explicit synchronous `Go` request,
+- explicit non-blocking `Go` submission,
+- one in-flight Browser Probe request at a time,
 - upstream fetch timeout: 10 seconds,
 - P4 bridge receive timeout: 12 seconds in remote mode,
 - maximum captured upstream body: 512 KiB,
@@ -184,7 +185,16 @@ The first probe deliberately keeps the implementation small:
 - no file upload,
 - no automatic background polling.
 
-The synchronous request is acceptable for this diagnostic tranche because it makes failures obvious and bounded. A later async request/task boundary can be added if the probe becomes a long-lived interactive tool.
+The bridge HTTP transport itself remains blocking, but it now runs behind the
+backend-neutral `NetworkRequestExecutor` boundary on a Win32 worker. The UI
+thread only queues the request and later consumes its completion during the
+normal runtime update.
+
+Browser Probe presentation is revision-driven. The view copies a large
+`WebSurfaceSnapshot` only when the backend publishes a new surface revision.
+Summary/Headers/Raw/Extracted then switch entirely against the cached view data,
+so tab/result switching does not repeatedly copy the roughly 0.5 MiB raw page
+from the backend.
 
 ## What this tells us
 
@@ -221,10 +231,18 @@ Those observations drive the next runtime decision. They do not commit SalixWeb3
 13. Confirm Extracted contains lightweight text when the response is extractable.
 14. Confirm long output exposes a vertical scrollbar and mouse-wheel scrolling works.
 15. Confirm output text can be selected and `Ctrl+C` copies the selection.
-16. For Summary, Headers, Raw, and Extracted in turn, click `Copy` and paste into a text file; confirm each complete current section is copied.
-17. Confirm Headers no longer displays visible carriage-return box glyphs.
-18. Probe a simple known text/HTML URL as a control and compare results.
-19. Switch Conversation -> Browser -> Runtime repeatedly and confirm the existing tab/native-control lifecycle remains stable.
-20. Close SalixWeb32 and confirm clean shutdown.
+16. While a fetch is in progress, switch Conversation -> Browser -> Runtime and
+    interact with the window; confirm the shell remains responsive and Windows
+    does not report the application as not responding.
+17. After a large ChatGPT response is present, switch repeatedly among Summary,
+    Headers, Raw, and Extracted; confirm those changes are immediate and do not
+    cause a new bridge request.
+18. For Summary, Headers, Raw, and Extracted in turn, click `Copy` and paste
+    into a text file; confirm each complete current section is copied.
+19. Confirm Headers no longer displays visible carriage-return box glyphs.
+20. Probe a simple known text/HTML URL as a control and compare results.
+21. Switch Conversation -> Browser -> Runtime repeatedly and confirm the existing
+    tab/native-control lifecycle remains stable.
+22. Close SalixWeb32 and confirm clean shutdown.
 
 Only the real P4 build/runtime test should mark this Browser Probe interaction tranche target-validated.

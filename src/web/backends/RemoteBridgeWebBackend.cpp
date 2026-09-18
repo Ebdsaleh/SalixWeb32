@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    web/backends/RemoteBridgeWebBackend.cpp
 // Author:      Ebdsaleh
-// Description: Implements the remote bridge backend over NetworkTransport.
+// Description: Implements the remote bridge backend over NetworkRequestExecutor.
 // =================================================================================
 
 #include <stdio.h>
@@ -10,7 +10,7 @@
 #include "RemoteBridgeWebBackend.h"
 #include "web/network/NetworkRequest.h"
 #include "web/network/NetworkResponse.h"
-#include "web/network/NetworkTransport.h"
+#include "web/network/NetworkRequestExecutor.h"
 #include "web/platform/WebInputEvent.h"
 #include "web/platform/WebNavigationRequest.h"
 
@@ -213,15 +213,16 @@ namespace {
 }
 
 RemoteBridgeWebBackend::RemoteBridgeWebBackend(
-    NetworkTransport* new_transport,
+    NetworkRequestExecutor* new_request_executor,
     const char* new_host,
     unsigned short new_port
-) : transport(new_transport),
+) : request_executor(new_request_executor),
     host(new_host == 0 ? "" : new_host),
     port(new_port),
     is_initialized(false),
     bridge_online(false),
     request_count(0),
+    surface_revision(0),
     current_url("about:blank") {
     refresh_ready_surface();
 }
@@ -239,19 +240,22 @@ bool RemoteBridgeWebBackend::initialize() {
         return true;
     }
 
-    if (transport == 0 || host.empty() || port == 0) {
+    if (request_executor == 0 || host.empty() || port == 0) {
         surface_snapshot.clear();
         surface_snapshot.title = "Salix Browser Probe";
         surface_snapshot.address = current_url;
         surface_snapshot.status = "Remote bridge configuration is incomplete.";
         surface_snapshot.content =
-            "Set SALIX_BRIDGE_HOST and optionally SALIX_BRIDGE_PORT before "
-            "selecting the remote backend.";
+            "Configure the bridge host and port before selecting the remote backend.";
+        mark_surface_changed();
         return false;
     }
 
-    if (!transport->initialize()) {
-        set_transport_failure("Transport initialization");
+    if (!request_executor->initialize()) {
+        set_transport_failure(
+            "Network executor initialization",
+            request_executor->get_last_error()
+        );
         return false;
     }
 
@@ -263,13 +267,41 @@ bool RemoteBridgeWebBackend::initialize() {
 }
 
 void RemoteBridgeWebBackend::update() {
-    // Probe requests are explicit. Never poll a possibly unavailable bridge
-    // from the per-frame update path.
+    if (!is_initialized || request_executor == 0) {
+        return;
+    }
+
+    NetworkResponse response;
+    std::string error_text;
+    bool succeeded = false;
+
+    if (!request_executor->take_result(
+            response,
+            error_text,
+            succeeded
+        )) {
+        return;
+    }
+
+    if (!succeeded) {
+        bridge_online = false;
+        set_transport_failure(
+            "Browser Probe request",
+            error_text.c_str()
+        );
+        return;
+    }
+
+    bridge_online = true;
+    apply_network_response(response);
 }
 
 void RemoteBridgeWebBackend::shutdown() {
-    if (transport != 0 && transport->get_is_initialized()) {
-        transport->shutdown();
+    if (
+        request_executor != 0 &&
+        request_executor->get_is_initialized()
+    ) {
+        request_executor->shutdown();
     }
 
     is_initialized = false;
@@ -303,7 +335,15 @@ void RemoteBridgeWebBackend::get_capabilities(
 bool RemoteBridgeWebBackend::navigate(
     const WebNavigationRequest& request
 ) {
-    if (!is_initialized || transport == 0 || request.empty()) {
+    if (
+        !is_initialized ||
+        request_executor == 0 ||
+        request.empty()
+    ) {
+        return false;
+    }
+
+    if (request_executor->get_is_busy()) {
         return false;
     }
 
@@ -313,47 +353,28 @@ bool RemoteBridgeWebBackend::navigate(
     network_request.set_content_type("text/plain; charset=utf-8");
     network_request.set_body(current_url);
 
-    NetworkResponse response;
-    ++request_count;
-
-    if (!transport->send(
+    if (!request_executor->submit(
             host.c_str(),
             port,
-            network_request,
-            response
+            network_request
         )) {
-        bridge_online = false;
-        set_transport_failure("Browser Probe request");
+        set_transport_failure(
+            "Browser Probe request",
+            request_executor->get_last_error()
+        );
         return false;
     }
 
-    bridge_online = true;
+    ++request_count;
 
-    if (!response.get_is_success()) {
-        char number_text[64];
-        std::string status("Browser Probe bridge returned HTTP ");
-        sprintf(number_text, "%d", response.get_status_code());
-        status += number_text;
-        status += ".";
-
-        surface_snapshot.clear();
-        surface_snapshot.title = "Salix Browser Probe";
-        surface_snapshot.address = current_url;
-        surface_snapshot.status = status;
-        surface_snapshot.content = response.get_body();
-        return false;
-    }
-
-    if (!parse_probe_payload(response.get_body(), surface_snapshot)) {
-        surface_snapshot.clear();
-        surface_snapshot.title = "Salix Browser Probe";
-        surface_snapshot.address = current_url;
-        surface_snapshot.status = "Browser Probe returned an invalid probe payload.";
-        surface_snapshot.content = response.get_body();
-        return false;
-    }
-
+    // Navigation is now queued only.  The blocking transport work runs behind
+    // NetworkRequestExecutor, while update() consumes completion on the main
+    // application thread.
     return true;
+}
+
+unsigned long RemoteBridgeWebBackend::get_surface_revision() const {
+    return surface_revision;
 }
 
 bool RemoteBridgeWebBackend::get_surface_snapshot(
@@ -370,14 +391,48 @@ bool RemoteBridgeWebBackend::handle_input(
     return false;
 }
 
+void RemoteBridgeWebBackend::apply_network_response(
+    const NetworkResponse& response
+) {
+    if (!response.get_is_success()) {
+        char number_text[64];
+        std::string status("Browser Probe bridge returned HTTP ");
+        sprintf(number_text, "%d", response.get_status_code());
+        status += number_text;
+        status += ".";
+
+        surface_snapshot.clear();
+        surface_snapshot.title = "Salix Browser Probe";
+        surface_snapshot.address = current_url;
+        surface_snapshot.status = status;
+        surface_snapshot.content = response.get_body();
+        mark_surface_changed();
+        return;
+    }
+
+    if (!parse_probe_payload(response.get_body(), surface_snapshot)) {
+        surface_snapshot.clear();
+        surface_snapshot.title = "Salix Browser Probe";
+        surface_snapshot.address = current_url;
+        surface_snapshot.status =
+            "Browser Probe returned an invalid probe payload.";
+        surface_snapshot.content = response.get_body();
+        mark_surface_changed();
+        return;
+    }
+
+    mark_surface_changed();
+}
+
 void RemoteBridgeWebBackend::set_transport_failure(
-    const char* operation
+    const char* operation,
+    const char* detail
 ) {
     std::string status(operation == 0 ? "Transport request" : operation);
     status += " failed: ";
 
-    if (transport != 0 && transport->get_last_error() != 0) {
-        status += transport->get_last_error();
+    if (detail != 0 && detail[0] != '\0') {
+        status += detail;
     } else {
         status += "unknown transport error";
     }
@@ -389,6 +444,7 @@ void RemoteBridgeWebBackend::set_transport_failure(
     surface_snapshot.content =
         "The Browser Probe could not reach the companion. The application shell "
         "remains isolated; fix the bridge endpoint and retry.";
+    mark_surface_changed();
 }
 
 void RemoteBridgeWebBackend::refresh_ready_surface() {
@@ -415,4 +471,13 @@ void RemoteBridgeWebBackend::refresh_ready_surface() {
         ? "Remote Browser Probe transport initialized."
         : "Remote Browser Probe transport stopped.";
     surface_snapshot.content = endpoint_text;
+    mark_surface_changed();
+}
+
+void RemoteBridgeWebBackend::mark_surface_changed() {
+    ++surface_revision;
+
+    if (surface_revision == 0) {
+        surface_revision = 1;
+    }
 }

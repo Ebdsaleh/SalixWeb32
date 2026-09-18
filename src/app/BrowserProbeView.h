@@ -12,6 +12,7 @@
 #include "framework/TextInput.h"
 #include "framework/Button.h"
 #include "framework/ScrollBar.h"
+#include "web/platform/WebSurfaceSnapshot.h"
 
 class Clipboard;
 class ComponentRenderer;
@@ -19,7 +20,6 @@ class NativeControlHost;
 class TextMetrics;
 class UIEvent;
 class WebPlatformHost;
-class WebSurfaceSnapshot;
 
 class BrowserProbeView : public Panel {
     public:
@@ -78,9 +78,7 @@ class BrowserProbeView : public Panel {
             }
         }
 
-        const char* get_current_output_text() const {
-            return current_output_text.c_str();
-        }
+        const char* get_current_output_text() const;
 
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
@@ -108,7 +106,9 @@ class BrowserProbeView : public Panel {
 
         void set_probe_mode(ProbeMode new_mode);
         void refresh_labels();
-        void refresh_probe_content(const WebSurfaceSnapshot& snapshot);
+        void cache_probe_outputs(const WebSurfaceSnapshot& snapshot);
+        void refresh_probe_content();
+        const std::string& get_active_output_text() const;
         void set_output_text(const std::string& text);
         void copy_current_output();
         void scroll_pixels(int pixel_count);
@@ -119,6 +119,7 @@ class BrowserProbeView : public Panel {
 
         WebPlatformHost* web_platform_host;
         ProbeMode probe_mode;
+        unsigned long observed_surface_revision;
 
         Label title_label;
         Label backend_label;
@@ -140,7 +141,10 @@ class BrowserProbeView : public Panel {
         NativeControlHost* native_control_host;
         Clipboard* active_clipboard;
 
-        std::string current_output_text;
+        std::string summary_output_text;
+        std::string headers_output_text;
+        std::string raw_output_text;
+        std::string extracted_output_text;
         std::string displayed_output_text;
 
         int output_x;

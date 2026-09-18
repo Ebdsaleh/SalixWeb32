@@ -145,6 +145,12 @@ WebPlatformHost
 RemoteBridgeWebBackend
   |
   v
+NetworkRequestExecutor
+  |
+  v
+Win32NetworkRequestExecutor
+  |
+  v
 NetworkTransport
   |
   v
@@ -160,11 +166,19 @@ modern companion process
 future modern TLS / service adapter / translation logic
 ```
 
-`NetworkRequest`, `NetworkResponse`, and `NetworkTransport` live in the web/network layer. They do not expose Winsock handles or Win32 socket types.
+`NetworkRequest`, `NetworkResponse`, `NetworkTransport`, and the asynchronous
+`NetworkRequestExecutor` contract live in the web/network layer. They do not
+expose Winsock handles, Win32 thread handles, or concrete UI types.
 
-`Win32HttpTransport` is a platform implementation of that contract using Winsock2. It is currently deliberately small and plain-HTTP-only because its first job is to prove a bounded LAN request/response seam on Windows Server 2003 / VC7.1.
+`Win32HttpTransport` remains the small blocking Winsock2 implementation.
+`Win32NetworkRequestExecutor` is the concrete engine/platform adapter that runs
+that blocking transport work away from the UI thread and exposes completion only
+through the backend-neutral executor contract.
 
-`RemoteBridgeWebBackend` consumes only `NetworkTransport`. It must not include Winsock headers or own Windows socket details.
+`RemoteBridgeWebBackend` consumes only `NetworkRequestExecutor`. Its
+`navigate()` queues work and returns; its normal `update()` consumes completed
+results on the application thread. The worker never mutates views or
+`WebSurfaceSnapshot` state directly.
 
 The modern companion is a separate process and may use a modern runtime/toolchain. This permits modern TLS, authentication, provider protocols, compression, or translation to be introduced there without forcing those requirements onto the Pentium 4.
 
@@ -362,3 +376,42 @@ Therefore:
 - benchmark on target hardware rather than modern workstations only.
 
 Security requirements can override performance preferences.
+
+
+## UI/background-work discipline
+
+SalixWeb32 follows the same separation proven in SalixTorrent: background work may
+produce data, but presentation state is owned and applied on the application's UI
+thread. Network workers do not call framework widgets or mutate view state.
+
+The Browser Probe therefore uses an explicit handoff:
+
+```text
+UI thread: Go
+    |
+    v
+RemoteBridgeWebBackend::navigate() queues request
+    |
+    v
+Win32NetworkRequestExecutor worker
+    |
+    v
+blocking NetworkTransport::send()
+    |
+    v
+completion record
+    |
+    v
+UI thread: WebPlatformHost::update()
+    |
+    v
+RemoteBridgeWebBackend publishes new WebSurfaceSnapshot revision
+    |
+    v
+BrowserProbeView observes revision and refreshes once
+```
+
+The surface revision is intentionally a polling/version contract rather than an
+implicit observer graph. Large Browser Probe payloads are copied into the view
+only when the backend publishes a new revision; changing Summary/Headers/Raw/
+Extracted operates on the view's cached snapshot and does not call the backend.

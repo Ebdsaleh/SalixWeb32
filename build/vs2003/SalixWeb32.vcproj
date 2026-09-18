@@ -154,6 +154,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32GraphicsRuntime.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32HttpTransport.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32NetworkRequestExecutor.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHostTabs.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
@@ -224,6 +225,7 @@
 			<File RelativePath="..\..\src\web\backends\PlaceholderWebBackend.h"/>
 			<File RelativePath="..\..\src\web\backends\RemoteBridgeWebBackend.h"/>
 			<File RelativePath="..\..\src\web\network\NetworkRequest.h"/>
+			<File RelativePath="..\..\src\web\network\NetworkRequestExecutor.h"/>
 			<File RelativePath="..\..\src\web\network\NetworkResponse.h"/>
 			<File RelativePath="..\..\src\web\network\NetworkTransport.h"/>
 			<File RelativePath="..\..\src\web\platform\WebBackendCapabilities.h"/>
@@ -239,6 +241,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32GraphicsRuntime.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32HttpTransport.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32NetworkRequestExecutor.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>

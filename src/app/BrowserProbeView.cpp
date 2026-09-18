@@ -98,6 +98,7 @@ namespace {
 BrowserProbeView::BrowserProbeView()
     : web_platform_host(0),
       probe_mode(probe_summary),
+      observed_surface_revision(0),
       vertical_scroll_bar(ScrollBar::vertical),
       native_control_host(0),
       active_clipboard(0),
@@ -182,6 +183,7 @@ BrowserProbeView::~BrowserProbeView() {
 
 void BrowserProbeView::set_web_platform_host(WebPlatformHost* host) {
     web_platform_host = host;
+    observed_surface_revision = 0;
     refresh_labels();
 }
 
@@ -191,6 +193,10 @@ WebPlatformHost* BrowserProbeView::get_web_platform_host() {
 
 const WebPlatformHost* BrowserProbeView::get_web_platform_host() const {
     return web_platform_host;
+}
+
+const char* BrowserProbeView::get_current_output_text() const {
+    return get_active_output_text().c_str();
 }
 
 bool BrowserProbeView::navigate(const char* url) {
@@ -203,12 +209,30 @@ bool BrowserProbeView::navigate(const char* url) {
 
     WebNavigationRequest request(url);
     bool result = web_platform_host->navigate(request);
-    refresh_labels();
+
+    unsigned long revision = web_platform_host->get_surface_revision();
+    if (revision != observed_surface_revision) {
+        refresh_labels();
+    } else if (result) {
+        // Remote navigation is queued.  Keep this as view state until the
+        // backend publishes a new surface revision on completion.
+        status_label.set_text("Status: Browser Probe request in progress...");
+    }
+
     return result;
 }
 
 void BrowserProbeView::update() {
-    refresh_labels();
+    if (web_platform_host == 0 || !web_platform_host->has_backend()) {
+        return;
+    }
+
+    if (
+        web_platform_host->get_surface_revision() !=
+        observed_surface_revision
+    ) {
+        refresh_labels();
+    }
 }
 
 void BrowserProbeView::attach_native_controls(
@@ -547,8 +571,12 @@ void BrowserProbeView::on_scroll_changed(
 }
 
 void BrowserProbeView::set_probe_mode(ProbeMode new_mode) {
+    if (probe_mode == new_mode) {
+        return;
+    }
+
     probe_mode = new_mode;
-    refresh_labels();
+    refresh_probe_content();
 }
 
 void BrowserProbeView::refresh_labels() {
@@ -556,13 +584,21 @@ void BrowserProbeView::refresh_labels() {
     char capability_text[512];
 
     if (web_platform_host == 0 || !web_platform_host->has_backend()) {
+        observed_surface_revision = 0;
         title_label.set_text("Salix Browser Probe");
         backend_label.set_text("Backend: none");
         capability_label.set_text("Capabilities: none");
         status_label.set_text("Status: no web backend selected");
-        set_output_text(
-            "Select a WebPlatformBackend to begin probing URL responses."
-        );
+
+        summary_output_text =
+            "Select a WebPlatformBackend to begin probing URL responses.";
+        headers_output_text =
+            "No HTTP response headers are available yet.";
+        raw_output_text =
+            "No raw response body is available yet.";
+        extracted_output_text =
+            "No extracted document text is available yet.";
+        refresh_probe_content();
         return;
     }
 
@@ -598,10 +634,19 @@ void BrowserProbeView::refresh_labels() {
     WebSurfaceSnapshot snapshot;
     if (!web_platform_host->get_surface_snapshot(snapshot)) {
         title_label.set_text("Salix Browser Probe");
-        status_label.set_text("Status: backend did not provide a surface snapshot");
+        status_label.set_text(
+            "Status: backend did not provide a surface snapshot"
+        );
+        summary_output_text.clear();
+        headers_output_text.clear();
+        raw_output_text.clear();
+        extracted_output_text.clear();
         set_output_text("");
         return;
     }
+
+    observed_surface_revision =
+        web_platform_host->get_surface_revision();
 
     if (!snapshot.title.empty()) {
         title_label.set_text(snapshot.title.c_str());
@@ -610,56 +655,74 @@ void BrowserProbeView::refresh_labels() {
     }
 
     std::string status_text("Status: ");
-    status_text += snapshot.status.empty() ? "no status" : snapshot.status;
+    status_text += snapshot.status.empty()
+        ? "no status"
+        : snapshot.status;
     status_label.set_text(status_text.c_str());
 
-    refresh_probe_content(snapshot);
+    // Cache only the four presentation sections.  Do not retain another full
+    // WebSurfaceSnapshot in the view; the backend remains the canonical owner.
+    cache_probe_outputs(snapshot);
+    refresh_probe_content();
 }
 
-void BrowserProbeView::refresh_probe_content(
+void BrowserProbeView::cache_probe_outputs(
     const WebSurfaceSnapshot& snapshot
 ) {
-    std::string output;
+    summary_output_text = normalize_probe_text(
+        snapshot.content.empty()
+            ? "No Browser Probe result is available yet."
+            : snapshot.content
+    );
 
+    headers_output_text = normalize_probe_text(
+        snapshot.response_headers.empty()
+            ? "No HTTP response headers are available yet."
+            : snapshot.response_headers
+    );
+
+    raw_output_text = normalize_probe_text(
+        snapshot.raw_content.empty()
+            ? "No raw response body is available yet."
+            : snapshot.raw_content
+    );
+
+    extracted_output_text = normalize_probe_text(
+        snapshot.extracted_content.empty()
+            ? "No extracted document text is available yet."
+            : snapshot.extracted_content
+    );
+}
+
+const std::string& BrowserProbeView::get_active_output_text() const {
     switch (probe_mode) {
         case probe_headers:
-            output = snapshot.response_headers.empty()
-                ? "No HTTP response headers are available yet."
-                : snapshot.response_headers;
-            break;
+            return headers_output_text;
 
         case probe_raw:
-            output = snapshot.raw_content.empty()
-                ? "No raw response body is available yet."
-                : snapshot.raw_content;
-            break;
+            return raw_output_text;
 
         case probe_extracted:
-            output = snapshot.extracted_content.empty()
-                ? "No extracted document text is available yet."
-                : snapshot.extracted_content;
-            break;
+            return extracted_output_text;
 
         case probe_summary:
         default:
-            output = snapshot.content.empty()
-                ? "No Browser Probe result is available yet."
-                : snapshot.content;
-            break;
+            return summary_output_text;
     }
+}
 
-    set_output_text(output);
+void BrowserProbeView::refresh_probe_content() {
+    set_output_text(get_active_output_text());
 }
 
 void BrowserProbeView::set_output_text(const std::string& text) {
-    std::string normalized = normalize_probe_text(text);
+    std::string new_display = make_probe_display_text(text);
 
-    if (normalized == current_output_text) {
+    if (new_display == displayed_output_text) {
         return;
     }
 
-    current_output_text = normalized;
-    displayed_output_text = make_probe_display_text(current_output_text);
+    displayed_output_text = new_display;
     content_label.set_text(displayed_output_text.c_str());
     scroll_offset_y = 0;
     layout_dirty = true;
@@ -674,7 +737,7 @@ void BrowserProbeView::copy_current_output() {
     }
 
     MimeData data;
-    data.set_text(current_output_text.c_str());
+    data.set_text(get_active_output_text().c_str());
     active_clipboard->set_data(data);
 }
 

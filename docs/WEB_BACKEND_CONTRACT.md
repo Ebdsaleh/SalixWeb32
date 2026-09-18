@@ -154,6 +154,11 @@ The placeholder accepts the request only as state. **It does not contact the add
 
 ## WebSurfaceSnapshot
 
+Backends expose a monotonically changing surface revision alongside the snapshot.
+Consumers can cheaply compare the revision before copying a potentially large
+surface. This keeps the contract polling-based and explicit rather than adding
+an implicit observer/callback graph.
+
 The first surface contract is intentionally modest:
 
 ```text
@@ -180,6 +185,8 @@ It displays:
 - backend surface status/content.
 
 It binds only to `WebPlatformHost`; it does not know a concrete backend exists.
+Browser Probe caches the latest snapshot and only refreshes that cache when the
+host reports a different surface revision.
 
 The application shell contains:
 

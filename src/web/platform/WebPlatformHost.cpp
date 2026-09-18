@@ -107,6 +107,10 @@ bool WebPlatformHost::navigate(
     return backend->navigate(request);
 }
 
+unsigned long WebPlatformHost::get_surface_revision() const {
+    return backend == 0 ? 0UL : backend->get_surface_revision();
+}
+
 bool WebPlatformHost::get_surface_snapshot(
     WebSurfaceSnapshot& snapshot
 ) const {

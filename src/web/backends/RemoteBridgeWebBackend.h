@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    web/backends/RemoteBridgeWebBackend.h
 // Author:      Ebdsaleh
-// Description: Declares the first remote bridge backend over NetworkTransport.
+// Description: Declares the first remote bridge backend over NetworkRequestExecutor.
 // =================================================================================
 #pragma once
 
@@ -10,14 +10,15 @@
 #include "web/platform/WebPlatformBackend.h"
 #include "web/platform/WebSurfaceSnapshot.h"
 
-class NetworkTransport;
+class NetworkRequestExecutor;
+class NetworkResponse;
 class WebInputEvent;
 class WebNavigationRequest;
 
 class RemoteBridgeWebBackend : public WebPlatformBackend {
     public:
         RemoteBridgeWebBackend(
-            NetworkTransport* transport,
+            NetworkRequestExecutor* request_executor,
             const char* host,
             unsigned short port
         );
@@ -38,6 +39,8 @@ class RemoteBridgeWebBackend : public WebPlatformBackend {
             const WebNavigationRequest& request
         );
 
+        virtual unsigned long get_surface_revision() const;
+
         virtual bool get_surface_snapshot(
             WebSurfaceSnapshot& snapshot
         ) const;
@@ -47,15 +50,21 @@ class RemoteBridgeWebBackend : public WebPlatformBackend {
         );
 
     private:
-        void set_transport_failure(const char* operation);
+        void apply_network_response(const NetworkResponse& response);
+        void set_transport_failure(
+            const char* operation,
+            const char* detail
+        );
         void refresh_ready_surface();
+        void mark_surface_changed();
 
-        NetworkTransport* transport;
+        NetworkRequestExecutor* request_executor;
         std::string host;
         unsigned short port;
         bool is_initialized;
         bool bridge_online;
         unsigned long request_count;
+        unsigned long surface_revision;
         std::string current_url;
         WebSurfaceSnapshot surface_snapshot;
 };

@@ -15,6 +15,7 @@ PlaceholderWebBackend::PlaceholderWebBackend()
     : is_initialized(false),
       update_count(0),
       input_event_count(0),
+      surface_revision(0),
       current_url("about:blank") {
     refresh_surface_text();
 }
@@ -79,6 +80,10 @@ bool PlaceholderWebBackend::navigate(
     return true;
 }
 
+unsigned long PlaceholderWebBackend::get_surface_revision() const {
+    return surface_revision;
+}
+
 bool PlaceholderWebBackend::get_surface_snapshot(
     WebSurfaceSnapshot& snapshot
 ) const {
@@ -131,4 +136,5 @@ void PlaceholderWebBackend::refresh_surface_text() {
     content += counter_text;
 
     surface_snapshot.content = content;
+    ++surface_revision;
 }

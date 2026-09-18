@@ -35,6 +35,7 @@ class WebPlatformHost {
         ) const;
 
         bool navigate(const WebNavigationRequest& request);
+        unsigned long get_surface_revision() const;
         bool get_surface_snapshot(WebSurfaceSnapshot& snapshot) const;
         bool handle_input(const WebInputEvent& event);
 

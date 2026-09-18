@@ -30,6 +30,8 @@ class PlaceholderWebBackend : public WebPlatformBackend {
             const WebNavigationRequest& request
         );
 
+        virtual unsigned long get_surface_revision() const;
+
         virtual bool get_surface_snapshot(
             WebSurfaceSnapshot& snapshot
         ) const;
@@ -44,6 +46,7 @@ class PlaceholderWebBackend : public WebPlatformBackend {
         bool is_initialized;
         unsigned long update_count;
         unsigned long input_event_count;
+        unsigned long surface_revision;
         std::string current_url;
         WebSurfaceSnapshot surface_snapshot;
 };
