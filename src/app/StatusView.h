@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string>
 
+#include "ApplicationSettings.h"
 #include "framework/View.h"
 #include "framework/Panel.h"
 #include "framework/Label.h"
@@ -29,6 +30,7 @@ class StatusView : public View {
     public:
         StatusView(
             ApplicationRuntime* application_runtime,
+            ApplicationSettings* application_settings,
             FileDialog* file_dialog,
             DesktopServices* desktop_services,
             WebPlatformHost* web_platform_host,
@@ -121,6 +123,20 @@ class StatusView : public View {
                 report += message_count_text;
             }
 
+            if (application_settings != 0) {
+                report += "\r\nFile Locations\r\n";
+                report += "--------------\r\n";
+                report += "Launch folder: ";
+                report += application_settings->get_launch_directory();
+                report += "\r\nDiagnostics folder: ";
+                report += application_settings->get_diagnostics_directory();
+                report += "\r\nAttachment folder: ";
+                report += application_settings->get_attachment_directory();
+                report += "\r\nPreferences: ";
+                report += application_settings->get_user_preferences_path();
+                report += "\r\n";
+            }
+
             return true;
         }
 
@@ -192,6 +208,7 @@ class StatusView : public View {
 
         bool handle_application_command(int command_id);
         bool attach_files_from_dialog();
+        void sync_file_location_preferences();
         void update_dynamic_text();
         void show_submitted_message(const MessageDraft& draft);
         void submit_draft_to_service(const MessageDraft& draft);
@@ -199,6 +216,7 @@ class StatusView : public View {
         void update_active_native_controls();
 
         ApplicationRuntime* application_runtime;
+        ApplicationSettings* application_settings;
         FileDialog* file_dialog;
         DesktopServices* desktop_services;
         WebPlatformHost* web_platform_host;
@@ -212,6 +230,7 @@ class StatusView : public View {
         unsigned long active_conversation_request_id;
         int streaming_message_index;
         std::string streaming_message_text;
+        std::string observed_file_dialog_directory;
 
         Panel root_panel;
 

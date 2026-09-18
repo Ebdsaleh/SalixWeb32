@@ -316,3 +316,21 @@ Conversation header from capability checking to `SALIX-CONVERSATION/1 ready`, th
 returns the framed semantic response while Browser Probe continues to operate
 independently. Typed draft text, attachment paths, credentials, cookies, and session
 material remain excluded from this plaintext probe.
+
+
+## Persistent file-location regression
+
+A Server 2003 target pass exposed a cross-feature directory leak: after selecting an
+attachment from an external RenderWare directory, diagnostic exports were created below
+that directory because the old capture helper derived its destination from process
+current working directory.
+
+The current corrective tranche is pending target validation. It adds
+`Options -> Settings...`, separates Diagnostics and Attachment browser locations,
+persists those paths beneath the startup-selected Standard/Portable data root, applies
+`OFN_NOCHANGEDIR` to the native attachment picker, and removes `GetCurrentDirectoryA`
+from diagnostic destination selection.
+
+The primary regression test is simple: browse to an unrelated attachment directory,
+then capture/export diagnostics and confirm they still land in the configured Diagnostics
+folder. See `docs/FILE_LOCATIONS.md`.

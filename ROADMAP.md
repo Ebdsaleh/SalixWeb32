@@ -455,6 +455,29 @@ The first provider-neutral conversation-service contract is now implemented:
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
+## Persistent file-location foundation
+
+The first explicit file-location policy is now implemented:
+
+- [x] capture launch and executable directories once at process startup,
+- [x] resolve an immutable Standard/Portable application mode,
+- [x] store Standard writable state under `%APPDATA%\SalixWeb32`,
+- [x] store Portable writable state beside the executable when launched with `--portable`,
+- [x] use `settings.ini` and `Diagnostics\` beneath the selected data root,
+- [x] keep development bridge configuration separate from user-facing preferences,
+- [x] add `Options -> Settings...` for Diagnostics and Attachment browser folders,
+- [x] make the attachment picker use `OFN_NOCHANGEDIR`,
+- [x] persist the last successful attachment directory independently,
+- [x] pass the diagnostics directory explicitly to screenshot/report exporters,
+- [ ] validate Standard and Portable storage behavior on Server 2003,
+- [ ] repeat the file-location smoke pass on MiniXP.
+
+Future Downloads, Cache, Session Export, and Conversation Export categories should extend
+the same explicit `user_data_root` model rather than reusing the process current
+directory.
+
+See `docs/FILE_LOCATIONS.md`.
+
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,

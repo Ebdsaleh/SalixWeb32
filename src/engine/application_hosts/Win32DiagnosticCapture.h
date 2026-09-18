@@ -10,12 +10,14 @@
 #include <string>
 
 #include "framework/View.h"
+#include "engine/platform/win32/Win32ApplicationPaths.h"
 
 class Win32DiagnosticCapture {
     public:
         static bool capture(
             HWND window_handle,
             View* application_view,
+            const char* configured_diagnostics_directory,
             std::string& screenshot_path,
             std::string& report_path,
             std::string& error_text
@@ -31,6 +33,7 @@ class Win32DiagnosticCapture {
 
             std::string diagnostics_directory;
             if (!get_diagnostics_directory(
+                    configured_diagnostics_directory,
                     diagnostics_directory,
                     error_text
                 )) {
@@ -54,7 +57,12 @@ class Win32DiagnosticCapture {
             );
 
             std::string base_name = diagnostics_directory;
-            base_name += "\\";
+            if (
+                !base_name.empty() &&
+                base_name[base_name.size() - 1] != '\\'
+            ) {
+                base_name += "\\";
+            }
             base_name += timestamp;
 
             screenshot_path = base_name;
@@ -97,6 +105,7 @@ class Win32DiagnosticCapture {
 
         static bool export_browser_report(
             View* application_view,
+            const char* configured_diagnostics_directory,
             std::string& report_path,
             std::string& error_text
         ) {
@@ -110,6 +119,7 @@ class Win32DiagnosticCapture {
 
             std::string diagnostics_directory;
             if (!get_diagnostics_directory(
+                    configured_diagnostics_directory,
                     diagnostics_directory,
                     error_text
                 )) {
@@ -133,7 +143,12 @@ class Win32DiagnosticCapture {
             );
 
             report_path = diagnostics_directory;
-            report_path += "\\";
+            if (
+                !report_path.empty() &&
+                report_path[report_path.size() - 1] != '\\'
+            ) {
+                report_path += "\\";
+            }
             report_path += timestamp;
 
             std::string report;
@@ -163,49 +178,53 @@ class Win32DiagnosticCapture {
 
     private:
         static bool get_diagnostics_directory(
+            const char* configured_directory,
             std::string& directory,
             std::string& error_text
         ) {
             directory.clear();
 
-            char current_directory[MAX_PATH + 1];
-            DWORD length = GetCurrentDirectoryA(
-                MAX_PATH,
-                current_directory
-            );
-
-            if (length == 0 || length >= MAX_PATH) {
-                error_text = "Could not resolve the current working directory.";
+            if (
+                configured_directory == 0 ||
+                configured_directory[0] == '\0'
+            ) {
+                error_text =
+                    "No diagnostics directory is configured.";
                 return false;
             }
 
-            directory = current_directory;
-            if (
-                !directory.empty() &&
-                directory[directory.size() - 1] != '\\'
-            ) {
-                directory += "\\";
-            }
-            directory += "diagnostics";
+            directory = configured_directory;
 
             if (directory.size() >= MAX_PATH) {
-                error_text = "The diagnostics directory path is too long for the NT5 target.";
+                error_text =
+                    "The diagnostics directory path is too long for the NT5 target.";
                 directory.clear();
                 return false;
             }
 
-            if (CreateDirectoryA(directory.c_str(), NULL)) {
-                return true;
+            if (
+                !Win32ApplicationPaths::is_absolute_path(
+                    directory.c_str()
+                )
+            ) {
+                error_text =
+                    "The diagnostics directory must be an absolute path.";
+                directory.clear();
+                return false;
             }
 
-            DWORD error = GetLastError();
-            if (error == ERROR_ALREADY_EXISTS) {
-                return true;
+            if (
+                !Win32ApplicationPaths::ensure_directory_exists(
+                    directory.c_str()
+                )
+            ) {
+                error_text =
+                    "Could not create or access the configured diagnostics directory.";
+                directory.clear();
+                return false;
             }
 
-            error_text = "Could not create the diagnostics directory in the current working directory.";
-            directory.clear();
-            return false;
+            return true;
         }
 
         static bool write_text_file(

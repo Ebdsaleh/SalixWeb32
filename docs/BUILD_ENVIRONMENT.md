@@ -71,6 +71,17 @@ Older Windows SDK header stacks can otherwise allow the original Winsock header 
 
 The first remote-bridge transport follows this rule in `Win32HttpTransport.cpp` and links `ws2_32.lib` explicitly.
 
+### Native folder browser and task allocator
+
+The user-facing file-location Settings dialog uses the NT5 shell folder browser
+(`SHBrowseForFolderA` / `SHGetPathFromIDListA`). To avoid depending on a newer SDK
+header surface, SalixWeb32 declares only the narrow shell functions it uses in the Win32
+implementation.
+
+The PIDL returned by the shell browser is released with `CoTaskMemFree`, so both Debug
+and Release configurations link `ole32.lib` explicitly in addition to the existing
+`shell32.lib`.
+
 ### VC7.1 `FD_SET` warning behavior
 
 The VC7.1 Winsock macros can emit warning C4127 at warning level 4 even for valid

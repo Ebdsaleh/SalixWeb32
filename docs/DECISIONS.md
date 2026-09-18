@@ -245,3 +245,35 @@ This decision follows the first real remote Conversation target pass, where Brow
 remained healthy but `POST /v1/conversation/probe` returned HTTP 404. Capability
 negotiation turns that deployment/version mismatch into explicit application state rather
 than presenting the backend as ready and failing only after Send.
+
+
+---
+
+## ADR-018 — Persistent file categories own explicit directories
+
+**Status:** Accepted
+
+The process current working directory is not a persistent-storage contract.
+
+A Win32 common file dialog may change that directory as a side effect, so diagnostics,
+exports, attachments, caches, and future file categories must not communicate implicitly
+through it.
+
+SalixWeb32 therefore:
+
+- captures launch and executable directories once at startup,
+- decides Standard versus Portable mode once from the process command line,
+- uses `%APPDATA%\SalixWeb32` as `user_data_root` in Standard mode,
+- uses the executable directory as `user_data_root` only for `--portable`,
+- stores `settings.ini` and the default `Diagnostics` directory beneath that root,
+- keeps user-facing preferences separate from development bridge configuration,
+- gives Diagnostics and the Attachment browser distinct persistent locations,
+- uses `OFN_NOCHANGEDIR` for the attachment picker,
+- passes the diagnostics destination explicitly to diagnostic exporters,
+- exposes the first path controls through `Options -> Settings...`.
+
+Standard mode does not silently fall back to launch/executable storage if APPDATA cannot
+be resolved. Portable storage is an explicit launch-time opt-in. The attachment browser
+may remember its own last successful directory without affecting application storage.
+
+See `docs/FILE_LOCATIONS.md`.

@@ -111,8 +111,10 @@ Extracted -> complete extracted-text section
 This is intentionally different from the on-screen display limit.
 
 For repeatable diagnostics, `Options -> Export Browser Diagnostic Report...` writes
-a timestamped text file under `diagnostics/` containing Browser metadata plus the
-complete Summary, Headers, Raw, and Extracted cached sections in one operation. It does
+a timestamped text file to the configured Diagnostics folder containing Browser metadata
+plus the complete Summary, Headers, Raw, and Extracted cached sections in one operation.
+The default folder is `<launch folder>\diagnostics`, and the user may change it
+through `Options -> Settings...`. It does
 not trigger another network request, use the clipboard, or force the full Raw body
 through the on-screen renderer. Ordinary probe sections remain capped at 32 KiB for presentation. Raw uses a
 much smaller 1 KiB hard-wrapped preview because minified HTML is exceptionally
@@ -323,6 +325,9 @@ Those observations drive the next runtime decision. They do not commit SalixWeb3
 22. Probe a simple known text/HTML URL as a control and compare results.
 23. Switch Conversation -> Browser -> Runtime repeatedly and confirm the existing
     tab/native-control lifecycle remains stable.
-24. Close SalixWeb32 and confirm clean shutdown.
+24. Open an attachment from a directory outside the SalixWeb32 tree, then export the
+    Browser report again. Confirm the report still goes to the configured Diagnostics
+    folder rather than the attachment directory.
+25. Close SalixWeb32 and confirm clean shutdown.
 
 Only the real P4 build/runtime test should mark this Browser Probe interaction tranche target-validated.

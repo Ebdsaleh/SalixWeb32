@@ -9,6 +9,8 @@
 
 #include "Win32MenuController.h"
 #include "Win32DiagnosticCapture.h"
+#include "Win32SettingsDialog.h"
+#include "app/ApplicationSettings.h"
 #include "framework/ApplicationCommand.h"
 #include "framework/UIEvent.h"
 #include "framework/View.h"
@@ -31,6 +33,7 @@ namespace {
         menu_edit_paste,
         menu_edit_select_all,
 
+        menu_options_settings,
         menu_options_conversation,
         menu_options_runtime,
         menu_options_browser_diagnostic_report,
@@ -427,6 +430,7 @@ namespace {
 Win32MenuController::Win32MenuController()
     : window_handle(NULL),
       application_view(0),
+      application_settings(0),
       menu_handle(NULL),
       previous_window_proc(0),
       is_initialized(false) {
@@ -438,22 +442,26 @@ Win32MenuController::~Win32MenuController() {
 
 bool Win32MenuController::initialize(
     HWND new_window_handle,
-    View* new_application_view
+    View* new_application_view,
+    ApplicationSettings* new_application_settings
 ) {
     if (
         is_initialized ||
         new_window_handle == NULL ||
-        new_application_view == 0
+        new_application_view == 0 ||
+        new_application_settings == 0
     ) {
         return false;
     }
 
     window_handle = new_window_handle;
     application_view = new_application_view;
+    application_settings = new_application_settings;
 
     if (!create_menu_bar()) {
         window_handle = NULL;
         application_view = 0;
+        application_settings = 0;
         return false;
     }
 
@@ -467,6 +475,7 @@ bool Win32MenuController::initialize(
         menu_handle = NULL;
         window_handle = NULL;
         application_view = 0;
+        application_settings = 0;
         return false;
     }
 
@@ -483,6 +492,7 @@ bool Win32MenuController::initialize(
         menu_handle = NULL;
         window_handle = NULL;
         application_view = 0;
+        application_settings = 0;
         return false;
     }
 
@@ -517,6 +527,7 @@ void Win32MenuController::shutdown() {
     menu_handle = NULL;
     previous_window_proc = 0;
     application_view = 0;
+    application_settings = 0;
     window_handle = NULL;
     is_initialized = false;
 }
@@ -566,6 +577,12 @@ bool Win32MenuController::create_menu_bar() {
     AppendMenuA(edit_menu, MF_SEPARATOR, 0, NULL);
     append_menu_item(edit_menu, menu_edit_select_all, "Select &All\tCtrl+A");
 
+    append_menu_item(
+        options_menu,
+        menu_options_settings,
+        "&Settings..."
+    );
+    AppendMenuA(options_menu, MF_SEPARATOR, 0, NULL);
     append_menu_item(
         options_menu,
         menu_options_conversation,
@@ -692,6 +709,19 @@ bool Win32MenuController::handle_menu_command(int command_id) {
             dispatch_edit_key(UIEvent::key_a);
             return true;
 
+        case menu_options_settings:
+            if (
+                application_settings != 0 &&
+                !Win32SettingsDialog::show(
+                    window_handle,
+                    application_settings
+                )
+            ) {
+                // Cancel is a normal no-op.  The dialog itself reports
+                // validation/persistence failures before it closes.
+            }
+            return true;
+
         case menu_options_conversation:
             dispatch_application_command(
                 application_command_show_conversation
@@ -710,6 +740,9 @@ bool Win32MenuController::handle_menu_command(int command_id) {
 
             if (Win32DiagnosticCapture::export_browser_report(
                     application_view,
+                    application_settings == 0
+                        ? 0
+                        : application_settings->get_diagnostics_directory(),
                     report_path,
                     error_text
                 )) {
@@ -744,6 +777,9 @@ bool Win32MenuController::handle_menu_command(int command_id) {
             if (Win32DiagnosticCapture::capture(
                     window_handle,
                     application_view,
+                    application_settings == 0
+                        ? 0
+                        : application_settings->get_diagnostics_directory(),
                     screenshot_path,
                     report_path,
                     error_text

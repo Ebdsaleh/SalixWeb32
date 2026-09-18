@@ -10,10 +10,38 @@
 
 #include "Win32FileDialog.h"
 
+namespace {
+    std::string get_parent_directory(
+        const std::string& path
+    ) {
+        std::string::size_type separator =
+            path.find_last_of("\\/");
+
+        if (separator == std::string::npos) {
+            return std::string();
+        }
+
+        return path.substr(0, separator);
+    }
+}
+
 Win32FileDialog::Win32FileDialog() {
 }
 
 Win32FileDialog::~Win32FileDialog() {
+}
+
+void Win32FileDialog::set_initial_directory(
+    const char* directory
+) {
+    initial_directory =
+        directory == 0
+            ? ""
+            : directory;
+}
+
+const char* Win32FileDialog::get_last_directory() const {
+    return last_directory.c_str();
 }
 
 bool Win32FileDialog::open_files(
@@ -33,31 +61,46 @@ bool Win32FileDialog::open_files(
     open_file_name.nMaxFile = sizeof(file_buffer);
     open_file_name.lpstrFilter = "All files\0*.*\0\0";
     open_file_name.nFilterIndex = 1;
+    open_file_name.lpstrInitialDir =
+        initial_directory.empty()
+            ? NULL
+            : initial_directory.c_str();
 
-    // Explorer-style multi-selection deliberately delegates the familiar
-    // Ctrl+Click and Shift+Click gestures to the operating system. One
-    // GetOpenFileNameA invocation can therefore return the complete selected
-    // set to the composer without SalixWeb32 reimplementing shell selection.
+    // OFN_NOCHANGEDIR is intentional.  A file picker may remember its own
+    // navigation location, but it must never mutate process-wide path state.
+    // Diagnostics, exports, caches, and future storage categories each own an
+    // explicit directory policy instead of inheriting the last picker folder.
     open_file_name.Flags =
         OFN_EXPLORER |
         OFN_ALLOWMULTISELECT |
         OFN_FILEMUSTEXIST |
         OFN_PATHMUSTEXIST |
-        OFN_HIDEREADONLY;
+        OFN_HIDEREADONLY |
+        OFN_NOCHANGEDIR;
 
     if (!GetOpenFileNameA(&open_file_name)) {
         return false;
     }
 
     const char* first_entry = file_buffer;
-    const char* next_entry = first_entry + strlen(first_entry) + 1;
+    const char* next_entry =
+        first_entry + strlen(first_entry) + 1;
 
     if (*next_entry == '\0') {
-        selected_paths.push_back(std::string(first_entry));
+        std::string full_path(first_entry);
+        selected_paths.push_back(full_path);
+        last_directory = get_parent_directory(full_path);
+
+        if (!last_directory.empty()) {
+            initial_directory = last_directory;
+        }
+
         return true;
     }
 
     std::string directory(first_entry);
+    last_directory = directory;
+    initial_directory = directory;
 
     while (*next_entry != '\0') {
         std::string full_path(directory);

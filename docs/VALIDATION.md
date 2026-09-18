@@ -421,10 +421,19 @@ The available target artifacts do not prove whether the Server 2022 machine had 
 checkout or whether a previously started companion process was still running after the
 script had been updated. Both states are consistent with the observed HTTP 404.
 
-### Conversation capability handshake — pending target validation
+### Conversation capability handshake — incompatible-companion path validated
 
-The next build no longer labels the remote Conversation backend ready merely because its
-executor initialized. It queues:
+The September 19, 2026 target run validated the **negative** capability path. The
+diagnostic report showed:
+
+```text
+Conversation backend: Remote Conversation Bridge Backend |
+companion lacks conversation probe; update/restart companion
+```
+
+while the Win32 host and Remote Bridge Web Backend remained operational. That confirms
+the client no longer labels the Conversation backend ready merely because its executor
+initialized. It queues:
 
 ```text
 GET /v1/health
@@ -451,6 +460,13 @@ If an incompatible/unreachable companion is later updated and restarted, a subse
 send attempt triggers another health check so the application can recover without a full
 SalixWeb32 restart.
 
+In the same target session, Browser Probe reached the companion and received an upstream
+ChatGPT `HTTP 403 Forbidden` Cloudflare challenge response with redacted Set-Cookie
+headers. That is an upstream response, not evidence of local bridge failure, and further
+supports that the Conversation warning was capability-specific.
+
+The **positive** `SALIX-CONVERSATION/1 ready` path remains pending.
+
 Validation checklist:
 
 1. Pull the same commit on both the P4 and Server 2022 companion machine.
@@ -475,3 +491,66 @@ Validation checklist:
 14. Capture a diagnostic screenshot/report after completion.
 
 This proof intentionally does **not** send the typed test string to the companion.
+
+
+## Persistent file-location regression — pending target validation
+
+A September 19, 2026 Server 2003 diagnostic capture exposed a concrete path-ownership
+bug. After the native attachment picker had browsed an external RenderWare directory,
+SalixWeb32 wrote both diagnostic capture artifacts and the Browser Diagnostic Report
+under:
+
+```text
+<external RenderWare directory>\diagnostics
+```
+
+The old implementation used process current-directory state at export time, so an
+unrelated common-dialog navigation could redirect application-owned output.
+
+The corrective tranche now establishes explicit startup roots:
+
+- launch directory captured once for development/local-config and first attachment browse,
+- executable directory captured independently,
+- Standard `user_data_root = %APPDATA%\SalixWeb32`,
+- Portable `user_data_root = executable directory` only when launched with `--portable`,
+- `settings.ini` beneath the selected data root,
+- Diagnostics defaulting to `<user_data_root>\Diagnostics`,
+- Attachment browser location tracked independently,
+- `OFN_NOCHANGEDIR` on the native attachment picker,
+- diagnostic exporters receiving the configured destination explicitly,
+- `Options -> Settings...` displaying application mode, data root, preferences path,
+  Diagnostics, and Attachment browser location.
+
+Target checklist:
+
+1. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
+2. Launch normally and open `Options -> Settings...`.
+3. Confirm `Application mode: Standard`.
+4. Confirm the data root is `%APPDATA%\SalixWeb32`.
+5. Confirm the preferences file is `%APPDATA%\SalixWeb32\settings.ini`.
+6. Confirm Diagnostics defaults to `%APPDATA%\SalixWeb32\Diagnostics`.
+7. Confirm the Attachment browser defaults to the captured launch folder on a clean
+   `settings.ini`.
+8. Save a custom Diagnostics folder and reopen Settings; confirm persistence.
+9. Use `File -> Attach File...` to browse to a different drive/directory and select a file.
+10. Reopen Attach File and confirm the attachment browser remembers its own last location.
+11. Take a diagnostic screenshot and confirm it is written to the configured Diagnostics
+    folder, not the attachment directory.
+12. Export a Browser Diagnostic Report and confirm it uses the same configured Diagnostics
+    folder.
+13. Confirm `Go to Files` opens the actual configured Diagnostics folder.
+14. Restart normally and confirm Standard-mode preferences persist.
+15. Use `Restore Defaults`, save, and confirm Diagnostics returns to
+    `%APPDATA%\SalixWeb32\Diagnostics`.
+16. Launch `SalixWeb32.exe --portable`.
+17. Confirm `Application mode: Portable (--portable)`.
+18. Confirm Data root is the directory containing `SalixWeb32.exe`.
+19. Confirm the preferences file is `<executable_root>\settings.ini`.
+20. Confirm Diagnostics defaults to `<executable_root>\Diagnostics`.
+21. Change a Portable-mode path preference and verify it persists in the portable
+    `settings.ini` without changing the Standard-mode preferences under APPDATA.
+22. Browse an unrelated attachment directory again and confirm neither mode's application
+    storage root follows that browse location.
+23. Repeat the smoke pass on MiniXP after Server 2003 is green.
+
+See `docs/FILE_LOCATIONS.md`.

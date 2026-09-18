@@ -36,6 +36,8 @@ Edit
     Select All          Ctrl+A
 
 Options
+    Settings...
+    ----------------
     Conversation
     Runtime Diagnostics
     ----------------
@@ -48,7 +50,12 @@ Help
 
 The Edit commands reuse the existing framework keyboard/character command paths rather than implementing a second editor command system. Undo, Cut, Copy, Paste, and Select All therefore retain the same active-control semantics as their keyboard equivalents.
 
-`File -> Attach File...` uses the same `FileDialog`/composer attachment path used by the existing attachment button. `Ctrl+O` is intercepted by the Win32 menu controller and dispatches the same semantic Attach command. `Options` changes the active top-level `TabView` page through application commands.
+`File -> Attach File...` uses the same `FileDialog`/composer attachment path used by the existing attachment button. `Ctrl+O` is intercepted by the Win32 menu controller and dispatches the same semantic Attach command. The Win32 picker uses `OFN_NOCHANGEDIR`, so browsing for an attachment cannot silently redirect unrelated application output.
+
+`Options -> Settings...` opens a native NT5-compatible settings dialog for persistent
+file locations. The dialog also reports whether the process is running in Standard or
+Portable (`--portable`) mode, the resolved data root, and the active `settings.ini`.
+`Options` also changes the active top-level `TabView` page through application commands.
 
 ## Browser diagnostic report
 
@@ -68,7 +75,7 @@ After export, the same NT5-compatible result dialog offers `Go to Files` and `OK
 
 ## Diagnostic screenshot
 
-`Options -> Take Diagnostic Screenshot` creates a timestamped pair in a local `diagnostics/` directory under the current working directory:
+`Options -> Take Diagnostic Screenshot` creates a timestamped pair in the configured Diagnostics folder. The default is `<user_data_root>\Diagnostics`:
 
 ```text
 diagnostics/SalixWeb32-YYYYMMDD-HHMMSS-mmm.bmp
@@ -95,13 +102,17 @@ After a successful capture, SalixWeb32 shows an NT5-compatible custom result dia
 
 `Go to Files` opens the generated diagnostics directory in the system shell and closes the result dialog. If Explorer cannot be opened, the result dialog stays open and reports the shell error instead. `OK` simply closes the dialog.
 
-The generated `diagnostics/` directory is ignored by Git so captures can be copied over a network share or sneaker-netted without polluting the repository.
+In Standard mode the default Diagnostics directory is `%APPDATA%\SalixWeb32\Diagnostics`; in Portable mode it is `Diagnostics` beside the executable. A custom Diagnostics folder may live anywhere the user chooses.
 
 ## Win32 implementation
 
 `engine/application_hosts/Win32MenuController` owns the native menu bar. It subclasses the already-created application HWND only to intercept its own menu command IDs and the menu-owned `Ctrl+O` shortcut, forwarding every other window message to the original `Win32ApplicationHost` procedure.
 
-`engine/application_hosts/Win32DiagnosticCapture.h` contains the small Win32/GDI capture helper. The helper asks the active application `View` for a text report, captures the visible window rectangle, writes a 24-bit BMP directly, and writes the text report beside it.
+`engine/application_hosts/Win32DiagnosticCapture.h` contains the small Win32/GDI capture helper. The helper asks the active application `View` for a text report, captures the visible window rectangle, writes a 24-bit BMP directly, and writes the text report beside it. Its destination is passed explicitly; it no longer derives storage from `GetCurrentDirectoryA`.
+
+`engine/application_hosts/Win32SettingsDialog` owns the native Settings window.
+`ApplicationSettings` persists user-facing file locations separately from the
+machine/development bridge configuration.
 
 The success notification is implemented as a small owned Win32 window rather than a modern TaskDialog, because the Server 2003 target needs custom button text while remaining independent of Vista-era common controls. Folder opening uses the existing `shell32.lib` dependency through `ShellExecuteA`.
 
@@ -109,7 +120,8 @@ The controller does not replace the application host or its message pump.
 
 ## First-pass limitations
 
-- The menu does not yet expose preferences/configuration pages.
+- The first Settings page currently covers persistent file locations only; broader
+  application preferences are future work.
 - Menu item enable/disable state is not yet dynamically synchronized with control focus, edit-history availability, or clipboard contents.
 - Only the Attach shortcut is owned by the menu controller; existing text shortcuts continue through the framework input path.
 - Diagnostic capture records the visible window pixels. If another window is deliberately placed over SalixWeb32 at capture time, those visible pixels can appear in the BMP.
@@ -131,6 +143,13 @@ The Browser Diagnostic Report export has also been exercised successfully on the
 primary target and produced a complete text report containing Summary, redacted Headers,
 the full cached Raw response, and Extracted output without rendering the full Raw body.
 
+A later Server 2003 test exposed a path-ownership defect: after an attachment file picker
+was used inside an external RenderWare directory, diagnostic screenshot/report and
+Browser report files were written under that unrelated directory's `diagnostics`
+subfolder. This confirmed that the old capture helper was inheriting process current
+directory state from the common dialog. The current tranche removes that dependency and
+adds explicit persistent file-location Settings.
+
 The checklist below remains authoritative for features that have not yet been explicitly
 recorded as target-validated, including the final `Go to Files` interaction if a
 separate target confirmation has not been captured.
@@ -144,14 +163,18 @@ Validation points:
 1. The native `File / Edit / Options / Help` bar appears and uses the target OS chrome.
 2. `File -> Attach File...` and `Ctrl+O` open the existing multi-file picker and update the composer attachment count.
 3. `Edit -> Undo / Cut / Copy / Paste / Select All` follow the same active-control behavior as the corresponding keyboard shortcuts.
-4. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
-5. `Options -> Export Browser Diagnostic Report...` creates a timestamped text report containing complete cached Browser Probe data.
-6. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` under `diagnostics/`.
-7. Confirm the capture result dialog shows both `Go to Files` and `OK`.
-8. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
-9. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
-10. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
-11. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
-12. `Help -> About SalixWeb32` opens a normal native message box.
-13. `File -> Exit` follows the normal application close/shutdown path.
-14. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.
+4. `Options -> Settings...` opens the native Settings dialog.
+5. In a normal launch, confirm the dialog reports `Standard`, preferences at `%APPDATA%\SalixWeb32\settings.ini`, and Diagnostics at `%APPDATA%\SalixWeb32\Diagnostics`; confirm the Attachment browser starts from the captured launch folder on a clean preference file.
+6. Change the Diagnostics folder, save, reopen Settings, and confirm the choice persists; then launch with `--portable` and confirm the data root, `settings.ini`, and default `Diagnostics` directory move beside `SalixWeb32.exe` without changing Standard-mode storage.
+7. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
+8. Open an attachment from an unrelated external directory and confirm the process does not redirect diagnostic storage.
+9. `Options -> Export Browser Diagnostic Report...` creates a timestamped text report in the configured Diagnostics folder containing complete cached Browser Probe data.
+10. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` in the configured Diagnostics folder.
+11. Confirm the capture result dialog shows both `Go to Files` and `OK`.
+12. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
+13. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
+14. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
+15. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
+16. `Help -> About SalixWeb32` opens a normal native message box.
+17. `File -> Exit` follows the normal application close/shutdown path.
+18. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.

@@ -7,6 +7,7 @@
 
 #include <windows.h>
 
+class ApplicationSettings;
 class View;
 
 class Win32MenuController {
@@ -14,7 +15,11 @@ class Win32MenuController {
         Win32MenuController();
         ~Win32MenuController();
 
-        bool initialize(HWND window_handle, View* application_view);
+        bool initialize(
+            HWND window_handle,
+            View* application_view,
+            ApplicationSettings* application_settings
+        );
         void shutdown();
 
     private:
@@ -32,6 +37,7 @@ class Win32MenuController {
 
         HWND window_handle;
         View* application_view;
+        ApplicationSettings* application_settings;
         HMENU menu_handle;
         WNDPROC previous_window_proc;
         bool is_initialized;

@@ -30,11 +30,13 @@ namespace {
 
 StatusView::StatusView(
     ApplicationRuntime* new_application_runtime,
+    ApplicationSettings* new_application_settings,
     FileDialog* new_file_dialog,
     DesktopServices* new_desktop_services,
     WebPlatformHost* new_web_platform_host,
     ConversationServiceHost* new_conversation_service_host
 ) : application_runtime(new_application_runtime),
+    application_settings(new_application_settings),
     file_dialog(new_file_dialog),
     desktop_services(new_desktop_services),
     web_platform_host(new_web_platform_host),
@@ -376,6 +378,7 @@ bool StatusView::handle_event(const UIEvent& event) {
 
 void StatusView::render(ComponentRenderer& renderer) {
     browser_probe_view.update();
+    sync_file_location_preferences();
     consume_conversation_events();
     update_dynamic_text();
     root_panel.render(renderer);
@@ -439,13 +442,74 @@ bool StatusView::attach_files_from_dialog() {
         return false;
     }
 
+    if (application_settings != 0) {
+        file_dialog->set_initial_directory(
+            application_settings->get_attachment_directory()
+        );
+    }
+
     std::vector<std::string> selected_paths;
     if (!file_dialog->open_files(selected_paths) || selected_paths.empty()) {
         return false;
     }
 
+    if (application_settings != 0) {
+        const char* last_directory =
+            file_dialog->get_last_directory();
+
+        if (
+            last_directory != 0 &&
+            last_directory[0] != '\0'
+        ) {
+            observed_file_dialog_directory =
+                last_directory;
+            application_settings->set_attachment_directory(
+                last_directory
+            );
+            application_settings->save_user_preferences();
+        }
+    }
+
     message_composer.add_attachment_paths(selected_paths);
     return true;
+}
+
+void StatusView::sync_file_location_preferences() {
+    if (
+        application_settings == 0 ||
+        file_dialog == 0
+    ) {
+        return;
+    }
+
+    const char* last_directory =
+        file_dialog->get_last_directory();
+
+    bool has_new_dialog_directory =
+        last_directory != 0 &&
+        last_directory[0] != '\0' &&
+        observed_file_dialog_directory != last_directory;
+
+    if (has_new_dialog_directory) {
+        observed_file_dialog_directory =
+            last_directory;
+
+        application_settings->set_attachment_directory(
+            last_directory
+        );
+
+        // Remembering the picker location is best-effort and must never
+        // block attachment use. The Settings dialog reports persistence
+        // failures when the user explicitly saves preferences.
+        application_settings->save_user_preferences();
+    }
+
+    // Settings can also change the attachment folder without opening a file
+    // dialog. Reapply the persisted preference so the toolbar '+' button and
+    // File -> Attach File... share the same next-open location.
+    file_dialog->set_initial_directory(
+        application_settings->get_attachment_directory()
+    );
 }
 
 void StatusView::update_dynamic_text() {

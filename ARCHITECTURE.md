@@ -161,6 +161,43 @@ and `ConversationView` mutation remain on the application thread.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
+## Persistent file-location boundary
+
+SalixWeb32 does not treat the process current working directory as durable application
+state. Startup resolves immutable application roots before any file dialog can run.
+
+```text
+                    STANDARD                         PORTABLE (--portable)
+
+executable_root     executable directory             executable directory
+
+user_data_root      %APPDATA%\SalixWeb32            executable directory
+
+settings.ini        user_data_root\settings.ini      user_data_root\settings.ini
+
+Diagnostics         user_data_root\Diagnostics       user_data_root\Diagnostics
+
+Attachment browser  independent remembered directory independent remembered directory
+```
+
+The launch directory is still captured once for development/local-config discovery and
+as the first-run attachment-browser location. It is not a persistent application storage
+root.
+
+The attachment picker uses `OFN_NOCHANGEDIR`. Diagnostic screenshot/report capture and
+Browser Diagnostic Report export receive their destination explicitly rather than
+calling `GetCurrentDirectoryA`.
+
+`--portable` is a process-startup mode, not a mutable Settings checkbox. Standard mode
+never silently falls back to the executable or launch directory for writable persistent
+state; portable mode opts into executable-directory storage deliberately.
+
+User-facing paths are kept separate from `salixweb32.local.ini`, which remains the
+machine/development bridge configuration layer.
+
+This establishes the broader rule that unrelated UI navigation state must never silently
+redirect another subsystem's persistent output. See `docs/FILE_LOCATIONS.md`.
+
 ## Navigation, surface, and input contracts
 
 The first Phase 3 contracts are intentionally small and backend-neutral.

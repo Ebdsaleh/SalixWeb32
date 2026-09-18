@@ -108,6 +108,7 @@ The native application/framework foundation is operational on the real Pentium 4
 - code-block presentation and copy support,
 - attachments, image preview, and file actions,
 - native tabs, scrollbars, menus, diagnostics, screenshots, and clipboard integration,
+- explicit persistent file-location ownership with user-configurable diagnostics and attachment folders,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
 - the `ConversationServiceBackend` / `ConversationServiceHost` semantic chat abstraction,
 - local and remote-probe conversation backends that emit request/message/text-delta/completion events,
@@ -132,13 +133,20 @@ The Conversation workspace now has a provider-neutral semantic service contract.
 local placeholder path has been exercised on the real Pentium 4, and remote bridge mode
 selects a separate `RemoteConversationBackend` proof.
 
-The first remote target pass exposed a companion capability/deployment mismatch cleanly: Browser Probe
-remained healthy, but the running companion returned HTTP 404 for the new Conversation
-probe route. The remote Conversation backend now performs an asynchronous `/v1/health`
-capability handshake and requires the companion to advertise
-`conversation_protocol=SALIX-CONVERSATION/1` before accepting a probe request. This
-first remote proof still sends **no typed message text, attachment paths, credentials,
-cookies, or session data** over the plaintext LAN.
+The first remote target pass exposed a companion capability/deployment mismatch cleanly:
+Browser Probe remained reachable while Conversation reported that the companion lacked
+the new probe capability. The asynchronous `/v1/health` negotiation is therefore doing
+its job: SalixWeb32 no longer equates "host reachable" with "Conversation protocol
+available". A complete `SALIX-CONVERSATION/1` response still requires a current,
+restarted companion. This first remote proof sends **no typed message text, attachment
+paths, credentials, cookies, or session data** over the plaintext LAN.
+
+File storage now follows the same explicit-ownership philosophy. File dialogs no longer
+own process-wide path state: the attachment picker uses `OFN_NOCHANGEDIR`, diagnostics
+receive an explicit configured directory, and `Options -> Settings...` persists
+user-facing file locations independently of the machine/development bridge config.
+Standard launches keep writable application state under `%APPDATA%\SalixWeb32`; launching
+with `--portable` deliberately moves that state beside `SalixWeb32.exe`.
 
 ## Documentation
 
@@ -153,6 +161,7 @@ Start with:
 - `docs/BUILD_ENVIRONMENT.md`
 - `docs/DEPENDENCY_STRATEGY.md`
 - `docs/PRESENTATION_INTERACTION_POLICY.md`
+- `docs/FILE_LOCATIONS.md`
 - `docs/VALIDATION.md`
 - `docs/CODING_STYLE.md`
 - `docs/LICENSE_POLICY.md`

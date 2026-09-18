@@ -29,7 +29,7 @@
 				DebugInformationFormat="4"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib shell32.lib gdiplus.lib ws2_32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib shell32.lib ole32.lib gdiplus.lib ws2_32.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
@@ -68,7 +68,7 @@
 				DebugInformationFormat="3"/>
 			<Tool Name="VCCustomBuildTool"/>
 			<Tool Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib shell32.lib gdiplus.lib ws2_32.lib"
+				AdditionalDependencies="kernel32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib shell32.lib ole32.lib gdiplus.lib ws2_32.lib"
 				OutputFile="$(OutDir)/SalixWeb32.exe"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"
@@ -154,6 +154,8 @@
 			<File RelativePath="..\..\src\web\platform\WebSurfaceSnapshot.cpp"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.cpp"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32MenuController.cpp"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32SettingsDialog.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32ApplicationPaths.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32DesktopServices.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.cpp"/>
@@ -246,7 +248,10 @@
 			<File RelativePath="..\..\src\web\platform\WebPlatformHost.h"/>
 			<File RelativePath="..\..\src\web\platform\WebSurfaceSnapshot.h"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32ApplicationHost.h"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32DiagnosticCapture.h"/>
 			<File RelativePath="..\..\src\engine\application_hosts\Win32MenuController.h"/>
+			<File RelativePath="..\..\src\engine\application_hosts\Win32SettingsDialog.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32ApplicationPaths.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32Clipboard.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32DesktopServices.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32FileDialog.h"/>

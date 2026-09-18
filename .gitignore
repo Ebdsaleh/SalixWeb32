@@ -51,6 +51,8 @@ venv/
 .local/
 *.local
 salixweb32.local.ini
+salixweb32.settings.ini
+settings.ini
 
 # Private development continuity (never commit)
 .private/
