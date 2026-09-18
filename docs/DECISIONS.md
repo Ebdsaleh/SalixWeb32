@@ -151,3 +151,30 @@ repeatable target launches. That file is ignored by Git. The repository contains
 
 Environment variables remain supported as overrides, and no machine-specific address,
 credential, token, or private session material belongs in the repository.
+
+
+---
+
+## ADR-014 — Reduced presentation must preserve a path to full fidelity
+
+**Status:** Accepted
+
+SalixWeb32 may use snippets, summaries, thumbnails, bounded previews, collapsed sections,
+lazy presentation, or other reduced representations to protect responsiveness on
+constrained hardware.
+
+Such a representation must provide a clear and content-appropriate path to the complete
+experience or complete underlying data whenever that full data exists.
+
+Examples:
+
+- Browser Probe Raw: bounded on-screen preview, complete Copy and Export.
+- image attachments: thumbnail, then Preview/Open original.
+- code: bounded/scrollable presentation, complete source retained for Copy.
+- diagnostics: concise status, complete report export.
+
+Truncation and transformation are presentation policies, not permission to discard
+canonical data. Full-data actions should use canonical/cached state directly and should
+not require rendering the full payload first.
+
+See `docs/PRESENTATION_INTERACTION_POLICY.md`.

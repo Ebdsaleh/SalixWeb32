@@ -75,6 +75,26 @@ The composer continues to keep the canonical pending paths in its existing attac
 
 Removal is deliberately deferred until the chip's mouse event has completely unwound. This avoids deleting the clicked chip while one of its own button callbacks is still active.
 
+## Presentation-to-interaction rule
+
+Attachments follow the same progressive-disclosure invariant as the rest of SalixWeb32:
+the lightweight conversation representation is not the endpoint when fuller content is
+available.
+
+For images:
+
+```text
+original image
+    -> bounded conversation thumbnail
+    -> Preview in SalixWeb32
+    -> Open original file when requested
+```
+
+For generic files, the chip/filename/metadata representation must retain a clear Open or
+equivalent full-data path when the platform/backend can provide it.
+
+See `docs/PRESENTATION_INTERACTION_POLICY.md`.
+
 ## Conversation presentation
 
 Generic files continue to have a readable system representation.

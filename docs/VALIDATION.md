@@ -299,9 +299,37 @@ The current mitigation:
 - passes known text lengths through the MIME/Win32 clipboard path rather than repeatedly
   rescanning large buffers with `strlen()`.
 
-The resulting target build was reported **more responsive**, and Raw copy correctness is
-now confirmed. It is **not yet considered fully natural-feeling** on the Pentium 4.
-Generic Win32 formatted-text rendering remains an active performance investigation.
+The first font-cache tranche was reported **more responsive**. A second renderer tranche
+then batched compatible formatted text into runs for GDI measurement/drawing and changed
+wrapping to measure useful spans before falling back to character/token-level work.
+Real Pentium 4 testing after that tranche was reported **much better performance**.
+
+Raw copy correctness remains confirmed. The bounded 1 KiB Raw preview is intentionally
+retained even after renderer improvement: showing hundreds of kilobytes of minified HTML
+offers little presentation value, while Copy and diagnostic export preserve access to
+the complete cached body.
+
+### Browser diagnostic report export
+
+The one-click Browser report path has now been exercised on the real Server 2003 /
+Pentium 4 target.
+
+`Options -> Export Browser Diagnostic Report...` successfully produced a timestamped
+text file containing:
+
+- Browser title, URL, backend, capabilities, and HTTP status,
+- complete Summary,
+- complete redacted Headers,
+- complete captured Raw HTML,
+- complete Extracted text,
+- the final generated report path.
+
+The validated report contained a real ChatGPT HTTP 200 response of 498021 captured
+bytes. The complete Raw section remained present in the exported file even though the
+on-screen Raw presentation stayed bounded.
+
+This validates the intended presentation-to-interaction pattern: the target does not
+pay the rendering cost of the complete payload merely to retain full-data access.
 
 ### Persistent remote configuration
 
@@ -325,8 +353,8 @@ The following should **not** be inferred from the successful Browser Probe pass:
 - the current plaintext LAN bridge is not approved for credentials,
 - JavaScript execution is not provided by Browser Probe,
 - Browser Probe is not a browser renderer/DOM implementation,
-- the latest large-text performance work is improved but still requires further target
-  profiling,
+- the large-text path is substantially improved, but future renderer changes still
+  require real-target profiling rather than assuming modern-PC behavior,
 - MiniXP coverage is not implied by Server 2003 validation unless explicitly recorded.
 
 For subsequent tranches, the real Pentium 4 remains authoritative.

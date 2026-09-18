@@ -6,6 +6,17 @@ This document records the conversation-layout work that follows native conversat
 
 Conversation history must behave like a document surface rather than a stack of fixed message rows. Long prose should wrap to the available width, one response may be taller than the viewport, scrolling must move through that response, and structured Markdown content must be able to become multiple presentation components without rewriting canonical message data.
 
+## Progressive disclosure / full-fidelity rule
+
+Conversation presentation follows the project-wide rule that reduced presentation must
+not strand the user behind the reduction. A future very large message may be lazily
+laid out, collapsed, summarized, or rendered only for the visible viewport, but the
+canonical message must remain available through an appropriate interaction such as
+scrolling, expanding, copying, or exporting.
+
+This is the same policy used by Browser Probe Raw and image attachments. See
+`docs/PRESENTATION_INTERACTION_POLICY.md`.
+
 ## Canonical text and presentation
 
 Soft wrapping is presentation-only. `TextWrapLayout` calculates visual line ranges from canonical text and per-character `TextFormat` data. It does not insert `\n` characters into the message.

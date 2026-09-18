@@ -127,6 +127,10 @@ legacy Platform SDK `ShellAPI.h` assumes Win32 base declarations have already be
 introduced. The project now supplies the narrow `src/shellapi.h` compatibility shim
 documented in `docs/BUILD_ENVIRONMENT.md`.
 
+The Browser Diagnostic Report export has also been exercised successfully on the
+primary target and produced a complete text report containing Summary, redacted Headers,
+the full cached Raw response, and Extracted output without rendering the full Raw body.
+
 The checklist below remains authoritative for features that have not yet been explicitly
 recorded as target-validated, including the final `Go to Files` interaction if a
 separate target confirmation has not been captured.
@@ -141,12 +145,13 @@ Validation points:
 2. `File -> Attach File...` and `Ctrl+O` open the existing multi-file picker and update the composer attachment count.
 3. `Edit -> Undo / Cut / Copy / Paste / Select All` follow the same active-control behavior as the corresponding keyboard shortcuts.
 4. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
-5. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` under `diagnostics/`.
-6. Confirm the capture result dialog shows both `Go to Files` and `OK`.
-7. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
-8. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
-9. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
-10. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
-11. `Help -> About SalixWeb32` opens a normal native message box.
-12. `File -> Exit` follows the normal application close/shutdown path.
-13. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.
+5. `Options -> Export Browser Diagnostic Report...` creates a timestamped text report containing complete cached Browser Probe data.
+6. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` under `diagnostics/`.
+7. Confirm the capture result dialog shows both `Go to Files` and `OK`.
+8. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
+9. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
+10. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
+11. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
+12. `Help -> About SalixWeb32` opens a normal native message box.
+13. `File -> Exit` follows the normal application close/shutdown path.
+14. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.

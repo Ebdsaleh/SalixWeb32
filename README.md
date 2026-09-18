@@ -6,6 +6,11 @@ The immediate proof is a native messenger-style client that can communicate with
 
 The project is deliberately **not** architected around one website, browser engine, or service.
 
+SalixWeb32 also follows a presentation-to-interaction rule: a bounded preview, summary,
+thumbnail, or collapsed representation must provide a clear path to the complete
+experience or complete underlying data. Performance optimization may reduce what is
+rendered initially, but it must not silently remove user capability.
+
 ## Development license notice
 
 SalixWeb32 is currently **source-available for inspection and development review, not open source**.
@@ -114,7 +119,11 @@ Browser Probe has been exercised against `https://www.chatgpt.com/` from the rea
 
 The current bridge is **unauthenticated** and the P4-to-companion hop is plain HTTP on a trusted, narrowly firewalled LAN. Credentials, cookies, session tokens, private conversations, and uploads must not be carried through this Browser Probe transport yet.
 
-The next performance concern is the Win32 formatted-text/rendering path: large/minified text remains much more expensive than ordinary application content on the Pentium 4. Browser Probe now protects the UI with a small Raw preview, but the generic renderer still needs profiling/optimization before very large text should feel completely natural.
+The Win32 formatted-text path has now received two target-driven optimizations: formatted
+font reuse and run-based measurement/drawing. Real Pentium 4 testing reported a
+substantial responsiveness improvement. Browser Probe still keeps its Raw presentation
+bounded because rendering hundreds of kilobytes of minified HTML provides little UX
+value; complete Raw remains available through Copy and diagnostic export.
 
 ## Documentation
 
@@ -127,6 +136,7 @@ Start with:
 - `docs/WEB_BACKEND_CONTRACT.md`
 - `docs/BUILD_ENVIRONMENT.md`
 - `docs/DEPENDENCY_STRATEGY.md`
+- `docs/PRESENTATION_INTERACTION_POLICY.md`
 - `docs/VALIDATION.md`
 - `docs/CODING_STYLE.md`
 - `docs/LICENSE_POLICY.md`

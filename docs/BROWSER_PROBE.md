@@ -83,6 +83,18 @@ https://www.chatgpt.com/
 
 A remote fetch is **not** performed during application startup. Pressing `Go` is explicit so a slow or unreachable Internet target cannot unexpectedly stall startup.
 
+### Presentation-to-interaction rule
+
+Browser Probe is the first explicit application of the project-wide
+presentation-to-interaction policy. Raw may be expensive to render on the target, so the
+visible view is intentionally bounded while the complete cached response remains
+available through Copy and Browser Diagnostic Report export.
+
+This is not treated as data truncation. It is progressive disclosure: the initial
+presentation is cheap, and a clear path to full fidelity remains available.
+
+See `docs/PRESENTATION_INTERACTION_POLICY.md`.
+
 ### Copy and selection
 
 The output surface is selectable. Normal text selection plus `Ctrl+C` continues to copy only the selected text.

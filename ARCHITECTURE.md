@@ -375,6 +375,39 @@ A backend that lacks a security capability must report that honestly.
 
 The current LAN bridge is intentionally plaintext and therefore restricted to trusted local-network transport testing. It must not be exposed to the Internet or used for credentials in this state. Later companion-side modern TLS/service work must keep that boundary explicit.
 
+## Presentation-to-interaction invariant
+
+SalixWeb32 may deliberately present a reduced representation when full presentation
+would be wasteful or disruptive on constrained hardware. That reduction must remain a
+presentation decision rather than a data-loss decision.
+
+The architectural rule is:
+
+> Any reduced presentation must provide a clear path to the complete experience or the
+> complete underlying data.
+
+Examples include:
+
+```text
+large text
+    bounded preview -> Expand / Copy full / Export full
+
+image
+    thumbnail -> Preview / Open original
+
+code
+    bounded viewport -> scroll / Copy complete source
+
+diagnostics
+    concise status -> complete exported report
+```
+
+Full-data actions should operate from canonical/cached data rather than reconstructing
+content from the visible preview or forcing the complete payload through the renderer.
+
+This allows SalixWeb32 to optimize aggressively for the Pentium 4 without creating a
+second-class product experience. See `docs/PRESENTATION_INTERACTION_POLICY.md`.
+
 ## Performance assumptions
 
 The baseline target is a Pentium 4 with 2 GB RAM.
@@ -437,7 +470,11 @@ large minified HTML can still overwhelm the legacy formatted-text renderer even 
 the network request itself is off-thread.
 
 Raw therefore keeps the complete captured body for diagnostics/copy while presenting
-only a small hard-wrapped preview. This is a protective application-level policy, not
-the final renderer solution. The generic Win32 text path still needs profiling and
-optimization so ordinary large-text repaint/copy scenarios remain responsive on the
-Pentium 4.
+only a small hard-wrapped preview. This follows the presentation-to-interaction
+invariant above: the preview is bounded, but Copy and diagnostic export still expose the
+complete cached data.
+
+The generic Win32 text path has also been improved with per-pass formatted-font reuse
+and run-based measurement/drawing. Real Pentium 4 testing reported substantially better
+responsiveness; further optimization should remain target-driven rather than expanding
+the visible Raw payload merely because rendering became cheaper.
