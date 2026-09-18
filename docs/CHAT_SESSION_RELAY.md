@@ -92,10 +92,13 @@ still be used:
 python tools\salix_chat_session.py --browser "C:\Program Files\LibreWolf\librewolf.exe"
 ```
 
-By default the worker now discovers and reuses the **installed LibreWolf default
-profile**, including the user's normal authenticated ChatGPT browser session. It checks
-LibreWolf profile metadata first and then the normal profile directories beneath
-`APPDATA` and `LOCALAPPDATA`.
+By default the worker now discovers and reuses the **installed LibreWolf per-install
+default profile**, matching the profile-selection model used by current Firefox-family
+browsers. It first checks the `[Install...]` default recorded in LibreWolf's
+`profiles.ini` / `installs.ini`, then falls back to the older profile-level
+`Default=1` marker only when no per-install default exists. This is intended to select
+the same normal profile LibreWolf itself opens, including the user's authenticated
+ChatGPT browser session.
 
 The worker prints:
 

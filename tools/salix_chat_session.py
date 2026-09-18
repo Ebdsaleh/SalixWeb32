@@ -72,6 +72,122 @@ def _candidate_profile_roots() -> list[Path]:
     return unique
 
 
+def _read_ini(path: Path) -> configparser.RawConfigParser | None:
+    parser = configparser.RawConfigParser()
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            parser.read_file(handle)
+    except (OSError, UnicodeError, configparser.Error):
+        return None
+
+    return parser
+
+
+def _resolve_profile_path(root: Path, value: str) -> Path:
+    candidate = Path(value)
+
+    if not candidate.is_absolute():
+        candidate = root / candidate
+
+    return candidate.resolve()
+
+
+def _profile_matches_browser_install(
+    profile_directory: Path,
+    browser_path: Path,
+) -> bool:
+    compatibility_path = profile_directory / "compatibility.ini"
+    parser = _read_ini(compatibility_path)
+
+    if parser is None or not parser.has_section("Compatibility"):
+        return False
+
+    expected = os.path.normcase(
+        os.path.normpath(str(browser_path.parent.resolve()))
+    )
+
+    for key in ("LastPlatformDir", "LastAppDir"):
+        value = parser.get("Compatibility", key, fallback="").strip()
+        if not value:
+            continue
+
+        actual = os.path.normcase(os.path.normpath(value))
+        if actual == expected:
+            return True
+
+    return False
+
+
+def _discover_install_default_profiles(
+    browser_path: Path,
+) -> list[tuple[Path, str]]:
+    discovered: list[tuple[Path, str]] = []
+    seen: set[str] = set()
+
+    for root in _candidate_profile_roots():
+        for ini_name in ("profiles.ini", "installs.ini"):
+            ini_path = root / ini_name
+            if not ini_path.is_file():
+                continue
+
+            parser = _read_ini(ini_path)
+            if parser is None:
+                continue
+
+            for section in parser.sections():
+                if ini_name == "profiles.ini":
+                    if not section.lower().startswith("install"):
+                        continue
+
+                path_value = parser.get(
+                    section,
+                    "Default",
+                    fallback="",
+                ).strip()
+
+                if not path_value:
+                    continue
+
+                try:
+                    profile_path = _resolve_profile_path(
+                        root,
+                        path_value,
+                    )
+                except OSError:
+                    continue
+
+                if not profile_path.is_dir():
+                    continue
+
+                key = os.path.normcase(str(profile_path))
+                if key in seen:
+                    continue
+
+                seen.add(key)
+                source = (
+                    f"{ini_name} [{section}] install default"
+                )
+                discovered.append((profile_path, source))
+
+    if len(discovered) <= 1:
+        return discovered
+
+    matching = [
+        item
+        for item in discovered
+        if _profile_matches_browser_install(
+            item[0],
+            browser_path,
+        )
+    ]
+
+    if len(matching) == 1:
+        return matching
+
+    return discovered
+
+
 def _discover_installed_profiles() -> list[tuple[Path, str, bool]]:
     discovered: list[tuple[Path, str, bool]] = []
     seen: set[str] = set()
@@ -159,7 +275,10 @@ def _discover_installed_profiles() -> list[tuple[Path, str, bool]]:
     return discovered
 
 
-def _select_profile(explicit: str | None) -> tuple[Path, str]:
+def _select_profile(
+    explicit: str | None,
+    browser_path: Path,
+) -> tuple[Path, str]:
     requested = explicit or os.environ.get("SALIX_LIBREWOLF_PROFILE")
 
     if requested:
@@ -170,17 +289,42 @@ def _select_profile(explicit: str | None) -> tuple[Path, str]:
             )
         return path, "explicit LibreWolf profile"
 
+    install_defaults = _discover_install_default_profiles(
+        browser_path,
+    )
+
+    if len(install_defaults) == 1:
+        return (
+            install_defaults[0][0],
+            "installed LibreWolf per-install default profile",
+        )
+
+    if len(install_defaults) > 1:
+        choices = "\n".join(
+            f"  {path}  ({source})"
+            for path, source in install_defaults
+        )
+        raise RuntimeError(
+            "Multiple LibreWolf per-install default profiles were discovered "
+            "and the active installation could not be selected safely. "
+            "Re-run with --profile and one of:\n"
+            + choices
+        )
+
     profiles = _discover_installed_profiles()
 
     defaults = [item for item in profiles if item[2]]
     if len(defaults) == 1:
-        return defaults[0][0], "installed LibreWolf default profile"
+        return (
+            defaults[0][0],
+            "installed LibreWolf legacy default profile",
+        )
 
     if len(profiles) == 1:
         return profiles[0][0], "installed LibreWolf profile"
 
-    # LibreWolf commonly names the primary generated profile *.default-default.
-    # Use it only when it uniquely disambiguates an otherwise metadata-free scan.
+    # Final metadata-free fallback only. Prefer the generated per-install-style
+    # profile name when it uniquely identifies one candidate.
     generated_defaults = [
         item
         for item in profiles
@@ -194,11 +338,11 @@ def _select_profile(explicit: str | None) -> tuple[Path, str]:
 
     if profiles:
         choices = "\n".join(
-            f"  {path}  ({name}{', default' if is_default else ''})"
+            f"  {path}  ({name}{', legacy default' if is_default else ''})"
             for path, name, is_default in profiles
         )
         raise RuntimeError(
-            "Multiple LibreWolf profiles were discovered and no single default "
+            "Multiple LibreWolf profiles were discovered and no single profile "
             "could be selected safely. Re-run with --profile and one of:\n"
             + choices
         )
@@ -842,7 +986,10 @@ def main() -> int:
     browser_path = _find_librewolf(args.browser)
 
     try:
-        profile_directory, profile_source = _select_profile(args.profile)
+        profile_directory, profile_source = _select_profile(
+            args.profile,
+            browser_path,
+        )
     except Exception as error:
         print(
             f"ERROR: {type(error).__name__}: {error}",

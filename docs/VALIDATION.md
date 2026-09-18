@@ -569,8 +569,10 @@ Modern companion preparation:
 2. Run `tools\setup_chat_session.bat` once to install/update Selenium.
 3. Close ordinary LibreWolf so its active profile is not locked.
 4. Start `python tools\salix_chat_session.py`.
-5. Confirm the worker reports an installed LibreWolf profile source and prints the
-   expected normal LibreWolf profile path.
+5. Confirm the worker reports `installed LibreWolf per-install default profile` and
+   prints the same profile LibreWolf itself uses for the normal installation. If multiple
+   per-install defaults are discovered, select the correct one explicitly with
+   `--profile` rather than guessing.
 6. Confirm the visible automated LibreWolf opens with the existing authenticated ChatGPT
    session. Do not perform another login if it does not.
 7. Open the desired ChatGPT thread if needed.
