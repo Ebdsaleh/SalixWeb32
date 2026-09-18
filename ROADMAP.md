@@ -460,8 +460,10 @@ The first provider-neutral conversation-service contract is now implemented:
   candidate,
 - [x] implement fail-closed `SalixSecureTransport.dll` discovery in the VC7.1 client,
 - [x] validate provider-absent discovery behavior on the real P4,
-- [~] evolving native Debug diagnostics submenu implemented; target validation pending,
-- [ ] build/validate the first x86 NT5 secure transport provider DLL,
+- [x] evolving native Debug diagnostics submenu implemented and target-validated,
+- [x] add a v141_xp x86 ABI-test `SalixSecureTransport.dll` project with exact C exports,
+- [ ] validate the cross-toolchain ABI-test DLL on the real P4,
+- [ ] integrate and validate Mbed TLS behind the provider DLL,
 - [ ] secure authenticated content/session backend,
 - [ ] real provider response streaming.
 
@@ -499,11 +501,11 @@ See `docs/FILE_LOCATIONS.md`.
    repaint naturally on Pentium 4 hardware,
 3. extend Browser Probe only where measurements help choose the next service/runtime
    boundary,
-4. validate fail-closed secure-provider discovery on the P4,
-5. build and target-test the first `SalixSecureTransport.dll` using the VS2017 XP
-   toolset and Mbed TLS 3.6.x LTS,
+4. build and target-test the zero-capability ABI-test `SalixSecureTransport.dll` with
+   the v141_xp Win32 toolset,
+5. integrate Mbed TLS 3.6.x LTS only after the cross-toolchain ABI gate is green,
 6. extend the provider ABI with authenticated connection/request primitives only after
-   that target spike is green,
+   the TLS target spike is green,
 7. establish the secure content/session backend without weakening probe mode,
 8. connect a real service/session adapter without leaking provider objects into the app,
 9. stream real provider content into the existing native Conversation/Markdown presentation.

@@ -190,6 +190,15 @@ void Win32SecureTransportProvider::initialize(
         return;
     }
 
+    const char* reported_name = get_provider_name();
+
+    if (
+        reported_name != 0 &&
+        reported_name[0] != '\0'
+    ) {
+        provider_name = reported_name;
+    }
+
     unsigned long reported_capabilities =
         get_capabilities();
 
@@ -199,18 +208,9 @@ void Win32SecureTransportProvider::initialize(
         )
     ) {
         set_incompatible(
-            "required TLS/authentication/pinning capabilities missing | real content remains blocked"
+            "ABI 1 loaded | required TLS/authentication/pinning capabilities missing | real content remains blocked"
         );
         return;
-    }
-
-    const char* reported_name = get_provider_name();
-
-    if (
-        reported_name != 0 &&
-        reported_name[0] != '\0'
-    ) {
-        provider_name = reported_name;
     }
 
     capabilities = reported_capabilities;
@@ -270,5 +270,19 @@ void Win32SecureTransportProvider::set_unavailable(
 void Win32SecureTransportProvider::set_incompatible(
     const char* status
 ) {
-    set_unavailable(status);
+    if (module_handle != NULL) {
+        FreeLibrary(module_handle);
+        module_handle = NULL;
+    }
+
+    is_ready = false;
+    capabilities = 0;
+    status_text =
+        status == 0 || status[0] == '\0'
+            ? "incompatible | real content remains blocked"
+            : status;
+
+    // Preserve a provider name if the ABI was readable far enough to
+    // retrieve one. This makes cross-toolchain validation observable
+    // without treating an incompatible provider as ready.
 }

@@ -1,0 +1,6 @@
+LIBRARY "SalixSecureTransport"
+
+EXPORTS
+    salix_secure_transport_get_abi_version=_salix_secure_transport_get_abi_version
+    salix_secure_transport_get_capabilities=_salix_secure_transport_get_capabilities
+    salix_secure_transport_get_provider_name=_salix_secure_transport_get_provider_name

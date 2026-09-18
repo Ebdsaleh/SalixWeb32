@@ -184,29 +184,118 @@ authenticated/encrypted channel, after the Conversation security profile permits
 Credentials and session-state capabilities remain disabled until a separate requirement
 demonstrates that they must cross this boundary.
 
-## Current validation target
+## Provider-absent target result
 
-For this tranche no secure DLL is expected to exist yet.
+The provider-absent state has now been validated on the real Server 2003 / Pentium 4
+target.
 
-The real P4 should therefore report:
+The diagnostic report recorded:
 
 ```text
 Secure transport: Salix Secure Transport Provider |
 not installed | real content remains blocked
 ```
 
-The existing Conversation probe must remain:
+while the existing Conversation profile remained probe-only/plaintext with all sensitive
+data classes denied and Browser Probe remained operational.
+
+This proves provider discovery is optional and fail-closed before cryptographic code is
+introduced.
+
+## ABI-test provider
+
+Before introducing Mbed TLS, SalixWeb32 now includes a deliberately non-secure
+cross-toolchain test DLL:
 
 ```text
-mode probe-only
-transport plaintext
-text no
-attachments no
-credentials no
-session no
+src/security/providers/abi_test/SalixSecureTransportAbiTest.c
+src/security/providers/abi_test/SalixSecureTransport.def
+build/secure_transport/SalixSecureTransport.vcxproj
+tools/build_secure_transport_provider.bat
 ```
 
-and Browser Probe must remain operational.
+The project targets:
 
-That proves provider discovery is optional and fail-closed before cryptographic code is
-introduced.
+```text
+Win32 / x86
+v141_xp
+static CRT
+C ABI
+WINVER/_WIN32_WINNT = 0x0502
+```
+
+The module-definition file exports the ABI names without x86 C-name decoration so the
+VC7.1 executable can resolve exactly:
+
+```text
+salix_secure_transport_get_abi_version
+salix_secure_transport_get_capabilities
+salix_secure_transport_get_provider_name
+```
+
+The test provider returns ABI version 1 and the provider name:
+
+```text
+Salix Secure Transport ABI Test Provider
+```
+
+but intentionally returns:
+
+```text
+capabilities = 0
+```
+
+It therefore **must not** become ready and **must not** authorize Conversation content.
+
+A successful target result is:
+
+```text
+Secure transport: Salix Secure Transport ABI Test Provider |
+ABI 1 loaded | required TLS/authentication/pinning capabilities missing |
+real content remains blocked
+```
+
+This result proves all of the following independently of a cryptographic library:
+
+- a newer-toolchain x86 DLL can load on the Server 2003 target,
+- the VC7.1 executable can resolve and call the flat C ABI,
+- the ABI version matches,
+- the provider identity crosses the ABI correctly,
+- the capability gate rejects an intentionally insufficient provider,
+- failure remains non-fatal and fail-closed.
+
+Only after this test is green should Mbed TLS be introduced behind the provider boundary.
+
+## Building the ABI-test provider
+
+Run on the modern development/companion machine from a Visual Studio Developer Command
+Prompt:
+
+```bat
+tools\build_secure_transport_provider.bat
+```
+
+The script rebuilds:
+
+```text
+build\secure_transport\SalixSecureTransport.vcxproj
+Configuration: Release
+Platform:      Win32
+Toolset:       v141_xp
+```
+
+and writes:
+
+```text
+build\secure_transport\bin\Release\SalixSecureTransport.dll
+```
+
+When `dumpbin` is available, the helper also prints the DLL exports and direct
+dependencies.
+
+If MSBuild reports that `v141_xp` is unavailable, install that XP-compatible toolset
+rather than silently switching the test to a newer non-XP platform toolset.
+
+For the target test, copy only the resulting DLL beside the P4's
+`SalixWeb32.exe`. Do not place it in PATH or System32; provider discovery is explicitly
+executable-directory scoped.

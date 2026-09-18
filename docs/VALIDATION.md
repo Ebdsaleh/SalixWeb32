@@ -540,46 +540,67 @@ Observed evidence:
 This proves that secure-provider discovery is optional and fail-closed on the real
 Server 2003/Pentium 4 target. It does not yet validate a loaded TLS provider.
 
-### Options Debug diagnostics submenu — pending target validation
+### Options Debug diagnostics submenu — validated
 
-To shorten repeated legacy-hardware feedback loops, the native Options menu now owns a
-nested `Debug` submenu:
+The September 19, 2026 target pass validated the nested native Debug menu on the real
+Server 2003 / Pentium 4 target.
+
+Observed evidence:
+
+- `Options -> Debug` rendered as a native nested submenu,
+- the expected actions were visible:
+  Runtime Diagnostics, Copy Diagnostic Report, Take Diagnostic Capture,
+  Export Browser Diagnostic Report, and Open Diagnostics Folder,
+- the diagnostic capture still produced the expected BMP+TXT artifacts,
+- the resulting report preserved runtime, backend, secure-provider, Conversation
+  security, and file-location state,
+- the Conversation probe remained content-free,
+- Browser Probe remained operational with a real ChatGPT HTTP 200 response.
+
+The Debug submenu is therefore target-green and can evolve as the development feedback
+surface for future feature probes.
+
+### Cross-toolchain secure transport ABI test — pending target validation
+
+The next gate validates a real newer-toolchain DLL before any cryptographic library is
+introduced.
+
+The committed ABI-test provider:
 
 ```text
-Options
-    Debug
-        Runtime Diagnostics
-        Copy Diagnostic Report
-        ----------------
-        Take Diagnostic Capture
-        Export Browser Diagnostic Report...
-        Open Diagnostics Folder
+build\secure_transport\SalixSecureTransport.vcxproj
+src\security\providers\abi_test\SalixSecureTransportAbiTest.c
 ```
 
-The submenu deliberately reuses existing diagnostic contracts rather than creating
-feature-specific report formats. `Copy Diagnostic Report` calls the active
-`View::build_diagnostic_report()` and writes the resulting plain text through the
-existing Win32 clipboard provider. Success is silent; failures remain explicit.
+targets Win32 with `v141_xp`, uses the flat ABI v1 exports, and deliberately advertises
+zero TLS/security capabilities.
 
 Validation checklist:
 
-1. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
-2. Open `Options` and confirm `Debug` appears as a nested native submenu.
-3. Confirm the five expected Debug actions are present in the order documented above.
-4. Select `Runtime Diagnostics` and confirm the Runtime tab becomes active.
-5. Return to Conversation, select `Copy Diagnostic Report`, paste into Notepad, and
-   confirm the report includes runtime/host/web state, secure transport state,
-   Conversation security state, and file locations.
-6. Confirm successful copy does not interrupt the workflow with a modal dialog.
-7. Select `Open Diagnostics Folder` and confirm Explorer opens the configured folder.
-8. Select `Take Diagnostic Capture` and confirm the existing BMP+TXT capture path still
-   works.
-9. Select `Export Browser Diagnostic Report...` after a Browser Probe and confirm the
-   existing complete report still exports.
-10. Confirm Conversation probe and Browser Probe behavior remain unchanged.
+1. On the modern development/companion machine, pull the same commit.
+2. Run:
+   `tools\build_secure_transport_provider.bat`.
+3. Require a successful Release/Win32 build using `v141_xp`.
+4. Inspect the helper's `dumpbin /exports` output and confirm the three undecorated ABI
+   names are present.
+5. Inspect `dumpbin /dependents` and record the direct dependencies.
+6. Copy
+   `build\secure_transport\bin\Release\SalixSecureTransport.dll`
+   beside the P4's actual `SalixWeb32.exe`.
+7. Rebuild SalixWeb32 itself under VC7.1 with zero errors and zero warnings.
+8. Launch on Server 2003.
+9. Use `Options -> Debug -> Copy Diagnostic Report`.
+10. Confirm the secure transport line reports:
+    `Salix Secure Transport ABI Test Provider | ABI 1 loaded | required TLS/authentication/pinning capabilities missing | real content remains blocked`.
+11. Confirm the application remains operational despite the intentionally incompatible
+    provider.
+12. Confirm Conversation remains probe-only/plaintext and sends no real content.
+13. Confirm Browser Probe still works.
+14. Remove/rename only the test DLL, relaunch, and confirm the provider returns to the
+    previously validated `not installed | real content remains blocked` state.
 
-This submenu is intended to evolve with development. New entries should expose
-diagnostic/inspection actions rather than application preferences.
+Passing this gate proves the VC7.1/newer-MSVC DLL boundary. It does **not** prove TLS and
+does not authorize content. Mbed TLS integration begins only after this gate is green.
 
 
 ## Persistent file-location regression — pending target validation
