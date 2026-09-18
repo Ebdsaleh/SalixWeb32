@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    app/ApplicationSettings.h
 // Author:      Ebdsaleh
-// Description: Declares startup configuration and persistent user preferences.
+// Description: Declares startup configuration and persistent user settings/state.
 // =================================================================================
 #pragma once
 

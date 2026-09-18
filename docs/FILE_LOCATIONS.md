@@ -147,7 +147,7 @@ User data / Data root:
 Diagnostics folder:
     configurable absolute path
 
-Preferences file:
+Settings file:
     resolved settings.ini
 ```
 
@@ -159,7 +159,7 @@ ambiguous.
 `<user_data_root>\Diagnostics`. It does not erase the attachment picker's automatic
 recent-directory history.
 
-## Preference and state persistence
+## Settings and state persistence
 
 `salixweb32.local.ini` remains the machine/development configuration layer for bridge
 selection and companion endpoint settings.

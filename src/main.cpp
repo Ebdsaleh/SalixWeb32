@@ -289,7 +289,7 @@ int APIENTRY WinMain(
     Diagnostics::write_line(diagnostics_message.c_str());
 
     if (settings.get_user_preferences_path()[0] != '\0') {
-        std::string preferences_message("Preferences file: ");
+        std::string preferences_message("Settings file: ");
         preferences_message += settings.get_user_preferences_path();
         Diagnostics::write_line(preferences_message.c_str());
     }

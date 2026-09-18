@@ -38,8 +38,6 @@ extern "C" BOOL WINAPI SHGetPathFromIDListA(
     LPSTR path
 );
 
-extern "C" void WINAPI CoTaskMemFree(LPVOID memory);
-
 namespace {
     const char* settings_dialog_class =
         "SalixWeb32SettingsDialog";
@@ -666,7 +664,7 @@ bool Win32SettingsDialog::show(
     );
 
     std::string preference_text(
-        "Preferences file: "
+        "Settings file: "
     );
     preference_text +=
         settings->get_user_preferences_path();

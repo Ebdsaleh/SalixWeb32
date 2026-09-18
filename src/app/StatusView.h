@@ -132,7 +132,7 @@ class StatusView : public View {
                 report += application_settings->get_diagnostics_directory();
                 report += "\r\nAttachment recent folder: ";
                 report += application_settings->get_attachment_directory();
-                report += "\r\nPreferences: ";
+                report += "\r\nSettings file: ";
                 report += application_settings->get_user_preferences_path();
                 report += "\r\n";
             }
@@ -208,7 +208,7 @@ class StatusView : public View {
 
         bool handle_application_command(int command_id);
         bool attach_files_from_dialog();
-        void sync_file_location_preferences();
+        void sync_file_location_state();
         void update_dynamic_text();
         void show_submitted_message(const MessageDraft& draft);
         void submit_draft_to_service(const MessageDraft& draft);

@@ -378,7 +378,7 @@ bool StatusView::handle_event(const UIEvent& event) {
 
 void StatusView::render(ComponentRenderer& renderer) {
     browser_probe_view.update();
-    sync_file_location_preferences();
+    sync_file_location_state();
     consume_conversation_events();
     update_dynamic_text();
     root_panel.render(renderer);
@@ -474,7 +474,7 @@ bool StatusView::attach_files_from_dialog() {
     return true;
 }
 
-void StatusView::sync_file_location_preferences() {
+void StatusView::sync_file_location_state() {
     if (
         application_settings == 0 ||
         file_dialog == 0

@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    app/ApplicationSettings.cpp
 // Author:      Ebdsaleh
-// Description: Loads startup configuration and persistent user preferences.
+// Description: Loads startup configuration and persistent user settings/state.
 // =================================================================================
 
 #include <ctype.h>
@@ -212,7 +212,7 @@ void ApplicationSettings::load() {
         }
     }
 
-    // User-facing preferences live in the startup-selected data root:
+    // Persistent user settings/state live in the startup-selected data root:
     // %APPDATA%\SalixWeb32 in standard mode, or beside the executable in
     // portable mode. Bridge configuration remains in the explicit
     // local/development configuration layer.

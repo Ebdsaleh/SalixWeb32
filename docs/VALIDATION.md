@@ -519,7 +519,7 @@ The corrective tranche now establishes explicit startup roots:
 - first-use attachment browsing defaulting to `%USERPROFILE%` when no history exists,
 - `OFN_NOCHANGEDIR` on the native attachment picker,
 - diagnostic exporters receiving the configured destination explicitly,
-- `Options -> Settings...` displaying application mode, data root, preferences path, and
+- `Options -> Settings...` displaying application mode, data root, settings path, and
   Diagnostics only; attachment history remains automatic state.
 
 Target checklist:
@@ -528,7 +528,7 @@ Target checklist:
 2. Launch normally and open `Options -> Settings...`.
 3. Confirm `Application mode: Standard`.
 4. Confirm the data root is `%APPDATA%\SalixWeb32`.
-5. Confirm the preferences file is `%APPDATA%\SalixWeb32\settings.ini`.
+5. Confirm the settings file is `%APPDATA%\SalixWeb32\settings.ini`.
 6. Confirm Diagnostics defaults to `%APPDATA%\SalixWeb32\Diagnostics`.
 7. Confirm the Settings window contains no editable Attachment browser directory.
 8. For a first-use test, temporarily remove only the `attachment_directory=` line from
@@ -551,7 +551,7 @@ Target checklist:
 18. Launch `SalixWeb32.exe --portable`.
 19. Confirm `Application mode: Portable (--portable)`.
 20. Confirm Data root is the directory containing `SalixWeb32.exe`.
-21. Confirm the preferences file is `<executable_root>\settings.ini`.
+21. Confirm the settings file is `<executable_root>\settings.ini`.
 22. Confirm Diagnostics defaults to `<executable_root>\Diagnostics`.
 23. With no portable `attachment_directory=` history, confirm the first attachment picker
     still starts at `%USERPROFILE%`, then remembers subsequent navigation in the portable
