@@ -519,26 +519,25 @@ Observed evidence:
   `Conversation security: mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`,
 - Browser Probe remained operational and returned a real ChatGPT HTTP 200 response.
 
-This closes the host dispatch-boundary milestone. The current remote backend remains
-unable to receive the `ConversationRequest` object through probe dispatch, and its real
-content method remains a hard refusal.
+This closed the host dispatch-boundary milestone for that probe-only revision. At that
+validated historical state, the remote backend could not receive the
+`ConversationRequest` object through probe dispatch and its content method was a hard
+refusal.
 
-### Secure transport provider ABI — validated
+The newer LibreWolf browser-relay tranche deliberately introduces a separate
+content/trusted-LAN text-only policy; it does not retroactively change what this earlier
+target pass proved.
 
-The September 19, 2026 P4 pass validated the provider-absent discovery state.
+### Historical secure-provider experiment — superseded
 
-Observed evidence:
+A provider-absent discovery experiment was previously exercised on the P4 and correctly
+failed closed. The later plan to build a required `SalixSecureTransport.dll` with a
+newer Microsoft toolset was subsequently rejected because it did not match the project's
+authoritative P4/VC7.1 build goal.
 
-- SalixWeb32 remained operational with no `SalixSecureTransport.dll` installed,
-- the diagnostic report recorded
-  `Secure transport: Salix Secure Transport Provider | not installed | real content remains blocked`,
-- the Conversation profile remained
-  `mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`,
-- the companion continued to receive only content-free Conversation probes,
-- Browser Probe remained operational and returned a real ChatGPT HTTP 200 response.
-
-This proves that secure-provider discovery is optional and fail-closed on the real
-Server 2003/Pentium 4 target. It does not yet validate a loaded TLS provider.
+The secure-provider implementation and cross-toolchain test project have been removed.
+The earlier target evidence remains useful historical proof of the fail-closed experiment,
+but it is no longer a pending product milestone.
 
 ### Options Debug diagnostics submenu — validated
 
@@ -552,55 +551,57 @@ Observed evidence:
   Runtime Diagnostics, Copy Diagnostic Report, Take Diagnostic Capture,
   Export Browser Diagnostic Report, and Open Diagnostics Folder,
 - the diagnostic capture still produced the expected BMP+TXT artifacts,
-- the resulting report preserved runtime, backend, secure-provider, Conversation
-  security, and file-location state,
-- the Conversation probe remained content-free,
+- the resulting report preserved runtime, backend, Conversation security, and
+  file-location state,
+- the content-free Conversation probe remained operational,
 - Browser Probe remained operational with a real ChatGPT HTTP 200 response.
 
 The Debug submenu is therefore target-green and can evolve as the development feedback
 surface for future feature probes.
 
-### Cross-toolchain secure transport ABI test — pending target validation
+### LibreWolf browser relay — pending target validation
 
-The next gate validates a real newer-toolchain DLL before any cryptographic library is
-introduced.
+The next gate is the first useful text-in/text-out ChatGPT baseline.
 
-The committed ABI-test provider:
+Modern companion preparation:
 
-```text
-build\secure_transport\SalixSecureTransport.vcxproj
-src\security\providers\abi_test\SalixSecureTransportAbiTest.c
-```
+1. Pull the same commit on the modern machine.
+2. Run `tools\setup_chat_session.bat` once to install/update Selenium.
+3. Start `python tools\salix_chat_session.py`.
+4. Confirm visible LibreWolf starts.
+5. Log in to ChatGPT manually inside that browser profile and open the desired thread.
+6. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+7. Confirm the bridge reports browser-relay text mode and the worker endpoint.
+8. Run `python tools\test_chat_relay.py` and require
+   `conversation_browser_session=ready`.
+9. Optionally run the same helper with `--message` to prove the complete
+   bridge -> worker -> LibreWolf -> ChatGPT -> bridge loop before involving the P4.
 
-targets Win32 with `v141_xp`, uses the flat ABI v1 exports, and deliberately advertises
-zero TLS/security capabilities.
+P4 validation:
 
-Validation checklist:
+1. Pull the same commit.
+2. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
+3. Launch SalixWeb32 with the existing remote bridge configuration.
+4. Confirm the Conversation header reaches:
+   `SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only`.
+5. Use `Options -> Debug -> Copy Diagnostic Report` and confirm:
+   `mode content | transport trusted-lan | text yes | attachments no | credentials no | session no`.
+6. Send `Hello from Pentium 4`.
+7. Confirm the text appears in the already-open ChatGPT conversation in LibreWolf.
+8. Wait for the real assistant response to complete.
+9. Confirm the returned response appears as a native Remote message in SalixWeb32.
+10. Send a second message to prove the worker/browser session remains reusable.
+11. Confirm Browser Probe still works independently.
+12. Confirm no attachment, credential, cookie, or browser-session material is forwarded
+    by either companion log.
 
-1. On the modern development/companion machine, pull the same commit.
-2. Run:
-   `tools\build_secure_transport_provider.bat`.
-3. Require a successful Release/Win32 build using `v141_xp`.
-4. Inspect the helper's `dumpbin /exports` output and confirm the three undecorated ABI
-   names are present.
-5. Inspect `dumpbin /dependents` and record the direct dependencies.
-6. Copy
-   `build\secure_transport\bin\Release\SalixSecureTransport.dll`
-   beside the P4's actual `SalixWeb32.exe`.
-7. Rebuild SalixWeb32 itself under VC7.1 with zero errors and zero warnings.
-8. Launch on Server 2003.
-9. Use `Options -> Debug -> Copy Diagnostic Report`.
-10. Confirm the secure transport line reports:
-    `Salix Secure Transport ABI Test Provider | ABI 1 loaded | required TLS/authentication/pinning capabilities missing | real content remains blocked`.
-11. Confirm the application remains operational despite the intentionally incompatible
-    provider.
-12. Confirm Conversation remains probe-only/plaintext and sends no real content.
-13. Confirm Browser Probe still works.
-14. Remove/rename only the test DLL, relaunch, and confirm the provider returns to the
-    previously validated `not installed | real content remains blocked` state.
+The first implementation waits for the rendered assistant response to stabilize, then
+returns the completed text to the bridge. The bridge divides it into semantic
+`text_delta` events that Salix releases incrementally. True generation-time byte
+streaming is a later optimization and is not required for this first pass.
 
-Passing this gate proves the VC7.1/newer-MSVC DLL boundary. It does **not** prove TLS and
-does not authorize content. Mbed TLS integration begins only after this gate is green.
+If the worker reports that the composer is unavailable, use the visible LibreWolf window
+to finish login/open a ChatGPT thread, then retry after the health check becomes ready.
 
 
 ## Persistent file-location regression — pending target validation

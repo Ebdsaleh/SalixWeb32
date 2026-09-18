@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    conversation/backends/RemoteConversationBackend.cpp
 // Author:      Ebdsaleh
-// Description: Implements the trusted-LAN semantic conversation probe backend.
+// Description: Implements the trusted-LAN browser conversation relay backend.
 // =================================================================================
 
 #include <stdio.h>
@@ -126,14 +126,30 @@ namespace {
             return false;
         }
 
-        if (
-            get_protocol_value(metadata, "mode") != "probe" ||
-            get_protocol_value(metadata, "text_forwarded") != "0" ||
-            get_protocol_value(metadata, "attachments_forwarded") != "0" ||
-            get_protocol_value(metadata, "credentials_forwarded") != "0" ||
-            get_protocol_value(metadata, "session_forwarded") != "0" ||
-            get_protocol_value(metadata, "transport_security") != "plaintext"
-        ) {
+        std::string mode =
+            get_protocol_value(metadata, "mode");
+
+        if (mode == "probe") {
+            if (
+                get_protocol_value(metadata, "text_forwarded") != "0" ||
+                get_protocol_value(metadata, "attachments_forwarded") != "0" ||
+                get_protocol_value(metadata, "credentials_forwarded") != "0" ||
+                get_protocol_value(metadata, "session_forwarded") != "0" ||
+                get_protocol_value(metadata, "transport_security") != "plaintext"
+            ) {
+                return false;
+            }
+        } else if (mode == "browser_relay") {
+            if (
+                get_protocol_value(metadata, "text_forwarded") != "1" ||
+                get_protocol_value(metadata, "attachments_forwarded") != "0" ||
+                get_protocol_value(metadata, "credentials_forwarded") != "0" ||
+                get_protocol_value(metadata, "session_forwarded") != "0" ||
+                get_protocol_value(metadata, "transport_security") != "trusted_lan"
+            ) {
+                return false;
+            }
+        } else {
             return false;
         }
 
@@ -249,9 +265,13 @@ void RemoteConversationBackend::get_security_profile(
     ConversationSecurityProfile& profile
 ) const {
     profile = ConversationSecurityProfile();
-    profile.dispatch_mode = conversation_dispatch_probe_only;
+    profile.dispatch_mode = conversation_dispatch_content;
     profile.transport_security =
-        conversation_transport_plaintext;
+        conversation_transport_trusted_lan;
+    profile.text = true;
+    profile.attachments = false;
+    profile.credentials = false;
+    profile.session_state = false;
 }
 
 bool RemoteConversationBackend::initialize() {
@@ -340,7 +360,7 @@ void RemoteConversationBackend::update() {
         queue_failure(
             active_request_id,
             error_text.empty()
-                ? "Remote conversation probe transport failed."
+                ? "Remote conversation browser relay transport failed."
                 : error_text.c_str()
         );
         active_request_id = 0;
@@ -458,12 +478,85 @@ bool RemoteConversationBackend::submit_request(
     const ConversationRequest& request,
     unsigned long request_id
 ) {
-    (void)request;
-    (void)request_id;
+    if (
+        !is_initialized ||
+        request_executor == 0 ||
+        request_id == 0 ||
+        request.empty() ||
+        pending_operation != operation_none ||
+        !events.empty() ||
+        request_executor->get_is_busy()
+    ) {
+        return false;
+    }
 
+    if (request.get_attachment_count() > 0) {
+        status_text =
+            "browser relay baseline does not forward attachments";
+        return false;
+    }
+
+    if (capability_state != capability_ready) {
+        if (
+            capability_state == capability_incompatible ||
+            capability_state == capability_unreachable ||
+            capability_state == capability_unknown
+        ) {
+            begin_health_check();
+        }
+
+        return false;
+    }
+
+    std::string text(request.get_text());
+
+    if (text.empty()) {
+        return false;
+    }
+
+    char metadata[512];
+    sprintf(
+        metadata,
+        "%s\n"
+        "mode=browser_relay\n"
+        "request_id=%lu\n"
+        "text_forwarded=1\n"
+        "attachments_forwarded=0\n"
+        "credentials_forwarded=0\n"
+        "session_forwarded=0\n"
+        "text_len=%lu\n"
+        "\n",
+        conversation_protocol,
+        request_id,
+        (unsigned long)text.size()
+    );
+
+    std::string body(metadata);
+    body += text;
+
+    NetworkRequest network_request(
+        "POST",
+        "/v1/conversation/message"
+    );
+    network_request.set_content_type(
+        "application/x-salix-conversation; charset=utf-8"
+    );
+    network_request.set_body(body);
+
+    if (!request_executor->submit(
+            host.c_str(),
+            port,
+            network_request
+        )) {
+        status_text = "browser relay request could not start";
+        return false;
+    }
+
+    active_request_id = request_id;
+    pending_operation = operation_conversation;
     status_text =
-        "real content blocked by probe-only security profile";
-    return false;
+        "SALIX-CONVERSATION/1 browser relay request in flight";
+    return true;
 }
 
 bool RemoteConversationBackend::take_event(
@@ -488,7 +581,7 @@ bool RemoteConversationBackend::take_event(
         capability_state == capability_ready
     ) {
         status_text =
-            "SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN";
+            "SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only";
     }
 
     return true;
@@ -576,12 +669,14 @@ void RemoteConversationBackend::apply_health_response(
     }
 
     if (
+        get_protocol_value(body, "conversation_relay") !=
+            "enabled" ||
         get_protocol_value(body, "conversation_mode") !=
-            "probe_only" ||
+            "browser_relay" ||
         get_protocol_value(
             body,
             "conversation_text_forwarding"
-        ) != "disabled" ||
+        ) != "enabled" ||
         get_protocol_value(
             body,
             "conversation_attachment_forwarding"
@@ -597,18 +692,39 @@ void RemoteConversationBackend::apply_health_response(
         get_protocol_value(
             body,
             "conversation_transport_security"
-        ) != "plaintext"
+        ) != "trusted_lan"
     ) {
         set_capability_status(
             capability_incompatible,
-            "conversation security policy mismatch; update/restart companion"
+            "conversation browser-relay policy mismatch; update/restart companion"
+        );
+        return;
+    }
+
+    std::string browser_session =
+        get_protocol_value(
+            body,
+            "conversation_browser_session"
+        );
+
+    if (browser_session != "ready") {
+        std::string status(
+            "browser relay not ready: "
+        );
+        status += browser_session.empty()
+            ? "start tools\\salix_chat_session.py"
+            : browser_session;
+
+        set_capability_status(
+            capability_unreachable,
+            status.c_str()
         );
         return;
     }
 
     set_capability_status(
         capability_ready,
-        "SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN"
+        "SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only"
     );
 }
 
@@ -622,17 +738,17 @@ bool RemoteConversationBackend::parse_response(
         if (response.get_status_code() == 404) {
             sprintf(
                 detail,
-                "Conversation probe endpoint is unavailable (HTTP 404). "
+                "Conversation browser-relay endpoint is unavailable (HTTP 404). "
                 "Update/restart tools\\salix_bridge.py on the companion."
             );
             set_capability_status(
                 capability_incompatible,
-                "companion conversation endpoint missing; update/restart companion"
+                "companion browser-relay endpoint missing; update/restart companion"
             );
         } else {
             sprintf(
                 detail,
-                "Remote conversation probe returned HTTP %d.",
+                "Remote conversation browser relay returned HTTP %d.",
                 response.get_status_code()
             );
         }
@@ -650,7 +766,7 @@ bool RemoteConversationBackend::parse_response(
         )) {
         queue_failure(
             expected_request_id,
-            "Remote conversation probe returned an invalid semantic payload."
+            "Remote conversation browser relay returned an invalid semantic payload."
         );
         return false;
     }
@@ -684,7 +800,7 @@ void RemoteConversationBackend::queue_failure(
     event.set_request_id(request_id);
     event.set_text(
         detail == 0 || detail[0] == '\0'
-            ? "Remote conversation probe failed."
+            ? "Remote conversation request failed."
             : detail
     );
     events.push_back(event);

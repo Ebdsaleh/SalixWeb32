@@ -105,43 +105,19 @@ header for the currently required `ShellExecuteA` declaration. It includes
 This is a target-compatibility shim, not a general replacement for ShellAPI.
 
 
-## Secure transport provider build environment
+## Authoritative build rule
 
-`SalixWeb32.exe` remains an authoritative Visual C++ 7.1 build.
+SalixWeb32's native product target remains the real Pentium 4 / Windows Server 2003
+environment and Visual Studio .NET 2003 / Visual C++ 7.1.
 
-The optional secure transport DLL is intentionally a separate build product so that a
-maintained TLS implementation can use a newer compiler without changing the application's
-legacy ABI.
+Modern-machine Python tools such as `salix_bridge.py` and
+`salix_chat_session.py` are development/reference companions. They may demonstrate
+modern service/browser behavior, but they are not a required native build toolchain for
+SalixWeb32 and must not silently introduce modern-compiler runtime dependencies into the
+legacy executable.
 
-The first cross-toolchain provider project is:
-
-```text
-build\secure_transport\SalixSecureTransport.vcxproj
-```
-
-and targets:
-
-```text
-Platform:        Win32
-Configuration:   Release
-PlatformToolset: v141_xp
-CRT:             static (/MT)
-WINVER:          0x0502
-_WIN32_WINNT:    0x0502
-```
-
-Build it on the modern development machine with:
-
-```bat
-tools\build_secure_transport_provider.bat
-```
-
-The initial provider is an ABI test only and deliberately advertises zero security
-capabilities. Its purpose is to prove that the produced x86 DLL can load on Server 2003
-and communicate with the VC7.1 process through exact C exports.
-
-Do not retarget the project to a non-XP toolset merely to make a build succeed. A build
-that cannot run on the real NT5 target does not satisfy this compatibility gate.
+Where practical, companion-proven behavior should later be reproduced by NT5-native
+implementations built in the legacy environment.
 
 
 ## Python experiment (historical / separate project candidate)

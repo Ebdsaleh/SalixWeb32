@@ -34,23 +34,22 @@ Salix-owned backend/network contracts
         v
 trusted-LAN companion
         |
-        +-- modern TLS
-        +-- service/session adapter
-        +-- optional browser/runtime compatibility
-        `-- other modern-only dependencies
+        +-- temporary modern HTTPS/browser reference behavior
+        +-- visible LibreWolf ChatGPT session worker
+        `-- other development-only compatibility scaffolding
         |
         v
 modern Internet services
 ```
 
-The legacy machine remains the semantic application client. The companion is not meant
-to turn SalixWeb32 into a remote-pixel viewer; it supplies compatibility/execution
-capabilities and should return structured/semantic data whenever practical.
+The legacy machine remains the semantic application client. The companion exists to
+prove current behavior quickly and should return structured/semantic data whenever
+practical; it is not intended to become SalixWeb32's permanent product build/runtime
+dependency.
 
-A direct native P4 networking/TLS backend remains a valid research and future provider,
-but it is no longer the prerequisite for delivering useful modern-service functionality.
-Both paths must stay behind Salix-owned interfaces so one can be replaced or selected
-without rewriting the application.
+NT5-native implementations remain the architectural destination where practical. The
+companion and native paths must stay behind Salix-owned interfaces so proven behavior
+can migrate back to the legacy platform without rewriting the application.
 
 ## Architecture rule
 
@@ -157,64 +156,41 @@ Whatever provider wins the first implementation must sit behind a Salix JSON con
 ## TLS strategy
 
 TLS/cryptography remains an explicit exception to the normal pressure toward in-house
-implementation. Salix owns the policy, ABI, connection lifecycle, diagnostics, and
-Conversation integration; the cryptographic protocol machinery comes from a mature
-provider.
+implementation: Salix should not invent cryptographic primitives.
 
-The first implementation direction is a separate:
+The project goal, however, is still that required native SalixWeb32 runtime components be
+buildable in the legacy target environment. A modern compiler must not become a hidden
+product prerequisite merely because the modern companion can use one.
+
+The current modern Python/browser companion therefore serves as a **reference oracle** for
+TLS/service behavior while the native path is researched.
+
+Legitimate future native directions include:
 
 ```text
-SalixSecureTransport.dll
+A. port a mature TLS implementation so its required source builds with the target toolchain
+B. use an NT5-native system/security facility where it genuinely satisfies the requirement
+C. isolate a narrowly scoped legacy-buildable security component behind a Salix-owned contract
 ```
 
-loaded by the VC7.1 client through a versioned flat C ABI. This avoids forcing a maintained
-TLS codebase through VC7.1 itself and avoids leaking a newer C++ runtime ABI into the
-application.
-
-The first compatibility candidate is **Mbed TLS 3.6.x LTS**. The target spike should use
-the latest patched 3.6 release available at build time and compile it with a newer
-Microsoft toolchain capable of producing an x86 NT5-compatible binary. Visual Studio
-2017's XP platform toolset is the first build target to evaluate.
-
-This selection is intentionally a candidate until the resulting DLL passes the real
-Windows Server 2003 / Pentium 4 gate.
-
-Why this direction is preferred for the first spike:
-
-- maintained security-fix branch during the current development window,
-- TLS 1.2 and TLS 1.3 implementation,
-- Apache-2.0 licensing option,
-- C implementation with a narrow API surface suitable for a C ABI wrapper,
-- newer MSVC compatibility without requiring the SalixWeb32 executable to leave VC7.1,
-- easy provider replacement if later maintenance/toolchain requirements change.
-
-OpenSSL and other mature TLS implementations remain comparison/fallback candidates. The
-provider ABI exists specifically so the application does not become coupled to the first
-library that passes the target.
-
-The provider must prove on the P4:
+Any native TLS candidate must be evaluated on the real P4 for:
 
 ```text
-DLL load on NT 5.2
-no accidental post-NT5 imports
-entropy/RNG initialization
-TLS 1.2 or newer
-SNI where required
+buildability from the legacy development environment
+no post-NT5 runtime imports
+entropy/RNG quality
+modern protocol/cipher interoperability required by the target service
 peer certificate validation
 hostname verification
-certificate/public-key pinning
 clean handshake failure diagnostics
 repeatable connection/shutdown
 bounded memory use
 acceptable Pentium 4 CPU cost
 ```
 
-Only after those pass should the provider ABI grow actual connection/request operations,
-and only after those operations are validated should
-`ConversationSecurityProfile::authenticated-encrypted` become eligible for real remote
-content.
-
-See `docs/SECURE_TRANSPORT_PROVIDER.md`.
+The browser-relay baseline is intentionally separate from that research. It proves the
+user experience now without pretending that the modern machine's TLS stack is already the
+final NT5-native solution.
 
 
 ## HTTP strategy

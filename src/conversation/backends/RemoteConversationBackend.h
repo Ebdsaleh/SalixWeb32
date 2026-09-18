@@ -1,7 +1,7 @@
 // =================================================================================
 // Filename:    conversation/backends/RemoteConversationBackend.h
 // Author:      Ebdsaleh
-// Description: Declares the trusted-LAN semantic conversation probe backend.
+// Description: Declares the trusted-LAN browser conversation relay backend.
 // =================================================================================
 #pragma once
 

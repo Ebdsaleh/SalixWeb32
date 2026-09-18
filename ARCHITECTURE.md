@@ -145,15 +145,14 @@ the request/event lifecycle and native streaming presentation on the P4.
 `RemoteConversationBackend` reuses the existing backend-neutral network contracts but
 owns a **separate Win32 request executor/HTTP transport instance** from Browser Probe.
 This avoids Browser and Conversation single-flight/lifecycle contention while allowing
-both to reach the same companion host/port. The initial remote endpoint is probe-only: it transmits the Salix request ID plus fixed
-zero-forwarding flags, not the draft body or attachment paths.
+both to reach the same companion host/port. The original content-free probe remains a
+diagnostic endpoint; the current functional path is a text-only browser relay.
 
-Before accepting a Conversation probe, `RemoteConversationBackend` asynchronously checks
-`GET /v1/health`. The companion must advertise both
-`conversation_probe=enabled` and the exact
-`conversation_protocol=SALIX-CONVERSATION/1`. Backend readiness is therefore a
-negotiated capability rather than an assumption based solely on TCP reachability or the
-fact that Browser Probe works.
+Before accepting a real Conversation request, `RemoteConversationBackend` asynchronously
+checks `GET /v1/health`. The companion must advertise the exact
+`SALIX-CONVERSATION/1` browser-relay policy and report the localhost LibreWolf session
+ready. Backend readiness is therefore negotiated rather than inferred from generic TCP
+reachability or Browser Probe success.
 
 `ApplicationRuntime` explicitly initializes, updates, and shuts down the optional
 `ConversationServiceHost` alongside the optional `WebPlatformHost`. Event consumption
@@ -272,10 +271,13 @@ trusted LAN
   v
 modern companion process
   |
-  +-- current Browser Probe modern HTTPS fetch
-  +-- future service/session adapters
-  +-- optional browser/runtime compatibility backend
-  `-- other translation/compatibility work
+  +-- Browser Probe modern HTTPS fetch
+  +-- salix_bridge.py
+  |      |
+  |      `-- localhost salix_chat_session.py
+  |              |
+  |              `-- visible LibreWolf / current ChatGPT session
+  `-- other temporary reference/compatibility work
 ```
 
 `NetworkRequest`, `NetworkResponse`, `NetworkTransport`, and the asynchronous
@@ -292,17 +294,18 @@ through the backend-neutral executor contract.
 results on the application thread. The worker never mutates views or
 `WebSurfaceSnapshot` state directly.
 
-The modern companion is a separate process and may use a modern runtime/toolchain. The
-current Browser Probe already delegates modern HTTPS/TLS to that companion while the
-legacy machine retains the native application and presentation. Future service/session
-or browser-runtime adapters can reuse the same architectural boundary.
+The modern companion is a separate development/reference process and may use a modern
+runtime/toolchain. It is scaffolding used to prove current service behavior while the
+legacy machine retains the native application and presentation. It is not the
+authoritative SalixWeb32 product build environment.
 
-This is not a pixel-streaming architecture: the long-term preference is to return
-semantic data/events to SalixWeb32 and keep Conversation/Markdown/attachments native
-on the P4.
+The current ChatGPT baseline returns semantic text/events to SalixWeb32 and keeps
+Conversation/Markdown presentation native on the P4. Pixel transport is not forbidden,
+but Salix is not being turned into a general remote-desktop client.
 
-The first bridge protocol is intentionally non-sensitive and must not carry credentials
-or session tokens over its current plaintext transport. See `docs/REMOTE_BRIDGE.md`.
+The bridge must not carry ChatGPT credentials, cookies, or browser session tokens. The
+current trusted-LAN browser relay permits message text only. See
+`docs/REMOTE_BRIDGE.md` and `docs/CHAT_SESSION_RELAY.md`.
 
 Conversation dispatch has an additional backend-neutral security gate:
 
@@ -321,41 +324,24 @@ ConversationSecurityProfile
         `-- content
                |
                +-- local-process                 -> eligible
+               +-- trusted-lan                   -> explicit development use only
                +-- authenticated-encrypted      -> eligible
                `-- plaintext                    -> rejected
 ```
 
 The profile also declares whether text, attachments, credentials, and session state are
-allowed. The current `RemoteConversationBackend` is probe-only/plaintext with every
-content class disabled. The local placeholder is content/local-process. A future secure
-remote provider must satisfy the authenticated-encrypted profile rather than mutating
-probe mode into a content transport.
+allowed. The current `RemoteConversationBackend` is content/trusted-lan with text
+enabled and attachments/credentials/session disabled. The local placeholder is
+content/local-process. The original probe-only/plaintext request remains available as a
+content-free regression path.
 
-Modern TLS is isolated behind a second ABI boundary rather than being linked directly
-into the VC7.1 application:
+The `trusted-lan` category is deliberately explicit: it records that the current
+browser-relay proof sends message text across the user's tightly scoped development LAN
+without pretending that transport is cryptographically protected.
 
-```text
-SalixWeb32.exe (VC7.1)
-        |
-        | flat C ABI
-        v
-SalixSecureTransport.dll
-        |
-        | newer NT5-capable toolset
-        v
-maintained TLS provider
-```
-
-The client loads only `<executable_directory>\SalixSecureTransport.dll` by absolute
-path. Provider absence, load failure, ABI mismatch, or missing mandatory
-TLS/authentication/pinning capabilities is non-fatal to the application but leaves real
-Conversation content blocked.
-
-The first provider compatibility candidate is Mbed TLS 3.6.x LTS built as a separate x86
-DLL with a newer NT5-capable Microsoft toolset. The provider boundary remains replaceable
-if that target spike fails.
-
-See `docs/SECURE_TRANSPORT_PROVIDER.md`.
+The authoritative native product remains built with VC7.1 on the P4/NT5 target.
+Modern-machine Python/browser tooling is reference scaffolding, not a source of required
+modern-compiler DLLs for the SalixWeb32 executable.
 
 ## Capability discovery
 
@@ -536,7 +522,7 @@ network endpoint auditing
 
 A backend that lacks a security capability must report that honestly.
 
-The current LAN bridge is intentionally plaintext and therefore restricted to trusted local-network transport testing. It must not be exposed to the Internet or used for credentials in this state. Later companion-side modern TLS/service work must keep that boundary explicit.
+The current LAN bridge is intentionally restricted to trusted local-network testing. It must not be exposed to the Internet or used for credentials. The browser-relay baseline permits message text only; authentication/session material remains inside LibreWolf. Future native security work must keep that boundary explicit.
 
 ## Presentation-to-interaction invariant
 

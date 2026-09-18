@@ -29,6 +29,8 @@ const char* get_conversation_transport_security_name(
             return "local-process";
         case conversation_transport_plaintext:
             return "plaintext";
+        case conversation_transport_trusted_lan:
+            return "trusted-lan";
         case conversation_transport_authenticated_encrypted:
             return "authenticated-encrypted";
         case conversation_transport_none:
@@ -51,6 +53,7 @@ bool ConversationSecurityProfile::allows_content_transport() const {
         dispatch_mode == conversation_dispatch_content &&
         (
             transport_security == conversation_transport_local_process ||
+            transport_security == conversation_transport_trusted_lan ||
             transport_security ==
                 conversation_transport_authenticated_encrypted
         );

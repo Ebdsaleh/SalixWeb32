@@ -360,17 +360,21 @@ translation backend
 remote companion backend
 ```
 
-The current implementation direction keeps the P4 as the semantic/native application
-client and uses the modern companion only for compatibility work that is unreasonable
-to execute locally. Pixel-streaming is not the preferred application architecture.
+The P4 remains the native application client. The modern companion is temporary
+development scaffolding and a behavioral reference: it proves modern service/browser
+behavior now so Salix can progressively replace those capabilities with NT5-native
+analogues. The current ChatGPT baseline relays semantic text through a visible browser
+session rather than turning SalixWeb32 into a general remote-desktop client.
 
 - [x] conversation display with semantic local/remote message updates
 - [x] text input -> provider-neutral `ConversationRequest` handoff
 - [~] attachments (semantic local model + image presentation active; transfer backend pending)
 - [ ] file transfer
 - [x] copy/paste large diagnostic text through the native clipboard path
-- [ ] authenticated service/session backend
-- [~] semantic response streaming into `ConversationView` (local + remote probe proof)
+- [~] authenticated web-session relay through visible LibreWolf on the companion
+- [~] semantic response streaming into `ConversationView` (local + remote probe proof;
+  browser relay currently returns a completed response then releases semantic deltas)
+- [ ] conversation-thread selection from Salix
 - [ ] session persistence
 - [x] diagnostics panel and native screenshot/report capture
 - [~] privacy/network endpoint visibility foundation
@@ -456,16 +460,17 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] machine-readable `ConversationSecurityProfile` and separate probe/content dispatch
   boundary implemented,
 - [x] validate the host content-dispatch boundary on the real P4,
-- [x] select a narrow secure-provider ABI and Mbed TLS 3.6.x LTS as the first compatibility
-  candidate,
-- [x] implement fail-closed `SalixSecureTransport.dll` discovery in the VC7.1 client,
-- [x] validate provider-absent discovery behavior on the real P4,
+- [x] preserve the content-free Conversation probe as a regression/diagnostic path,
 - [x] evolving native Debug diagnostics submenu implemented and target-validated,
-- [x] add a v141_xp x86 ABI-test `SalixSecureTransport.dll` project with exact C exports,
-- [ ] validate the cross-toolchain ABI-test DLL on the real P4,
-- [ ] integrate and validate Mbed TLS behind the provider DLL,
-- [ ] secure authenticated content/session backend,
-- [ ] real provider response streaming.
+- [x] add a separate localhost-only LibreWolf session worker on the modern companion,
+- [x] add a trusted-LAN text-only browser-relay path without forwarding credentials,
+  cookies, browser session state, or attachments,
+- [ ] validate the LibreWolf browser relay end-to-end on the real P4,
+- [ ] add conversation-thread selection/new-thread control,
+- [ ] convert the relay from completed-response framing to true incremental transport,
+- [ ] add attachment relay after the text baseline is green,
+- [ ] progressively replace companion capabilities with NT5-native equivalents where
+  practical.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
@@ -497,18 +502,14 @@ See `docs/FILE_LOCATIONS.md`.
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,
-2. profile/optimize the Win32 formatted-text path so large diagnostic/content views
-   repaint naturally on Pentium 4 hardware,
-3. extend Browser Probe only where measurements help choose the next service/runtime
-   boundary,
-4. build and target-test the zero-capability ABI-test `SalixSecureTransport.dll` with
-   the v141_xp Win32 toolset,
-5. integrate Mbed TLS 3.6.x LTS only after the cross-toolchain ABI gate is green,
-6. extend the provider ABI with authenticated connection/request primitives only after
-   the TLS target spike is green,
-7. establish the secure content/session backend without weakening probe mode,
-8. connect a real service/session adapter without leaking provider objects into the app,
-9. stream real provider content into the existing native Conversation/Markdown presentation.
+2. validate the text-only LibreWolf browser relay end-to-end from SalixWeb32,
+3. harden response extraction and failure diagnostics against ordinary page changes,
+4. add explicit conversation-thread selection after one-current-thread relay is green,
+5. move from completed-response framing to true incremental response transport,
+6. add attachment transfer only after the text path is stable,
+7. continue using the companion as a reference/scaffold while replacing its capabilities
+   with NT5-native implementations where practical,
+8. keep Browser Probe and the content-free Conversation probe as regression tools.
 
 # Guiding priority
 

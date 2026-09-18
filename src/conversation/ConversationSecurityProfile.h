@@ -17,6 +17,7 @@ enum ConversationTransportSecurity {
     conversation_transport_none = 0,
     conversation_transport_local_process,
     conversation_transport_plaintext,
+    conversation_transport_trusted_lan,
     conversation_transport_authenticated_encrypted
 };
 

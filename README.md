@@ -58,34 +58,34 @@ Application
 
 The application does not depend directly on Chromium, Gecko, Python, or a specific SaaS implementation.
 
-The current working path is companion-assisted:
+The current working path is companion-assisted **for development and proof**:
 
 ```text
 SalixWeb32 / Pentium 4
         |
-        v
-WebPlatformHost
-        |
-        v
-RemoteBridgeWebBackend
-        |
-        v
-NetworkRequestExecutor
-        |
-        v
-Win32NetworkRequestExecutor
-        |
-        v
-Win32HttpTransport
-        |
-        v
-trusted-LAN companion
-        |
-        v
-modern TLS / compatibility execution / service adapter
+        +-- Browser Probe --------------------+
+        |                                     |
+        `-- ConversationRequest               |
+                |                              |
+                v                              v
+          Win32 HTTP transport ------> salix_bridge.py
+                                           |
+                                           | localhost
+                                           v
+                                  salix_chat_session.py
+                                           |
+                                           v
+                                   visible LibreWolf
+                                           |
+                                           v
+                                      chatgpt.com
 ```
 
-The legacy machine remains the semantic client. The companion supplies capabilities that are unreasonable or unsafe to force into the P4 process. A future native backend may move selected capabilities back onto the legacy machine without changing application-facing contracts.
+The legacy machine remains the native/semantic application client. The modern companion
+is temporary scaffolding used to prove current behavior quickly; it is not the
+authoritative product build environment. Where practical, the capabilities proven on the
+modern side are intended to be replaced by NT5-native analogues without changing
+application-facing contracts.
 
 ## Initial target
 
@@ -112,12 +112,12 @@ The native application/framework foundation is operational on the real Pentium 4
 - explicit persistent file-location ownership with configurable diagnostics and remembered attachment-picker history,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
 - the `ConversationServiceBackend` / `ConversationServiceHost` semantic chat abstraction,
-- local and remote-probe conversation backends that emit request/message/text-delta/completion events,
+- local and remote conversation backends that emit request/message/text-delta/completion events,
 - placeholder and remote bridge web backends,
 - backend-neutral network request/response contracts,
 - a background Win32 request executor so blocking network transport does not run on the UI thread,
 - persistent machine-local bridge configuration,
-- a modern-side Python companion,
+- a modern-side Python bridge plus a separate localhost-only LibreWolf chat-session worker,
 - and Browser Probe diagnostics for inspecting real modern HTTPS responses.
 
 Browser Probe has been exercised against `https://www.chatgpt.com/` from the real Server 2003/Pentium 4 target through the companion. The current path can retrieve a real HTTP 200 HTML response, report redirects/headers/document signals, expose lightweight extracted text, and copy the complete captured raw response while keeping the on-screen Raw preview deliberately bounded for the legacy renderer.
@@ -135,24 +135,21 @@ local placeholder path has been exercised on the real Pentium 4, and remote brid
 selects a separate `RemoteConversationBackend` proof.
 
 The remote semantic Conversation probe and its explicit probe-only security policy have
-now completed positive real-target passes. The P4 negotiated
-`SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`; the companion accepted
-repeated content-free probes while auditing text/attachments/credentials/session as
-zero, and Browser Probe remained operational in the same run.
+completed positive real-target passes. That content-free probe remains available as a
+diagnostic path.
 
-The native service layer now adds a second boundary through
-`ConversationSecurityProfile`: probe-only backends receive only a generated request ID,
-not the `ConversationRequest` object. Real content can be dispatched only to a backend
-declaring content mode over either a local-process boundary or a future
-authenticated-encrypted transport. The current plaintext remote backend therefore cannot
-become content-capable accidentally.
+The current experimental baseline goes one step further: `salix_bridge.py` can relay
+text-only Conversation requests to a separate localhost-only
+`tools/salix_chat_session.py` worker. That worker owns a visible LibreWolf instance on
+the modern companion machine. The user authenticates directly inside LibreWolf; Salix
+does not receive ChatGPT credentials, cookies, or browser session storage. Only typed
+message text and rendered assistant response text cross the trusted development LAN.
 
-The next security boundary is also explicit. The VC7.1 executable can discover an
-optional `SalixSecureTransport.dll` only through a versioned flat C ABI and only from
-the executable directory. Missing, unloadable, ABI-mismatched, or capability-incomplete
-providers leave the application operational but keep real Conversation content blocked.
-Mbed TLS 3.6.x LTS is the first provider candidate for a separate newer-toolchain x86
-NT5 compatibility spike; it is not linked into the VC7.1 application.
+The modern companion is development scaffolding and a behavioral reference, not the
+authoritative SalixWeb32 build environment. The product executable and required native
+runtime remain targeted at the Pentium 4 / Windows Server 2003 / Visual C++ 7.1
+environment. Companion-assisted capabilities are expected to be replaced by NT5-native
+analogues where practical as those implementations mature.
 
 File storage now follows the same explicit-ownership philosophy. File dialogs no longer
 own process-wide path state: the attachment picker uses `OFN_NOCHANGEDIR`, diagnostics
@@ -171,7 +168,7 @@ Start with:
 - `docs/BROWSER_PROBE.md`
 - `docs/CONVERSATION_SERVICE_CONTRACT.md`
 - `docs/REMOTE_BRIDGE.md`
-- `docs/SECURE_TRANSPORT_PROVIDER.md`
+- `docs/CHAT_SESSION_RELAY.md`
 - `docs/WEB_BACKEND_CONTRACT.md`
 - `docs/BUILD_ENVIRONMENT.md`
 - `docs/DEPENDENCY_STRATEGY.md`

@@ -93,12 +93,13 @@ See `LICENSE` and `docs/LICENSE_POLICY.md`.
 SalixWeb32 should keep application state, native conversation presentation, Markdown,
 attachments, diagnostics, and ordinary interaction on the legacy machine.
 
-A modern companion may provide expensive compatibility capabilities such as modern TLS,
-service-specific protocols, or a browser/runtime adapter, but the preferred architecture
-is to return semantic data/events rather than remote-rendered pixels.
+A modern companion may temporarily provide modern browser/service capabilities as
+development scaffolding and a behavioral reference. The preferred application-facing
+shape is semantic data/events because that preserves a useful native Win32 application,
+but pixels are not forbidden when they are genuinely the simplest compatibility proof.
 
-This preserves a useful native Win32 application instead of turning SalixWeb32 into a
-thin remote-desktop/browser viewport.
+The companion is not the authoritative product build environment. Where practical,
+capabilities proven there should later be replaced by NT5-native analogues.
 
 ---
 
@@ -297,16 +298,20 @@ because that backend can participate in the semantic Conversation contract.
 Every backend exposes a `ConversationSecurityProfile` containing:
 
 - dispatch mode: blocked, probe-only, or content,
-- transport security: none, local-process, plaintext, or authenticated-encrypted,
+- transport security: none, local-process, plaintext, trusted-LAN, or authenticated-encrypted,
 - explicit permission flags for text, attachments, credentials, and session state.
 
 Probe-only backends are invoked through `submit_probe(request_id)`. The request object
 is not passed to them at all.
 
 Content backends are invoked through `submit_request(request, request_id)` only when
-the profile allows the requested data classes and the transport is either local-process
-or authenticated-encrypted. Plaintext transport is categorically ineligible for content
-dispatch.
+the profile allows the requested data classes. Local-process and
+authenticated-encrypted transports are normal content paths. An explicitly labelled
+`trusted_lan` transport may carry narrowly scoped development content when the user has
+chosen that test topology; ordinary `plaintext` remains ineligible.
+
+The current browser-relay baseline uses `trusted_lan` for message text only.
+Attachments, credentials, cookies, and browser session state remain disallowed.
 
 This creates a fail-closed boundary for future service adapters: adding a new backend
 does not automatically authorize private conversation data. A network backend must
@@ -319,35 +324,51 @@ See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
 ---
 
-## ADR-020 — Modern TLS lives behind a versioned provider DLL
+## ADR-020 — Modern TLS behind a newer-toolchain provider DLL
+
+**Status:** Superseded
+
+An earlier experiment proposed a `SalixSecureTransport.dll` built with a newer
+NT5-capable Microsoft toolset. That direction was rejected because it would make a
+modern compiler part of the required SalixWeb32 runtime-production path and did not match
+the project's authoritative build goal.
+
+The associated provider/test-DLL implementation was removed.
+
+---
+
+## ADR-021 — Modern companion is temporary reference/scaffolding
 
 **Status:** Accepted
 
-SalixWeb32 remains a VC7.1 / NT 5.2 application. A maintained TLS implementation may use a
-newer compiler/toolset when necessary, but it must not leak that compiler's C++ ABI or CRT
-ownership into the main executable.
+The authoritative SalixWeb32 native target is the Pentium 4 / Windows Server 2003 /
+Visual C++ 7.1 environment.
 
-The secure transport boundary is therefore:
+The modern machine may run Python, a current browser, or other tooling to prove current
+service behavior quickly. Those tools are reference/scaffolding infrastructure rather
+than the intended permanent Salix runtime.
+
+For the first useful ChatGPT baseline:
 
 ```text
-SalixWeb32.exe
-    -> flat versioned C ABI
-        -> SalixSecureTransport.dll
-            -> mature TLS provider
+SalixWeb32 / P4
+    -> SALIX-CONVERSATION/1 text request
+    -> salix_bridge.py
+    -> localhost salix_chat_session.py
+    -> visible user-authenticated LibreWolf / chatgpt.com
+    -> rendered assistant text
+    -> semantic Conversation events
+    -> native Salix ConversationView
 ```
 
-The Win32 client loads the DLL only from an absolute path beneath the SalixWeb32
-executable directory. Missing or incompatible providers are non-fatal but fail closed:
-real Conversation content remains blocked.
+Authentication remains inside the visible browser. The Salix protocol does not transport
+ChatGPT credentials, cookies, or browser session storage.
 
-The discovery ABI requires a matching ABI version plus TLS 1.2-or-newer capability, peer
-authentication, and certificate pinning before the provider can even be described as
-discovery-ready. Discovery readiness does not itself authorize content.
+The first pass uses whichever ChatGPT thread is already open in the worker-owned browser.
+Conversation selection, true byte-streaming response transport, and attachments are
+separate later tranches.
 
-Mbed TLS 3.6.x LTS is the first compatibility candidate for the provider DLL, using a
-newer NT5-capable Microsoft x86 toolchain. This remains subject to real Server 2003 /
-Pentium 4 build and runtime validation. The ABI is provider-neutral so another mature
-implementation can replace it without changing application architecture.
-
-See `docs/SECURE_TRANSPORT_PROVIDER.md`.
+As NT5-native equivalents become practical, companion responsibilities should migrate
+back toward the legacy platform without changing the application-facing conversation
+contract.
 

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Modern-side companion for SalixWeb32 compatibility and semantic probe work.
+"""Modern-side listener/broker for SalixWeb32 compatibility work.
 
-The bridge keeps modern HTTPS/TLS work off the Windows Server 2003 target while
-SalixWeb32 learns what modern services require. Browser Probe remains
-unauthenticated, and the Conversation probe deliberately forwards neither draft
-content nor credentials/session material.
+Browser Probe remains a bounded diagnostic HTTPS fetch. Conversation traffic can use
+the separate localhost-only salix_chat_session.py worker, which owns the visible
+LibreWolf/ChatGPT session. The bridge never receives ChatGPT credentials, cookies, or
+browser session storage; only user message text and rendered assistant response text
+cross the trusted development LAN.
 """
 
 from __future__ import annotations
 
 import argparse
 import http.client
+import json
 import re
 import socket
 import urllib.error
@@ -26,6 +28,12 @@ MAX_REQUEST_BYTES = 1024 * 1024
 MAX_FETCH_BYTES = 512 * 1024
 MAX_EXTRACTED_BYTES = 64 * 1024
 FETCH_TIMEOUT_SECONDS = 10
+CHAT_SESSION_PROTOCOL = "SALIX-CHAT-SESSION/1"
+CHAT_WORKER_HOST = "127.0.0.1"
+CHAT_WORKER_PORT = 8766
+CHAT_WORKER_TIMEOUT_SECONDS = 210
+MAX_CONVERSATION_TEXT_BYTES = 128 * 1024
+MAX_CONVERSATION_DELTA_EVENTS = 28
 
 
 class ProbeHtmlParser(HTMLParser):
@@ -345,6 +353,242 @@ def _perform_conversation_probe(raw_body: bytes) -> bytes:
     )
     return _frame_conversation_probe(request_id)
 
+def _parse_protocol_metadata(metadata: str) -> dict[str, str]:
+    lines = metadata.splitlines()
+    if not lines or lines[0] != CONVERSATION_PROTOCOL:
+        raise ValueError("conversation protocol header is missing")
+
+    values: dict[str, str] = {}
+    for line in lines[1:]:
+        if not line:
+            continue
+        if "=" not in line:
+            raise ValueError("conversation metadata is malformed")
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+
+def _parse_conversation_message_request(raw_body: bytes) -> tuple[int, str]:
+    header_end = raw_body.find(b"\n\n")
+    if header_end < 0:
+        raise ValueError("conversation message framing is missing")
+
+    metadata = raw_body[:header_end].decode("ascii", errors="strict")
+    values = _parse_protocol_metadata(metadata)
+
+    if values.get("mode") != "browser_relay":
+        raise ValueError("browser relay mode is required")
+    if values.get("text_forwarded") != "1":
+        raise ValueError("browser relay requires message text")
+    if values.get("attachments_forwarded") != "0":
+        raise ValueError("attachments are not enabled for the first relay pass")
+    if values.get("credentials_forwarded") != "0":
+        raise ValueError("credentials must not cross the Salix relay")
+    if values.get("session_forwarded") != "0":
+        raise ValueError("browser session material must not cross the Salix relay")
+
+    try:
+        request_id = int(values.get("request_id", "0"))
+        text_length = int(values.get("text_len", "-1"))
+    except ValueError as error:
+        raise ValueError("conversation numeric metadata is invalid") from error
+
+    if request_id < 1 or request_id > 0xFFFFFFFF:
+        raise ValueError("conversation request ID is out of range")
+    if text_length < 1 or text_length > MAX_CONVERSATION_TEXT_BYTES:
+        raise ValueError("conversation text length is invalid")
+
+    text_bytes = raw_body[header_end + 2 :]
+    if len(text_bytes) != text_length:
+        raise ValueError("conversation text length does not match framing")
+
+    return request_id, text_bytes.decode("utf-8", errors="strict")
+
+
+def _call_chat_worker(
+    request_id: int,
+    text: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "request_id": request_id,
+            "text": text,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    connection = http.client.HTTPConnection(
+        CHAT_WORKER_HOST,
+        CHAT_WORKER_PORT,
+        timeout=CHAT_WORKER_TIMEOUT_SECONDS,
+    )
+
+    try:
+        connection.request(
+            "POST",
+            "/v1/message",
+            body=payload,
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "Content-Length": str(len(payload)),
+                "Connection": "close",
+            },
+        )
+        response = connection.getresponse()
+        raw = response.read(MAX_REQUEST_BYTES + 1)
+
+        if len(raw) > MAX_REQUEST_BYTES:
+            raise RuntimeError("chat worker response exceeded bridge limit")
+
+        try:
+            value = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError("chat worker returned invalid JSON") from error
+
+        if response.status != 200:
+            detail = value.get("error") if isinstance(value, dict) else None
+            raise RuntimeError(
+                str(detail or f"chat worker returned HTTP {response.status}")
+            )
+
+        if not isinstance(value, dict):
+            raise RuntimeError("chat worker response must be a JSON object")
+        if value.get("protocol") != CHAT_SESSION_PROTOCOL:
+            raise RuntimeError("chat worker protocol mismatch")
+        if value.get("status") != "ok":
+            raise RuntimeError("chat worker did not complete the message")
+        if value.get("request_id") != request_id:
+            raise RuntimeError("chat worker request ID mismatch")
+
+        response_text = value.get("text")
+        if not isinstance(response_text, str) or not response_text:
+            raise RuntimeError("chat worker returned an empty response")
+
+        return response_text
+    except (OSError, http.client.HTTPException) as error:
+        raise RuntimeError(f"chat worker unavailable: {error}") from error
+    finally:
+        connection.close()
+
+
+def _chat_worker_health() -> tuple[bool, str]:
+    connection = http.client.HTTPConnection(
+        CHAT_WORKER_HOST,
+        CHAT_WORKER_PORT,
+        timeout=2,
+    )
+    try:
+        connection.request(
+            "GET",
+            "/v1/health",
+            headers={"Connection": "close"},
+        )
+        response = connection.getresponse()
+        raw = response.read(64 * 1024)
+
+        if response.status != 200:
+            return False, f"worker_http_{response.status}"
+
+        value = json.loads(raw.decode("utf-8"))
+        if not isinstance(value, dict):
+            return False, "worker_invalid_response"
+        if value.get("protocol") != CHAT_SESSION_PROTOCOL:
+            return False, "worker_protocol_mismatch"
+        if value.get("status") != "ok":
+            return False, "worker_error"
+        if value.get("session_ready") is not True:
+            return False, "browser_login_or_thread_not_ready"
+
+        return True, "ready"
+    except Exception:
+        return False, "worker_unavailable"
+    finally:
+        connection.close()
+
+
+def _split_response_deltas(text: str) -> list[str]:
+    if not text:
+        return []
+
+    chunk_size = max(
+        1,
+        (len(text) + MAX_CONVERSATION_DELTA_EVENTS - 1)
+        // MAX_CONVERSATION_DELTA_EVENTS,
+    )
+    return [
+        text[index : index + chunk_size]
+        for index in range(0, len(text), chunk_size)
+    ]
+
+
+def _frame_conversation_relay(
+    request_id: int,
+    response_text: str,
+) -> bytes:
+    events: list[tuple[str, str]] = [
+        ("request_started", ""),
+        ("message_started", ""),
+    ]
+    events.extend(
+        ("text_delta", delta)
+        for delta in _split_response_deltas(response_text)
+    )
+    events.append(("message_completed", ""))
+
+    encoded_events = [
+        (event_type, event_text.encode("utf-8"))
+        for event_type, event_text in events
+    ]
+
+    lines = [
+        CONVERSATION_PROTOCOL,
+        "status=ok",
+        f"request_id={request_id}",
+        f"event_count={len(encoded_events)}",
+        "mode=browser_relay",
+        "text_forwarded=1",
+        "attachments_forwarded=0",
+        "credentials_forwarded=0",
+        "session_forwarded=0",
+        "transport_security=trusted_lan",
+    ]
+
+    for index, (event_type, event_text) in enumerate(encoded_events):
+        lines.append(f"event_{index}_type={event_type}")
+        lines.append(f"event_{index}_len={len(event_text)}")
+
+    header = ("\n".join(lines) + "\n\n").encode("ascii")
+    return header + b"".join(
+        event_text
+        for _event_type, event_text in encoded_events
+    )
+
+
+def _perform_conversation_relay(raw_body: bytes) -> bytes:
+    request_id, text = _parse_conversation_message_request(raw_body)
+
+    print(
+        "[conversation] browser relay request "
+        f"id={request_id} "
+        f"text_bytes={len(text.encode('utf-8'))} "
+        "attachments=0 credentials=0 session=0"
+    )
+
+    response_text = _call_chat_worker(request_id, text)
+
+    print(
+        "[conversation] browser relay response "
+        f"id={request_id} "
+        f"text_bytes={len(response_text.encode('utf-8'))}"
+    )
+
+    return _frame_conversation_relay(
+        request_id,
+        response_text,
+    )
+
+
 
 def _perform_probe(target: str) -> bytes:
     parsed = urllib.parse.urlparse(target)
@@ -478,6 +722,7 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler contract
         if self.path == "/v1/health":
+            worker_ready, worker_status = _chat_worker_health()
             self._send_text(
                 200,
                 f"{PROTOCOL}\n"
@@ -485,13 +730,15 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
                 "service=salix_bridge\n"
                 "probe=enabled\n"
                 "conversation_probe=enabled\n"
+                "conversation_relay=enabled\n"
                 f"conversation_protocol={CONVERSATION_PROTOCOL}\n"
-                "conversation_mode=probe_only\n"
-                "conversation_text_forwarding=disabled\n"
+                "conversation_mode=browser_relay\n"
+                "conversation_text_forwarding=enabled\n"
                 "conversation_attachment_forwarding=disabled\n"
                 "conversation_credential_forwarding=disabled\n"
                 "conversation_session_forwarding=disabled\n"
-                "conversation_transport_security=plaintext\n",
+                "conversation_transport_security=trusted_lan\n"
+                f"conversation_browser_session={'ready' if worker_ready else worker_status}\n",
             )
             return
 
@@ -505,6 +752,7 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
             "/v1/navigate",
             "/v1/fetch",
             "/v1/conversation/probe",
+            "/v1/conversation/message",
         ):
             self._send_text(
                 404,
@@ -524,6 +772,33 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
                     400,
                     f"{CONVERSATION_PROTOCOL}\n"
                     "status=invalid_probe\n"
+                    f"error={error}\n",
+                )
+                return
+
+            self._send_bytes(
+                200,
+                payload,
+                "application/x-salix-conversation",
+            )
+            return
+
+        if self.path == "/v1/conversation/message":
+            try:
+                payload = _perform_conversation_relay(raw_body)
+            except (UnicodeDecodeError, ValueError) as error:
+                self._send_text(
+                    400,
+                    f"{CONVERSATION_PROTOCOL}\n"
+                    "status=invalid_message\n"
+                    f"error={error}\n",
+                )
+                return
+            except RuntimeError as error:
+                self._send_text(
+                    503,
+                    f"{CONVERSATION_PROTOCOL}\n"
+                    "status=browser_relay_failed\n"
                     f"error={error}\n",
                 )
                 return
@@ -606,10 +881,30 @@ def main() -> int:
         default=8765,
         help="listen port (default: 8765)",
     )
+    parser.add_argument(
+        "--chat-worker-host",
+        default="127.0.0.1",
+        help="localhost browser worker host (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--chat-worker-port",
+        type=int,
+        default=8766,
+        help="localhost browser worker port (default: 8766)",
+    )
     args = parser.parse_args()
 
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
+    if args.chat_worker_host not in ("127.0.0.1", "localhost"):
+        parser.error("--chat-worker-host must remain localhost-only")
+    if not 1 <= args.chat_worker_port <= 65535:
+        parser.error("--chat-worker-port must be between 1 and 65535")
+
+    global CHAT_WORKER_HOST
+    global CHAT_WORKER_PORT
+    CHAT_WORKER_HOST = args.chat_worker_host
+    CHAT_WORKER_PORT = args.chat_worker_port
 
     server = ThreadingHTTPServer((args.host, args.port), SalixBridgeHandler)
 
@@ -619,11 +914,15 @@ def main() -> int:
     print(f"Listening             : http://{args.host}:{args.port}")
     print("Modern HTTPS probe    : enabled (unauthenticated GET only)")
     print("Probe address family  : IPv4")
-    print("Conversation mode     : probe-only")
-    print("Conversation probe    : semantic events; message text not forwarded")
+    print("Conversation mode     : browser-relay text baseline")
+    print(
+        "Chat browser worker   : "
+        f"http://{CHAT_WORKER_HOST}:{CHAT_WORKER_PORT}"
+    )
+    print("Message forwarding    : text enabled on trusted development LAN")
     print("Sensitive forwarding  : attachments/credentials/session disabled")
-    print("P4 conversation link  : plaintext LAN; real content blocked")
-    print("Credentials/cookies   : never forwarded by probe paths")
+    print("Browser auth/session  : remains inside the LibreWolf worker")
+    print("Response path         : rendered assistant text -> semantic events")
     print("Press Ctrl+C to stop.")
 
     try:

@@ -4,17 +4,17 @@ This document records the first real transport path between SalixWeb32 on the le
 
 ## Architectural role
 
-The bridge is currently the project's **primary compatibility path** for capabilities
-that are unreasonable to force into the Pentium 4 process, while remaining one backend
-behind Salix-owned contracts.
+The bridge is **development scaffolding and a behavioral reference**, not the intended
+final build/runtime dependency for SalixWeb32.
 
-The architectural goal is not remote pixels. SalixWeb32 keeps the native application,
-conversation/document presentation, attachments, clipboard behavior, and diagnostics on
-the legacy machine. The companion can supply modern TLS, service/session behavior, or a
-future browser/runtime adapter and return semantic data/events.
+SalixWeb32 keeps the native application, conversation/document presentation, attachments,
+clipboard behavior, and diagnostics on the legacy machine. The modern companion exists
+so current browser/service behavior can be proven quickly, measured, and then replaced by
+NT5-native analogues where practical.
 
-A native/direct modern-network backend remains a valid future option, but it is no
-longer a prerequisite for progressing the application.
+The current ChatGPT baseline uses semantic text relay rather than a general remote
+desktop. A separate localhost-only browser worker owns a visible LibreWolf session; the
+bridge brokers only message text and rendered assistant response text to/from the P4.
 
 ## Transport architecture
 
@@ -68,6 +68,7 @@ GET  /v1/health
 POST /v1/navigate
 POST /v1/fetch
 POST /v1/conversation/probe
+POST /v1/conversation/message
 ```
 
 `/v1/navigate` remains the original transport-proof acknowledgement endpoint.
@@ -90,10 +91,13 @@ sequence. Its request is intentionally content-free: Salix sends only a generate
 request ID plus fixed `text_forwarded=0` and `attachments_forwarded=0` flags. The
 companion rejects probe payloads that attempt to enable either field.
 
-The current companion does not execute target JavaScript and does not claim to provide
-a browser DOM. A future browser/runtime compatibility adapter would be a separate
-capability behind the same architectural boundary rather than a change to the native
-Salix UI model.
+The content-free probe remains a regression/diagnostic path.
+
+`/v1/conversation/message` is the current text-only browser-relay path. The bridge
+forwards the framed Salix request to `salix_chat_session.py` over localhost. That
+worker owns a visible LibreWolf instance, uses the ChatGPT conversation currently open
+there, and returns the rendered assistant response text. The bridge reframes that text
+as ordinary `SALIX-CONVERSATION/1` semantic events for the native P4 client.
 
 See `docs/BROWSER_PROBE.md` for the Browser Probe workflow and limits.
 
@@ -128,34 +132,51 @@ backend. `SALIX_BRIDGE_PORT` defaults to `8765`.
 
 ## Starting the companion
 
-On the modern machine:
+On the modern machine, install the browser-worker dependency once:
+
+```bat
+tools\setup_chat_session.bat
+```
+
+Then start the localhost-only LibreWolf worker:
+
+```text
+python tools/salix_chat_session.py
+```
+
+The worker auto-detects common LibreWolf install locations, or accepts
+`--browser C:\path\to\librewolf.exe`. It owns a dedicated persistent profile by
+default. Authentication is manual inside the visible browser window; after login, open
+the ChatGPT thread to use.
+
+In a second terminal start the P4-facing listener:
 
 ```text
 python tools/salix_bridge.py --host 0.0.0.0 --port 8765
 ```
 
-Binding to `0.0.0.0` permits LAN access. Keep the host firewall rule narrowly scoped to the Pentium 4 source address.
+Binding the bridge to `0.0.0.0` permits LAN access. Keep the host firewall rule narrowly
+scoped to the Pentium 4 source address. The browser worker itself remains bound only to
+localhost.
 
-The current startup banner reports the bridge, Browser Probe, and Conversation protocol versions.
-
-`GET /v1/health` also advertises:
+`GET /v1/health` now advertises the current relay state:
 
 ```text
 conversation_probe=enabled
+conversation_relay=enabled
 conversation_protocol=SALIX-CONVERSATION/1
-conversation_mode=probe_only
-conversation_text_forwarding=disabled
+conversation_mode=browser_relay
+conversation_text_forwarding=enabled
 conversation_attachment_forwarding=disabled
 conversation_credential_forwarding=disabled
 conversation_session_forwarding=disabled
-conversation_transport_security=plaintext
+conversation_transport_security=trusted_lan
+conversation_browser_session=ready
 ```
 
-The P4 remote Conversation backend checks those values asynchronously during startup.
-This prevents an older/stale companion process from being presented as Conversation-ready
-merely because the shared host/port is reachable. Readiness also requires the explicit
-probe-only security profile; a companion that claims content forwarding or a different
-transport-security state is rejected rather than trusted implicitly.
+The final field is not `ready` until the worker is reachable and the ChatGPT composer
+is visible in LibreWolf. The P4 backend rejects the real-content path until that health
+contract matches.
 
 ## Starting SalixWeb32
 
@@ -173,21 +194,26 @@ Remote mode uses a longer bounded bridge receive timeout so the companion has en
 
 ## Security boundary
 
-The P4-to-companion transport is still intentionally **plain HTTP**.
+The P4-to-companion transport is still ordinary HTTP on the explicitly trusted
+development LAN.
 
-Therefore the Browser Probe and remote Conversation **probe** paths are deliberately
-non-sensitive:
+Browser Probe remains non-authenticated and continues to redact sensitive response
+headers.
 
-- no ChatGPT credentials,
-- no authorization headers,
-- no browser cookies,
-- no session tokens,
-- no private conversation payloads,
-- no draft message text on the Conversation probe,
-- no attachment paths/counts on the Conversation probe,
-- no file uploads.
+The browser-relay baseline intentionally permits **message text only** over this LAN
+because that is the capability being proven. It still does not forward:
 
-The companion also redacts sensitive response headers such as `Set-Cookie` before returning probe headers over the plaintext LAN link.
+- ChatGPT credentials or MFA material,
+- authorization headers,
+- browser cookies,
+- browser/session storage,
+- attachment paths or file contents,
+- service tokens.
+
+Authentication and session ownership remain entirely inside the visible LibreWolf worker
+on the modern machine. The health contract labels this transport `trusted_lan` rather
+than pretending it is authenticated/encrypted. This is a development policy, not a claim
+that plain HTTP is cryptographically secure.
 
 Only use this path on the existing trusted, tightly firewalled development LAN.
 
@@ -232,8 +258,12 @@ path:
 - Browser Probe independently returned a real ChatGPT HTTP 200 response.
 
 The semantic probe is therefore validated end-to-end on the real Server 2003/Pentium 4
-target. The next gate is security: real draft text, attachments, credentials, and session
-material remain blocked until an approved content-capable transport profile exists.
+target.
+
+The current pending gate is the text-only LibreWolf browser relay. That path deliberately
+permits draft/response text on the trusted development LAN while continuing to keep
+attachments, credentials, cookies, and browser session material out of the Salix
+protocol.
 
 ## Current limits
 
@@ -250,8 +280,10 @@ The bridge is intentionally simple:
 These limits keep the bridge understandable while SalixWeb32 learns which modern
 web/service capabilities are actually required.
 
-The bridge now has a semantic Conversation probe in addition to Browser Probe. The next
-bridge-level expansion should be the secure service/session boundary rather than
-forwarding real conversation content over this plaintext protocol. Any credential-bearing path must first
-define a secure boundary; the current plaintext LAN protocol is deliberately excluded
-from that role.
+The bridge now has both the content-free semantic Conversation probe and the
+text-only browser-relay path. The browser relay currently waits for a completed rendered
+assistant response before returning it to the P4; true generation-time streaming is a
+later tranche.
+
+Credentials and browser session state remain outside the bridge contract. The visible
+LibreWolf worker owns those details on the modern machine.

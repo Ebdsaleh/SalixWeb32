@@ -79,6 +79,7 @@ transport security
     none
     local-process
     plaintext
+    trusted-lan
     authenticated-encrypted
 ```
 
@@ -89,11 +90,12 @@ for a real content request.
 backend only when:
 
 - the backend declares `dispatch = content`,
-- the transport is either `local-process` or `authenticated-encrypted`,
+- the transport is an allowed content transport for that backend,
 - and every data class present in the request is explicitly allowed.
 
-A plaintext transport can therefore never become content-capable merely because a
-backend implementation accidentally sets a text capability flag.
+Ordinary `plaintext` remains ineligible for content dispatch. The explicit
+`trusted-lan` transport exists only for narrow development scenarios where the user has
+chosen that local topology and the profile still enumerates which data classes may cross.
 
 Probe-only dispatch is physically separate from content dispatch:
 
@@ -111,9 +113,10 @@ ConversationServiceHost
                        `-> submit_request(request, request_id)
 ```
 
-The current remote backend is probe-only/plaintext. The local placeholder backend is
-content/local-process. Credentials and session state remain reserved capabilities and are
-not yet represented in `ConversationRequest`.
+The local placeholder backend is content/local-process. The current remote browser-relay
+backend is content/trusted-lan with text enabled and attachments, credentials, and
+session state disabled. The older probe-only/plaintext method remains available as a
+content-free diagnostic endpoint.
 
 ## Event model
 
@@ -208,104 +211,123 @@ Its response explicitly states that no external conversation service was contact
 This is the conversation equivalent of the earlier placeholder Web backend: prove the
 contract before provider credentials, authentication, or protocol-specific code is added.
 
-## Remote semantic probe
+## Remote semantic probe and browser relay
 
 When normal bridge configuration selects the remote web backend, the composition root
 also selects `RemoteConversationBackend`.
 
 It uses a dedicated `Win32HttpTransport` + `Win32NetworkRequestExecutor` pair so a
-Browser Probe request and a Conversation probe do not share one single-flight worker.
+Browser Probe request and a Conversation request do not share one single-flight worker.
 
-The probe request sent to:
+### Content-free probe
+
+The previously validated diagnostic request remains available at:
 
 ```text
 POST /v1/conversation/probe
 ```
 
-contains only:
+It contains only the generated request ID and fixed zero-forwarding metadata. It is
+useful for regression-testing the protocol without sending a draft.
+
+### LibreWolf browser relay
+
+The current functional baseline uses:
+
+```text
+POST /v1/conversation/message
+```
+
+with a length-framed request:
 
 ```text
 SALIX-CONVERSATION/1
-mode=probe
+mode=browser_relay
 request_id=<Salix-generated ID>
-text_forwarded=0
+text_forwarded=1
 attachments_forwarded=0
 credentials_forwarded=0
 session_forwarded=0
+text_len=<UTF-8 byte count>
+
+<message text>
 ```
 
-The typed draft remains local. More strongly, the probe-only dispatch path does not
-pass the `ConversationRequest` object to `RemoteConversationBackend` at all; only the
-generated Salix request ID reaches `submit_probe()`. The companion returns a
-length-framed event sequence
-containing `request_started`, `message_started`, several `text_delta` events, and
-`message_completed`. The backend validates the request ID, event types, byte lengths,
-framing boundary, and terminal completion event before exposing them to the application.
+`salix_bridge.py` is still the P4-facing listener. It forwards the message over
+localhost to `salix_chat_session.py`, which owns a visible LibreWolf session. The user
+authenticates directly in LibreWolf and opens the desired ChatGPT conversation there.
+
+The worker does not expose credentials, cookies, or browser session storage. It enters
+the supplied message into the visible ChatGPT composer, waits for the rendered assistant
+message to stabilize, and returns that rendered text to the bridge.
+
+The bridge then frames:
+
+```text
+request_started
+message_started
+text_delta ...
+message_completed
+```
+
+for the existing native Conversation path.
+
+The current HTTP transport still receives the complete bridge response before
+`RemoteConversationBackend` releases at most one semantic event per application update.
+This gives native incremental presentation but is not yet byte-streaming transport from
+the browser while generation is in progress.
 
 ### Capability negotiation
 
-Remote Conversation readiness is not inferred from generic bridge availability.
-
-During initialization the backend queues:
+Remote Conversation readiness is not inferred from generic bridge reachability. During
+initialization the backend queues:
 
 ```text
 GET /v1/health
 ```
 
-and requires the response to identify `SALIX-BRIDGE/1` with:
+and requires:
 
 ```text
 status=ok
-conversation_probe=enabled
+conversation_relay=enabled
 conversation_protocol=SALIX-CONVERSATION/1
-conversation_mode=probe_only
-conversation_text_forwarding=disabled
+conversation_mode=browser_relay
+conversation_text_forwarding=enabled
 conversation_attachment_forwarding=disabled
 conversation_credential_forwarding=disabled
 conversation_session_forwarding=disabled
-conversation_transport_security=plaintext
+conversation_transport_security=trusted_lan
+conversation_browser_session=ready
 ```
 
-Until that succeeds, the backend reports a capability-checking, incompatible, or
-unreachable state and will not send a Conversation probe. The security-policy fields are
-part of readiness, not advisory diagnostics: a companion that does not explicitly
-advertise probe-only operation, disabled sensitive forwarding, and plaintext transport is
-rejected as incompatible. If a send is attempted after an incompatible/unreachable
-result, the backend rechecks health so an updated/restarted companion can recover without
-restarting SalixWeb32.
-
-This behavior was added after the first real remote target pass found that the P4 could
-still use Browser Probe while `POST /v1/conversation/probe` returned HTTP 404. Host
-reachability and Browser capability therefore do not imply Conversation protocol
-compatibility.
-
-The current HTTP transport still receives the complete framed response before semantic
-events are released. `RemoteConversationBackend` then releases at most one event per
-application update so the existing native incremental-message path is exercised. This is
-a semantic streaming **contract proof**, not yet byte-streaming HTTP/SSE transport.
+The final field becomes `ready` only when the localhost browser worker is reachable and
+the ChatGPT composer is visible. Until then the remote backend remains unavailable for
+content dispatch.
 
 ## Security boundary
 
-The current companion LAN transport remains plaintext and is **not** approved for
-credentials, session cookies, private conversation traffic, or attachment uploads.
+The browser-relay baseline deliberately sends message text over the user's trusted
+development LAN. The transport is therefore labelled `trusted_lan`; it is not presented
+as authenticated/encrypted.
 
-That rule is now enforced in protocol metadata as well as implementation behavior:
+Only text is enabled in the current remote security profile. The following remain
+disabled:
 
-- health negotiation must advertise `conversation_mode=probe_only`,
-- text, attachment, credential, and session forwarding must all advertise `disabled`,
-- the transport must identify itself as `plaintext`,
-- every probe request carries explicit zero-valued forwarding flags,
-- every framed response must echo probe mode, the zero-valued forwarding flags, and
-  `transport_security=plaintext`,
-- a mismatch is rejected before semantic events reach the application.
+- attachment paths and file contents,
+- ChatGPT credentials or MFA material,
+- authorization headers,
+- browser cookies,
+- browser/session storage.
 
-The remote semantic probe is permitted only because it intentionally omits sensitive
-data. The host-level `ConversationSecurityProfile` adds a second independent gate:
-plaintext transport is not eligible for real content dispatch.
+Authentication and service-session ownership stay inside the visible LibreWolf process
+on the modern machine.
 
-A future network content backend must introduce a distinct
-`authenticated-encrypted` profile and explicitly opt into each data class it consumes.
-It must not weaken or repurpose the probe-only backend in place.
+The older `/v1/conversation/probe` path remains stricter: it sends no request content at
+all and keeps its original probe-only/plaintext framing for regression testing.
+
+A future native or encrypted transport can use the same
+`ConversationServiceBackend`/event contract without changing the Conversation UI.
 
 ## Provider independence
 
