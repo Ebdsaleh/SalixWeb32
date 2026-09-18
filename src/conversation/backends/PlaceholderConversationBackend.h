@@ -15,6 +15,7 @@ class PlaceholderConversationBackend : public ConversationServiceBackend {
         PlaceholderConversationBackend();
 
         virtual const char* get_name() const;
+        virtual const char* get_status_text() const;
 
         virtual bool initialize();
         virtual void update();

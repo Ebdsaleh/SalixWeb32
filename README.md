@@ -130,9 +130,15 @@ value; complete Raw remains available through Copy and diagnostic export.
 
 The Conversation workspace now has a provider-neutral semantic service contract. Its
 local placeholder path has been exercised on the real Pentium 4, and remote bridge mode
-now selects a separate `RemoteConversationBackend` proof that asks the modern companion
-for framed semantic events. This first remote proof deliberately sends **no typed message
-text, attachment paths, credentials, cookies, or session data** over the plaintext LAN.
+selects a separate `RemoteConversationBackend` proof.
+
+The first remote target pass exposed a companion capability/deployment mismatch cleanly: Browser Probe
+remained healthy, but the running companion returned HTTP 404 for the new Conversation
+probe route. The remote Conversation backend now performs an asynchronous `/v1/health`
+capability handshake and requires the companion to advertise
+`conversation_protocol=SALIX-CONVERSATION/1` before accepting a probe request. This
+first remote proof still sends **no typed message text, attachment paths, credentials,
+cookies, or session data** over the plaintext LAN.
 
 ## Documentation
 

@@ -138,6 +138,17 @@ Binding to `0.0.0.0` permits LAN access. Keep the host firewall rule narrowly sc
 
 The current startup banner reports the bridge, Browser Probe, and Conversation protocol versions.
 
+`GET /v1/health` also advertises:
+
+```text
+conversation_probe=enabled
+conversation_protocol=SALIX-CONVERSATION/1
+```
+
+The P4 remote Conversation backend checks those values asynchronously during startup.
+This prevents an older/stale companion process from being presented as Conversation-ready
+merely because the shared host/port is reachable.
+
 ## Starting SalixWeb32
 
 The normal development path uses the ignored repository-root
@@ -196,6 +207,17 @@ one redirect, 497574 captured bytes, 16 script signals, one form, and 11 links.
 
 Raw export correctness was also verified: the copied Raw section contained the actual
 HTML document rather than the response-header block.
+
+A September 19, 2026 Conversation target pass then confirmed that Browser Probe and the
+remote Conversation backend can be selected at the same time, but the running companion
+returned HTTP 404 for `POST /v1/conversation/probe`. Browser Probe still returned a
+real ChatGPT HTTP 200 response in the same session, reaching the 524288-byte capture cap.
+That combination isolates the failure to Conversation-route/capability compatibility
+rather than general P4-to-companion connectivity.
+
+The client now performs an explicit Conversation capability/version handshake before
+accepting a probe request and reports a clear update/restart message when the companion
+does not advertise the expected route/protocol.
 
 ## Current limits
 

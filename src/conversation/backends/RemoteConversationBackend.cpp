@@ -14,6 +14,7 @@
 #include "web/network/NetworkResponse.h"
 
 namespace {
+    const char* bridge_protocol = "SALIX-BRIDGE/1";
     const char* conversation_protocol = "SALIX-CONVERSATION/1";
 
     std::string get_protocol_value(
@@ -65,29 +66,41 @@ namespace {
         return strtoul(value.c_str(), 0, 10);
     }
 
+    bool has_exact_protocol_line(
+        const std::string& text,
+        const char* protocol
+    ) {
+        if (protocol == 0 || protocol[0] == '\0') {
+            return false;
+        }
+
+        std::string::size_type first_line_end = text.find('\n');
+        std::string first_line =
+            first_line_end == std::string::npos
+                ? text
+                : text.substr(0, first_line_end);
+
+        return first_line == protocol;
+    }
+
     ConversationEvent::Type get_event_type(
         const std::string& name
     ) {
         if (name == "request_started") {
             return ConversationEvent::event_request_started;
         }
-
         if (name == "message_started") {
             return ConversationEvent::event_message_started;
         }
-
         if (name == "text_delta") {
             return ConversationEvent::event_text_delta;
         }
-
         if (name == "message_completed") {
             return ConversationEvent::event_message_completed;
         }
-
         if (name == "request_failed") {
             return ConversationEvent::event_request_failed;
         }
-
         return ConversationEvent::event_none;
     }
 
@@ -104,14 +117,7 @@ namespace {
         }
 
         std::string metadata = payload.substr(0, header_end);
-        std::string protocol_line(conversation_protocol);
-        std::string::size_type first_line_end =
-            metadata.find('\n');
-
-        if (
-            first_line_end == std::string::npos ||
-            metadata.substr(0, first_line_end) != protocol_line
-        ) {
+        if (!has_exact_protocol_line(metadata, conversation_protocol)) {
             return false;
         }
 
@@ -122,10 +128,7 @@ namespace {
         unsigned long request_id =
             get_protocol_unsigned(metadata, "request_id");
 
-        if (
-            request_id == 0 ||
-            request_id != expected_request_id
-        ) {
+        if (request_id == 0 || request_id != expected_request_id) {
             return false;
         }
 
@@ -146,16 +149,8 @@ namespace {
             char type_key[64];
             char length_key[64];
 
-            sprintf(
-                type_key,
-                "event_%lu_type",
-                index
-            );
-            sprintf(
-                length_key,
-                "event_%lu_len",
-                index
-            );
+            sprintf(type_key, "event_%lu_type", index);
+            sprintf(length_key, "event_%lu_len", index);
 
             std::string type_name =
                 get_protocol_value(metadata, type_key);
@@ -223,13 +218,19 @@ RemoteConversationBackend::RemoteConversationBackend(
     port(new_port),
     is_initialized(false),
     bridge_online(false),
-    request_in_flight(false),
     event_taken_this_update(false),
-    active_request_id(0) {
+    pending_operation(operation_none),
+    capability_state(capability_unknown),
+    active_request_id(0),
+    status_text("stopped") {
 }
 
 const char* RemoteConversationBackend::get_name() const {
     return "Remote Conversation Bridge Backend";
+}
+
+const char* RemoteConversationBackend::get_status_text() const {
+    return status_text.c_str();
 }
 
 bool RemoteConversationBackend::initialize() {
@@ -242,19 +243,30 @@ bool RemoteConversationBackend::initialize() {
         host.empty() ||
         port == 0
     ) {
+        status_text = "bridge configuration incomplete";
         return false;
     }
 
     if (!request_executor->initialize()) {
+        status_text = "network executor initialization failed";
         return false;
     }
 
     bridge_online = false;
-    request_in_flight = false;
     event_taken_this_update = false;
+    pending_operation = operation_none;
+    capability_state = capability_unknown;
     active_request_id = 0;
     events.clear();
     is_initialized = true;
+
+    if (!begin_health_check()) {
+        set_capability_status(
+            capability_unreachable,
+            "companion capability check could not start"
+        );
+    }
+
     return true;
 }
 
@@ -264,7 +276,7 @@ void RemoteConversationBackend::update() {
     if (
         !is_initialized ||
         request_executor == 0 ||
-        !request_in_flight
+        pending_operation == operation_none
     ) {
         return;
     }
@@ -281,10 +293,29 @@ void RemoteConversationBackend::update() {
         return;
     }
 
-    request_in_flight = false;
+    PendingOperation completed_operation = pending_operation;
+    pending_operation = operation_none;
 
     if (!succeeded) {
         bridge_online = false;
+
+        if (completed_operation == operation_health) {
+            std::string status(
+                "companion capability check failed"
+            );
+
+            if (!error_text.empty()) {
+                status += ": ";
+                status += error_text;
+            }
+
+            set_capability_status(
+                capability_unreachable,
+                status.c_str()
+            );
+            return;
+        }
+
         queue_failure(
             active_request_id,
             error_text.empty()
@@ -297,12 +328,19 @@ void RemoteConversationBackend::update() {
 
     bridge_online = true;
 
-    if (!parse_response(response, active_request_id)) {
-        active_request_id = 0;
+    if (completed_operation == operation_health) {
+        apply_health_response(response);
         return;
     }
 
-    active_request_id = 0;
+    if (completed_operation == operation_conversation) {
+        if (!parse_response(response, active_request_id)) {
+            active_request_id = 0;
+            return;
+        }
+
+        active_request_id = 0;
+    }
 }
 
 void RemoteConversationBackend::shutdown() {
@@ -315,9 +353,11 @@ void RemoteConversationBackend::shutdown() {
 
     is_initialized = false;
     bridge_online = false;
-    request_in_flight = false;
     event_taken_this_update = false;
+    pending_operation = operation_none;
+    capability_state = capability_unknown;
     active_request_id = 0;
+    status_text = "stopped";
     events.clear();
 }
 
@@ -334,16 +374,28 @@ bool RemoteConversationBackend::submit_request(
         request_executor == 0 ||
         request.empty() ||
         request_id == 0 ||
-        request_in_flight ||
+        pending_operation != operation_none ||
         !events.empty() ||
         request_executor->get_is_busy()
     ) {
         return false;
     }
 
+    if (capability_state != capability_ready) {
+        if (
+            capability_state == capability_incompatible ||
+            capability_state == capability_unreachable ||
+            capability_state == capability_unknown
+        ) {
+            begin_health_check();
+        }
+
+        return false;
+    }
+
     // SECURITY: This first remote proof deliberately does not serialize the
     // draft text, attachment count, attachment paths, credentials, cookies,
-    // or session data.  Only the Salix request ID and fixed probe flags cross
+    // or session data. Only the Salix request ID and fixed probe flags cross
     // the current plaintext trusted-LAN transport.
     char body[256];
     sprintf(
@@ -371,11 +423,13 @@ bool RemoteConversationBackend::submit_request(
             port,
             network_request
         )) {
+        status_text = "conversation probe could not start";
         return false;
     }
 
     active_request_id = request_id;
-    request_in_flight = true;
+    pending_operation = operation_conversation;
+    status_text = "SALIX-CONVERSATION/1 request in flight";
     return true;
 }
 
@@ -394,7 +448,103 @@ bool RemoteConversationBackend::take_event(
     event = events[0];
     events.erase(events.begin());
     event_taken_this_update = true;
+
+    if (
+        events.empty() &&
+        pending_operation == operation_none &&
+        capability_state == capability_ready
+    ) {
+        status_text = "SALIX-CONVERSATION/1 ready";
+    }
+
     return true;
+}
+
+bool RemoteConversationBackend::begin_health_check() {
+    if (
+        !is_initialized ||
+        request_executor == 0 ||
+        pending_operation != operation_none ||
+        request_executor->get_is_busy()
+    ) {
+        return false;
+    }
+
+    NetworkRequest health_request("GET", "/v1/health");
+    health_request.set_content_type("text/plain");
+
+    if (!request_executor->submit(
+            host.c_str(),
+            port,
+            health_request
+        )) {
+        return false;
+    }
+
+    pending_operation = operation_health;
+    set_capability_status(
+        capability_checking,
+        "checking companion conversation capability"
+    );
+    return true;
+}
+
+void RemoteConversationBackend::apply_health_response(
+    const NetworkResponse& response
+) {
+    if (!response.get_is_success()) {
+        char status[192];
+        sprintf(
+            status,
+            "companion capability check returned HTTP %d",
+            response.get_status_code()
+        );
+        set_capability_status(
+            capability_incompatible,
+            status
+        );
+        return;
+    }
+
+    const std::string& body = response.get_body();
+
+    if (
+        !has_exact_protocol_line(body, bridge_protocol) ||
+        get_protocol_value(body, "status") != "ok"
+    ) {
+        set_capability_status(
+            capability_incompatible,
+            "companion health response is not SALIX-BRIDGE/1"
+        );
+        return;
+    }
+
+    if (
+        get_protocol_value(body, "conversation_probe") !=
+        "enabled"
+    ) {
+        set_capability_status(
+            capability_incompatible,
+            "companion lacks conversation probe; update/restart companion"
+        );
+        return;
+    }
+
+    if (
+        get_protocol_value(body, "conversation_protocol") !=
+        conversation_protocol
+    ) {
+        set_capability_status(
+            capability_incompatible,
+            "conversation protocol mismatch; update/restart companion"
+        );
+        return;
+    }
+
+    set_capability_status(
+        capability_ready,
+        "SALIX-CONVERSATION/1 ready"
+    );
 }
 
 bool RemoteConversationBackend::parse_response(
@@ -402,12 +552,26 @@ bool RemoteConversationBackend::parse_response(
     unsigned long expected_request_id
 ) {
     if (!response.get_is_success()) {
-        char detail[192];
-        sprintf(
-            detail,
-            "Remote conversation probe returned HTTP %d.",
-            response.get_status_code()
-        );
+        char detail[256];
+
+        if (response.get_status_code() == 404) {
+            sprintf(
+                detail,
+                "Conversation probe endpoint is unavailable (HTTP 404). "
+                "Update/restart tools\\salix_bridge.py on the companion."
+            );
+            set_capability_status(
+                capability_incompatible,
+                "companion conversation endpoint missing; update/restart companion"
+            );
+        } else {
+            sprintf(
+                detail,
+                "Remote conversation probe returned HTTP %d.",
+                response.get_status_code()
+            );
+        }
+
         queue_failure(expected_request_id, detail);
         return false;
     }
@@ -431,7 +595,19 @@ bool RemoteConversationBackend::parse_response(
         parsed_events.begin(),
         parsed_events.end()
     );
+    status_text = "SALIX-CONVERSATION/1 events received";
     return true;
+}
+
+void RemoteConversationBackend::set_capability_status(
+    CapabilityState state,
+    const char* text
+) {
+    capability_state = state;
+    status_text =
+        text == 0 || text[0] == '\0'
+            ? "conversation capability status unavailable"
+            : text;
 }
 
 void RemoteConversationBackend::queue_failure(

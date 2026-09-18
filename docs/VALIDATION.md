@@ -397,32 +397,81 @@ This target pass validates the application-facing semantic boundary only. It doe
 validate authenticated ChatGPT/service access or make the existing plaintext LAN bridge
 suitable for private conversation traffic.
 
-### Remote semantic conversation probe — pending target validation
+### Remote semantic conversation probe — first target pass
 
-The next build selects `Remote Conversation Bridge Backend` whenever the existing
-bridge configuration selects remote mode. It uses its own background request
-executor/HTTP transport and calls:
+The September 19, 2026 target build correctly selected
+`Remote Conversation Bridge Backend` whenever the existing bridge configuration
+selected remote mode. The diagnostic report recorded an operational runtime/Win32 host,
+the initialized Remote Bridge Web Backend, and the Remote Conversation Bridge Backend.
+
+The native Conversation UI remained responsive and local user messages were preserved.
+However, both remote Conversation test sends produced:
 
 ```text
-POST /v1/conversation/probe
+Remote conversation probe returned HTTP 404.
 ```
+
+The Browser workspace remained functional in the same run. Its exported diagnostic
+report recorded a real ChatGPT `HTTP 200 OK`, one redirect, redacted Set-Cookie headers,
+and 524288 captured bytes (truncated at the configured cap). This isolates the observed
+failure to Conversation-route/capability compatibility rather than general
+P4-to-companion connectivity.
+
+The available target artifacts do not prove whether the Server 2022 machine had an older
+checkout or whether a previously started companion process was still running after the
+script had been updated. Both states are consistent with the observed HTTP 404.
+
+### Conversation capability handshake — pending target validation
+
+The next build no longer labels the remote Conversation backend ready merely because its
+executor initialized. It queues:
+
+```text
+GET /v1/health
+```
+
+and requires the companion to advertise:
+
+```text
+conversation_probe=enabled
+conversation_protocol=SALIX-CONVERSATION/1
+```
+
+The remote backend exposes live compatibility state in the Conversation header, including
+messages such as:
+
+```text
+checking companion conversation capability
+SALIX-CONVERSATION/1 ready
+companion lacks conversation probe; update/restart companion
+conversation protocol mismatch; update/restart companion
+```
+
+If an incompatible/unreachable companion is later updated and restarted, a subsequent
+send attempt triggers another health check so the application can recover without a full
+SalixWeb32 restart.
 
 Validation checklist:
 
-1. Pull the same commit on the P4 and Server 2022 companion.
-2. Restart `tools/salix_bridge.py --host 0.0.0.0 --port 8765`.
-3. Confirm the startup banner lists `SALIX-CONVERSATION/1`.
-4. Clean/Rebuild `Debug | Win32` on the P4 with the existing VC7.1 warning policy.
-5. Launch SalixWeb32 with the existing remote bridge configuration.
-6. Confirm the Conversation hint names `Remote Conversation Bridge Backend`.
-7. Type a clearly non-sensitive test string and press Send.
-8. Confirm the companion logs `POST /v1/conversation/probe`.
-9. Confirm one native Remote message appears progressively and begins
-   `Remote semantic bridge online.`
-10. Confirm the message states that typed text, attachment paths, credentials, cookies,
+1. Pull the same commit on both the P4 and Server 2022 companion machine.
+2. Stop the previously running companion process.
+3. Restart:
+   `python tools\\salix_bridge.py --host 0.0.0.0 --port 8765`.
+4. Confirm the startup banner lists `SALIX-CONVERSATION/1`.
+5. Confirm `GET /v1/health` includes both
+   `conversation_probe=enabled` and
+   `conversation_protocol=SALIX-CONVERSATION/1`.
+6. Clean/Rebuild `Debug | Win32` on the P4 under VC7.1 and keep the zero-warning gate.
+7. Launch SalixWeb32 with the existing remote bridge configuration.
+8. Confirm the Conversation header progresses from capability checking to
+   `SALIX-CONVERSATION/1 ready`.
+9. Type a clearly non-sensitive test string and press Send.
+10. Confirm the companion logs `POST /v1/conversation/probe`.
+11. Confirm one native Remote message appears progressively and begins
+    `Remote semantic bridge online.`
+12. Confirm the message states that typed text, attachment paths, credentials, cookies,
     and session data were not transmitted.
-11. Confirm Browser Probe can still operate independently before/after the Conversation
-    probe.
-12. Capture a diagnostic report after completion.
+13. Confirm Browser Probe still works before/after the Conversation probe.
+14. Capture a diagnostic screenshot/report after completion.
 
 This proof intentionally does **not** send the typed test string to the companion.

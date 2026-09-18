@@ -79,6 +79,12 @@ const char* ConversationServiceHost::get_backend_name() const {
     return backend == 0 ? "none" : backend->get_name();
 }
 
+const char* ConversationServiceHost::get_backend_status_text() const {
+    return backend == 0
+        ? "unavailable"
+        : backend->get_status_text();
+}
+
 unsigned long ConversationServiceHost::submit_request(
     const ConversationRequest& request
 ) {

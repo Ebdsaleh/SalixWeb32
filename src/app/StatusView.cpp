@@ -518,8 +518,9 @@ void StatusView::update_dynamic_text() {
         } else {
             sprintf(
                 conversation_text,
-                "Conversation backend: %s | semantic contract ready",
-                conversation_service_host->get_backend_name()
+                "Conversation backend: %s | %s",
+                conversation_service_host->get_backend_name(),
+                conversation_service_host->get_backend_status_text()
             );
         }
     } else {
@@ -580,8 +581,24 @@ void StatusView::submit_draft_to_service(
         conversation_service_host->submit_request(request);
 
     if (request_id == 0) {
-        conversation_view.append_system_message(
+        std::string message(
             "Conversation backend did not accept the request."
+        );
+
+        const char* backend_status =
+            conversation_service_host->get_backend_status_text();
+
+        if (
+            backend_status != 0 &&
+            backend_status[0] != '\0'
+        ) {
+            message += " ";
+            message += backend_status;
+            message += ".";
+        }
+
+        conversation_view.append_system_message(
+            message.c_str()
         );
         return;
     }

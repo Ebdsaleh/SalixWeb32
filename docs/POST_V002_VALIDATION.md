@@ -289,3 +289,30 @@ Target validation should verify:
 13. Validate first on Windows Server 2003 SP2 and then repeat the smoke pass under MiniXP.
 
 See `docs/CONTEXT_MENUS.md` for the complete interaction contract and checklist.
+
+
+## Remote semantic conversation compatibility
+
+The provider-neutral Conversation service boundary is now active in post-v0.0.2 work.
+
+The local `PlaceholderConversationBackend` has passed the real Server 2003 / Pentium 4
+runtime test. The first remote pass then selected `Remote Conversation Bridge Backend`
+correctly, but the running Server 2022 companion returned HTTP 404 for
+`POST /v1/conversation/probe` while Browser Probe remained healthy.
+
+That failure is now treated as a capability/deployment mismatch rather than a generic
+network failure. `RemoteConversationBackend` performs an asynchronous `GET /v1/health`
+handshake and requires:
+
+```text
+conversation_probe=enabled
+conversation_protocol=SALIX-CONVERSATION/1
+```
+
+before it accepts a remote Conversation probe.
+
+The next target pass should verify that a freshly restarted current companion moves the
+Conversation header from capability checking to `SALIX-CONVERSATION/1 ready`, then
+returns the framed semantic response while Browser Probe continues to operate
+independently. Typed draft text, attachment paths, credentials, cookies, and session
+material remain excluded from this plaintext probe.

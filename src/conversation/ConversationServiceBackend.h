@@ -13,6 +13,7 @@ class ConversationServiceBackend {
         virtual ~ConversationServiceBackend() {}
 
         virtual const char* get_name() const = 0;
+        virtual const char* get_status_text() const = 0;
 
         virtual bool initialize() = 0;
         virtual void update() = 0;

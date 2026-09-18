@@ -446,7 +446,10 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] in-place native Remote-message updates from `text_delta` events,
 - [x] real P4 runtime validation of the placeholder semantic stream,
 - [x] remote conversation backend + `SALIX-CONVERSATION/1` probe protocol implemented,
-- [ ] real P4 <-> companion validation of the remote semantic probe,
+- [~] real P4 <-> companion validation of the remote semantic probe (first pass exposed
+  a Conversation-route mismatch via HTTP 404),
+- [x] companion Conversation capability/version handshake,
+- [ ] successful end-to-end `SALIX-CONVERSATION/1` target pass,
 - [ ] secure authenticated service/session boundary,
 - [ ] real provider response streaming.
 
@@ -459,7 +462,8 @@ See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
    repaint naturally on Pentium 4 hardware,
 3. extend Browser Probe only where measurements help choose the next service/runtime
    boundary,
-4. validate the remote `SALIX-CONVERSATION/1` probe on the real P4 and Server 2022 companion,
+4. revalidate the remote `SALIX-CONVERSATION/1` probe with the new capability handshake
+   and a restarted current companion,
 5. establish the secure credential/session boundary,
 6. connect a real service/session backend without leaking provider objects into the app,
 7. stream real provider content into the existing native Conversation/Markdown presentation.

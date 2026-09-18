@@ -23,6 +23,7 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         );
 
         virtual const char* get_name() const;
+        virtual const char* get_status_text() const;
 
         virtual bool initialize();
         virtual void update();
@@ -37,9 +38,31 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         virtual bool take_event(ConversationEvent& event);
 
     private:
+        enum PendingOperation {
+            operation_none = 0,
+            operation_health,
+            operation_conversation
+        };
+
+        enum CapabilityState {
+            capability_unknown = 0,
+            capability_checking,
+            capability_ready,
+            capability_incompatible,
+            capability_unreachable
+        };
+
+        bool begin_health_check();
+        void apply_health_response(
+            const NetworkResponse& response
+        );
         bool parse_response(
             const NetworkResponse& response,
             unsigned long expected_request_id
+        );
+        void set_capability_status(
+            CapabilityState state,
+            const char* text
         );
         void queue_failure(
             unsigned long request_id,
@@ -51,8 +74,10 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         unsigned short port;
         bool is_initialized;
         bool bridge_online;
-        bool request_in_flight;
         bool event_taken_this_update;
+        PendingOperation pending_operation;
+        CapabilityState capability_state;
         unsigned long active_request_id;
+        std::string status_text;
         std::vector<ConversationEvent> events;
 };

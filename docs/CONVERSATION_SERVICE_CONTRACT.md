@@ -184,6 +184,34 @@ containing `request_started`, `message_started`, several `text_delta` events, an
 `message_completed`. The backend validates the request ID, event types, byte lengths,
 framing boundary, and terminal completion event before exposing them to the application.
 
+### Capability negotiation
+
+Remote Conversation readiness is not inferred from generic bridge availability.
+
+During initialization the backend queues:
+
+```text
+GET /v1/health
+```
+
+and requires the response to identify `SALIX-BRIDGE/1` with:
+
+```text
+status=ok
+conversation_probe=enabled
+conversation_protocol=SALIX-CONVERSATION/1
+```
+
+Until that succeeds, the backend reports a capability-checking, incompatible, or
+unreachable state and will not send a Conversation probe. If a send is attempted after
+an incompatible/unreachable result, the backend rechecks health so an updated/restarted
+companion can recover without restarting SalixWeb32.
+
+This behavior was added after the first real remote target pass found that the P4 could
+still use Browser Probe while `POST /v1/conversation/probe` returned HTTP 404. Host
+reachability and Browser capability therefore do not imply Conversation protocol
+compatibility.
+
 The current HTTP transport still receives the complete framed response before semantic
 events are released. `RemoteConversationBackend` then releases at most one event per
 application update so the existing native incremental-message path is exercised. This is

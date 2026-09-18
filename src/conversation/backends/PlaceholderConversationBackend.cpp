@@ -17,6 +17,12 @@ const char* PlaceholderConversationBackend::get_name() const {
     return "Placeholder Conversation Backend";
 }
 
+const char* PlaceholderConversationBackend::get_status_text() const {
+    return is_initialized
+        ? "semantic contract ready"
+        : "stopped";
+}
+
 bool PlaceholderConversationBackend::initialize() {
     if (is_initialized) {
         return true;

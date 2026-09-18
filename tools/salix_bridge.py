@@ -468,7 +468,8 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
                 "status=ok\n"
                 "service=salix_bridge\n"
                 "probe=enabled\n"
-                "conversation_probe=enabled\n",
+                "conversation_probe=enabled\n"
+                f"conversation_protocol={CONVERSATION_PROTOCOL}\n",
             )
             return
 

@@ -24,6 +24,7 @@ class ConversationServiceHost {
         bool get_is_initialized() const;
         bool has_backend() const;
         const char* get_backend_name() const;
+        const char* get_backend_status_text() const;
 
         unsigned long submit_request(const ConversationRequest& request);
         bool take_event(ConversationEvent& event);

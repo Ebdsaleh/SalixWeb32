@@ -220,3 +220,28 @@ It sends only a Salix request ID and fixed zero-forwarding flags to
 This validates the P4 -> companion -> semantic event -> native Conversation pipeline
 without quietly weakening the security boundary. Real conversation content requires a
 separately designed secure credential/session transport.
+
+
+---
+
+## ADR-017 — Remote Conversation readiness is capability-negotiated
+
+**Status:** Accepted
+
+A reachable bridge host and a working Browser Probe do not imply that the running
+companion supports the current Conversation protocol.
+
+`RemoteConversationBackend` therefore performs an asynchronous `GET /v1/health`
+handshake and requires:
+
+```text
+conversation_probe=enabled
+conversation_protocol=SALIX-CONVERSATION/1
+```
+
+before accepting a Conversation probe.
+
+This decision follows the first real remote Conversation target pass, where Browser Probe
+remained healthy but `POST /v1/conversation/probe` returned HTTP 404. Capability
+negotiation turns that deployment/version mismatch into explicit application state rather
+than presenting the backend as ready and failing only after Send.

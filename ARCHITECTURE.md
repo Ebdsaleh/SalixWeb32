@@ -145,9 +145,15 @@ the request/event lifecycle and native streaming presentation on the P4.
 `RemoteConversationBackend` reuses the existing backend-neutral network contracts but
 owns a **separate Win32 request executor/HTTP transport instance** from Browser Probe.
 This avoids Browser and Conversation single-flight/lifecycle contention while allowing
-both to reach the same companion host/port. The initial remote endpoint is probe-only:
-it transmits the Salix request ID plus fixed zero-forwarding flags, not the draft body or
-attachment paths.
+both to reach the same companion host/port. The initial remote endpoint is probe-only: it transmits the Salix request ID plus fixed
+zero-forwarding flags, not the draft body or attachment paths.
+
+Before accepting a Conversation probe, `RemoteConversationBackend` asynchronously checks
+`GET /v1/health`. The companion must advertise both
+`conversation_probe=enabled` and the exact
+`conversation_protocol=SALIX-CONVERSATION/1`. Backend readiness is therefore a
+negotiated capability rather than an assumption based solely on TCP reachability or the
+fact that Browser Probe works.
 
 `ApplicationRuntime` explicitly initializes, updates, and shuts down the optional
 `ConversationServiceHost` alongside the optional `WebPlatformHost`. Event consumption
