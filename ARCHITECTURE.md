@@ -162,8 +162,10 @@ trusted LAN
   v
 modern companion process
   |
-  v
-future modern TLS / service adapter / translation logic
+  +-- current Browser Probe modern HTTPS fetch
+  +-- future service/session adapters
+  +-- optional browser/runtime compatibility backend
+  `-- other translation/compatibility work
 ```
 
 `NetworkRequest`, `NetworkResponse`, `NetworkTransport`, and the asynchronous
@@ -180,9 +182,17 @@ through the backend-neutral executor contract.
 results on the application thread. The worker never mutates views or
 `WebSurfaceSnapshot` state directly.
 
-The modern companion is a separate process and may use a modern runtime/toolchain. This permits modern TLS, authentication, provider protocols, compression, or translation to be introduced there without forcing those requirements onto the Pentium 4.
+The modern companion is a separate process and may use a modern runtime/toolchain. The
+current Browser Probe already delegates modern HTTPS/TLS to that companion while the
+legacy machine retains the native application and presentation. Future service/session
+or browser-runtime adapters can reuse the same architectural boundary.
 
-The first bridge protocol is intentionally non-sensitive and must not carry credentials or session tokens over its current plaintext transport. See `docs/REMOTE_BRIDGE.md`.
+This is not a pixel-streaming architecture: the long-term preference is to return
+semantic data/events to SalixWeb32 and keep Conversation/Markdown/attachments native
+on the P4.
+
+The first bridge protocol is intentionally non-sensitive and must not carry credentials
+or session tokens over its current plaintext transport. See `docs/REMOTE_BRIDGE.md`.
 
 ## Capability discovery
 
@@ -323,21 +333,25 @@ The current per-code-block horizontal scrollbar deliberately uses the framework 
 
 ## Python relationship
 
-Python is optional:
+Python is optional to SalixWeb32 itself.
 
 ```text
 Runtime
   |
   +-- native services
   |
-  `-- optional PythonHost
+  `-- optional future PythonHost
           |
-          `-- plugins / scripts / migrated Salix logic
+          `-- plugins / scripts
 ```
 
 If Python is absent, the native product still starts and operates.
 
-The Python bridge companion is not the same thing as the optional embedded `PythonHost`. It runs on the modern companion machine and is merely one development implementation of the remote bridge protocol.
+The Python bridge companion is not an embedded `PythonHost`; it runs on the modern
+companion machine and is one implementation of the remote bridge protocol. Any future
+effort to port a newer Python runtime to NT5 should be able to live as a separate
+project and be consumed through a narrow Salix boundary rather than becoming a build
+prerequisite for SalixWeb32.
 
 ## Security relationship
 
@@ -415,3 +429,15 @@ The surface revision is intentionally a polling/version contract rather than an
 implicit observer graph. Large Browser Probe payloads are copied into the view
 only when the backend publishes a new revision; changing Summary/Headers/Raw/
 Extracted operates on the view's cached snapshot and does not call the backend.
+
+### Large-text rendering rule
+
+Network decoupling does not make presentation work free. Browser Probe proved that
+large minified HTML can still overwhelm the legacy formatted-text renderer even after
+the network request itself is off-thread.
+
+Raw therefore keeps the complete captured body for diagnostics/copy while presenting
+only a small hard-wrapped preview. This is a protective application-level policy, not
+the final renderer solution. The generic Win32 text path still needs profiling and
+optimization so ordinary large-text repaint/copy scenarios remain responsive on the
+Pentium 4.

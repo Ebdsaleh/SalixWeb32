@@ -14,6 +14,7 @@ Pentium 4 class CPU
 Confirmed on the target system:
 
 - Visual Studio .NET 2003
+- Visual C++ 7.1 / MSVC 7.1 (`_MSC_VER == 1310`)
 - Visual Studio 6.0 / Visual C++ 6.0
 - .NET Framework 2.0
 - Windows DDK/WDK installations
@@ -21,6 +22,10 @@ Confirmed on the target system:
 - 7-Zip
 
 The machine is already capable of compiling legacy native Windows projects.
+
+The installed .NET Framework 2.0 runtime does **not** imply that the Visual C++ 2005
+compiler is installed. Visual Studio .NET 2003 remains the SalixWeb32 build toolchain;
+its native compiler is VC/MSVC 7.1.
 
 ## VC7.1 / legacy Platform SDK gotchas
 
@@ -66,15 +71,39 @@ Older Windows SDK header stacks can otherwise allow the original Winsock header 
 
 The first remote-bridge transport follows this rule in `Win32HttpTransport.cpp` and links `ws2_32.lib` explicitly.
 
-## Python experiment
+### VC7.1 `FD_SET` warning behavior
 
-CPython 3.13.3:
+The VC7.1 Winsock macros can emit warning C4127 at warning level 4 even for valid
+`FD_SET` usage. SalixWeb32 avoids globally disabling that warning. The current
+`Win32HttpTransport` path populates the small Winsock `fd_set` structures directly
+for its single-socket connect wait and tests membership explicitly.
 
-- source tarball extracted successfully,
-- `PCbuild/` directory present,
-- official 32-bit installer does not launch on Server 2003,
-- observed error: `not a valid Win32 application`.
+Keep warning suppressions narrow when a legacy SDK macro is the source; do not weaken
+the project's warning policy globally.
 
-The next useful Python step is to capture the **first failure from the stock source build**, then decide whether build-system, compiler, PE-subsystem, CRT, or runtime API compatibility is the primary blocker.
+### Legacy ShellAPI header ordering
 
-Do not treat Python as a prerequisite for Phase 1 of SalixWeb32.
+The installed VC7.1-era Platform SDK `ShellAPI.h` assumes base Win32 declarations are
+already available. Including it before `windows.h` can produce a cascade beginning
+with missing `HDROP`, `DECLARE_HANDLE`, `HWND`, `HINSTANCE`, and related types.
+
+SalixWeb32 provides a deliberately small project-local `src/shellapi.h` compatibility
+header for the currently required `ShellExecuteA` declaration. It includes
+`windows.h` first and avoids importing the problematic old SDK header wholesale.
+
+This is a target-compatibility shim, not a general replacement for ShellAPI.
+
+
+## Python experiment (historical / separate project candidate)
+
+A preliminary CPython 3.13.3 experiment established only the following facts on the
+Server 2003 target:
+
+- source tarball extraction succeeds,
+- `PCbuild/` is present in the upstream source,
+- the official modern 32-bit installer does not launch,
+- the observed error was `not a valid Win32 application`.
+
+Further modern-Python-on-NT5 work is not a SalixWeb32 build prerequisite and should be
+treated as a separate porting project if pursued. SalixWeb32 may later consume a
+validated runtime through an optional scripting/provider boundary.

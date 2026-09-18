@@ -1,6 +1,14 @@
 # Post-v0.0.2 Target Validation
 
-This document supplements `docs/VALIDATION.md` with target observations for the active composer/conversation work after the tagged `v0.0.2` text-editing baseline.
+This document supplements `docs/VALIDATION.md` with target observations for the
+composer/conversation work after the tagged `v0.0.2` text-editing baseline.
+
+## Scope note
+
+This file remains the detailed record for the post-v0.0.2 **native conversation/UI**
+tranches. Later web-platform, remote-bridge, Browser Probe, diagnostics, and transport
+validation are recorded in `docs/VALIDATION.md`, `docs/REMOTE_BRIDGE.md`, and
+`docs/BROWSER_PROBE.md` rather than being duplicated here.
 
 The post-baseline work remains experimental until each tranche is exercised on the intended legacy targets. A successful test on Windows Server 2003 must not be silently treated as MiniXP validation, and vice versa.
 

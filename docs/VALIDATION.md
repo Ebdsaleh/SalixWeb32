@@ -224,3 +224,109 @@ docs/POST_V002_VALIDATION.md
 ```
 
 for the current Server 2003 observations, compatibility fixes, remaining MiniXP coverage, and the target checklist for the active block-composed code presentation tranche.
+
+
+## Phase 3 remote bridge and Browser Probe validation
+
+### Remote transport foundation
+
+The remote bridge transport has been exercised between the real Pentium 4 /
+Windows Server 2003 SP2 target and a Windows Server 2022 companion.
+
+Validated observations include:
+
+- P4 client address reached the companion over the trusted LAN,
+- companion health endpoint responded,
+- bounded failure occurred when the bridge port was blocked,
+- the narrowly scoped firewall rule restored the connection,
+- `POST /v1/navigate` completed successfully,
+- SalixWeb32 remained stable through bridge failure/retry conditions,
+- the remote backend stayed behind the generic `WebPlatformBackend` boundary.
+
+### Browser Probe modern HTTPS path
+
+On September 18, 2026, Browser Probe was exercised from the real P4 against:
+
+```text
+https://www.chatgpt.com/
+```
+
+through the configured Windows Server 2022 companion.
+
+Observed successful result:
+
+```text
+Final URL:       https://chatgpt.com/
+HTTP:            200 OK
+MIME:            text/html
+Captured bytes:  497574
+Redirects:       1
+HTML signals:    scripts 16 | forms 1 | links 11
+```
+
+The response contained real ChatGPT HTML rather than a placeholder surface. Headers
+arrived with sensitive `Set-Cookie` values redacted by Browser Probe. The extracted
+view exposed useful server-rendered text, and the Raw export began with the real
+`<!DOCTYPE html>` document.
+
+The complete Raw section was copied out successfully and contained the real HTML body,
+confirming that the earlier Headers/Raw ambiguity was no longer present.
+
+### UI/network decoupling
+
+The first Browser Probe implementation performed the blocking bridge request on the UI
+thread. Target testing exposed application stalls while the companion performed modern
+HTTPS work.
+
+The current implementation moves blocking `NetworkTransport::send()` execution behind
+`Win32NetworkRequestExecutor`. Completion is consumed during the ordinary application
+update path; the worker does not mutate framework/application UI state.
+
+This materially improved responsiveness during network requests.
+
+### Raw rendering/copy performance
+
+Target testing then isolated a second performance issue unrelated to the bridge:
+rendering minified Raw HTML through the current formatted-text path remained expensive
+on the Pentium 4, and repaint pressure could make other windows feel visually sluggish.
+
+The current mitigation:
+
+- keeps the complete captured Raw body for Copy,
+- limits the on-screen Raw preview to 1 KiB,
+- hard-wraps the Raw preview before it reaches the formatted text renderer,
+- avoids normalizing/copying the complete Raw body solely for display,
+- passes known text lengths through the MIME/Win32 clipboard path rather than repeatedly
+  rescanning large buffers with `strlen()`.
+
+The resulting target build was reported **more responsive**, and Raw copy correctness is
+now confirmed. It is **not yet considered fully natural-feeling** on the Pentium 4.
+Generic Win32 formatted-text rendering remains an active performance investigation.
+
+### Persistent remote configuration
+
+The target now uses an ignored machine-local configuration file:
+
+```text
+salixweb32.local.ini
+```
+
+with the committed `salixweb32.local.ini.example` as a template. This prevents normal
+Visual Studio launches from silently falling back to the placeholder backend simply
+because per-shell environment variables were not set.
+
+No machine-local address, credential, token, or private session material is committed.
+
+## Current validation boundary
+
+The following should **not** be inferred from the successful Browser Probe pass:
+
+- authenticated ChatGPT/session operation is not implemented,
+- the current plaintext LAN bridge is not approved for credentials,
+- JavaScript execution is not provided by Browser Probe,
+- Browser Probe is not a browser renderer/DOM implementation,
+- the latest large-text performance work is improved but still requires further target
+  profiling,
+- MiniXP coverage is not implied by Server 2003 validation unless explicitly recorded.
+
+For subsequent tranches, the real Pentium 4 remains authoritative.

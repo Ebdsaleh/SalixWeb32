@@ -95,6 +95,25 @@ The Runtime tab owns the runtime/host/web-backend/service/client-size diagnostic
 
 This is deliberately useful rather than a fake tab demo: switching tabs changes which application surface owns the body of the window.
 
+## Current shell evolution
+
+The first validated tranche intentionally began with only:
+
+```text
+Conversation | Runtime
+```
+
+The current shell has since grown to:
+
+```text
+Conversation | Browser | Runtime
+```
+
+`Browser` hosts the backend-neutral Browser Probe / web-platform surface. This later
+addition uses the same `TabView` active-page model and native-control lifecycle rules
+established by the original two-tab tranche; it does not change the historical
+validation result recorded below.
+
 ## Native child-control lifecycle
 
 Framework visibility alone is not enough for native child HWNDs. A hidden tab page may contain native combo boxes or scrollbars that would otherwise remain visible above the custom-rendered page.

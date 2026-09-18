@@ -182,7 +182,11 @@ translator
 remote
 ```
 
-The first Phase 3 source tranche provides a third `Web` workspace tab backed by `PlaceholderWebBackend`. The shell targets `https://www.chatgpt.com/` through the generic navigation contract, but the placeholder deliberately performs **no network request**. Its job is to prove the application -> framework -> web-platform boundary, backend lifecycle, input forwarding, capability discovery, and diagnostics before any real engine/network provider is selected.
+The first Phase 3 source tranche introduced the third web workspace through
+`PlaceholderWebBackend`. That workspace has since evolved into the `Browser`
+workspace and can also be supplied by `RemoteBridgeWebBackend`. The placeholder
+remains useful as the no-network fallback while the remote backend exercises the same
+generic contract with a real transport.
 
 The September 16, 2026 Pentium 4 / Windows Server 2003 SP2 target pass rebuilt this tranche with Visual C++ 7.1 with **no build errors or warnings**. The running Web workspace correctly reported the placeholder identity/family/lifecycle, explicit capabilities, requested ChatGPT address, and changing forwarded-input count.
 
@@ -198,42 +202,64 @@ Goal: implement or port reusable pieces that every web backend needs.
 - [~] MIME handling foundation (`MimeData` introduced by the UI/clipboard layer)
 - [ ] Unicode/text encoding abstraction
 - [ ] stream/buffer abstraction
-- [~] network request/response model
-- [~] backend-neutral `NetworkTransport` contract
-- [~] Win32 Winsock2 plain-HTTP transport for trusted-LAN bridge validation
-- [~] remote companion protocol and modern-side development server
+- [x] network request/response model
+- [x] backend-neutral `NetworkTransport` contract
+- [x] backend-neutral asynchronous `NetworkRequestExecutor` contract
+- [x] Win32 background request executor for blocking transports
+- [x] Win32 Winsock2 plain-HTTP transport for trusted-LAN bridge validation
+- [x] remote companion protocol and modern-side development server
+- [x] persistent machine-local bridge configuration
 - [ ] cookie model
 - [ ] cache abstraction
 - [ ] certificate/trust abstraction
 - [ ] security origin model
 - [ ] content decoding/compression investigation
 
-The first transport tranche deliberately uses plain HTTP only between the legacy machine and a trusted modern companion on the local network. It does **not** send credentials or claim modern Internet security. Its job is to validate the request/response and transport seam before modern TLS/service behavior is added on the companion side.
+The transport foundation is now validated on the real P4. Blocking Winsock work is
+owned by a Win32 worker behind `NetworkRequestExecutor`; completion is consumed on
+the normal application update thread. The current P4-to-companion link deliberately
+remains plain HTTP on a trusted LAN and must not carry credentials.
 
-See `docs/REMOTE_BRIDGE.md`.
+See `docs/REMOTE_BRIDGE.md` and `docs/BROWSER_PROBE.md`.
 
-**Exit criterion:** clean interfaces exist for network/security/document layers even if some providers remain stubs. The current transport sub-tranche remains pending VC7.1 and real LAN round-trip validation.
+**Exit criterion:** substantially achieved for the transport/request foundation.
+Security/document primitives remain active work rather than prerequisites for using the
+remote compatibility backend.
 
 ## Phase 5 — Network + HTTPS viability
 
-Goal: retrieve modern HTTPS content safely enough for experimentation.
+Goal: retrieve modern HTTPS content through an explicitly selected secure/compatibility
+path while preserving a future native option.
 
-- [ ] identify portable TLS candidates
-- [ ] verify compiler/NT 5.2 compatibility
-- [ ] DNS/socket layer for direct Internet backend
-- [ ] HTTP/1.1 client
-- [ ] redirects
-- [ ] headers
-- [ ] TLS 1.2 minimum
-- [ ] certificate validation
-- [ ] proxy support
-- [ ] request logging/endpoint visibility
-- [ ] investigate HTTP/2 need
-- [ ] defer HTTP/3 unless target requires it
+### Companion-assisted path
 
-The Phase 4 remote bridge does not satisfy these direct-Internet requirements. It is an alternate/parallel backend path that intentionally lets a modern companion own modern TLS and service-specific behavior.
+- [x] trusted-LAN P4 -> companion transport
+- [x] companion-side modern HTTPS GET
+- [x] redirects and response headers
+- [x] IPv4-only companion fetch mode for the validated host
+- [x] bounded response capture
+- [x] sensitive response-header redaction
+- [x] real `https://www.chatgpt.com/` HTTP 200 proof from the P4
+- [x] Browser Probe summary/headers/raw/extracted diagnostics
+- [x] off-UI-thread legacy transport execution
+- [ ] authenticated service/session transport
+- [ ] secure credentials boundary
+- [ ] streaming semantic service events
 
-**Exit criterion:** P4 can retrieve selected modern HTTPS resources through the Salix network layer or an explicitly selected secure backend path.
+### Native/direct path
+
+This remains a legitimate future backend rather than the current blocking prerequisite.
+
+- [ ] qualify portable TLS candidates
+- [ ] verify NT 5.2/x86 runtime compatibility
+- [ ] direct modern HTTPS from the P4
+- [ ] certificate validation/trust policy
+- [ ] proxy support as required
+- [ ] investigate HTTP/2 only if a target service requires it
+- [ ] defer HTTP/3 unless a concrete target requires it
+
+**Exit criterion:** achieved for unauthenticated modern HTTPS inspection through the
+remote compatibility path. Authenticated service communication remains pending.
 
 ## Phase 6 — Basic document engine
 
@@ -323,24 +349,33 @@ Implement only what real target applications require.
 
 Goal: solve the original practical problem.
 
-Possible approaches may coexist:
+Possible approaches may coexist behind stable Salix contracts:
 
 ```text
-native site-specific adapter
-local web backend
+service/API backend
+web-session compatibility backend
+native/direct backend
 translation backend
-remote backend
+remote companion backend
 ```
+
+The current implementation direction keeps the P4 as the semantic/native application
+client and uses the modern companion only for compatibility work that is unreasonable
+to execute locally. Pixel-streaming is not the preferred application architecture.
 
 - [~] conversation display (native shell proof advancing before network backend)
 - [~] text input (native shell proof advancing before network backend)
 - [~] attachments (semantic local model + image presentation active; transfer backend pending)
 - [ ] file transfer
-- [~] copy/paste build logs (local UI path exists; remote bridge transport now active)
+- [x] copy/paste large diagnostic text through the native clipboard path
+- [ ] authenticated service/session backend
+- [ ] response streaming into `ConversationView`
 - [ ] session persistence
-- [~] diagnostics panel
+- [x] diagnostics panel and native screenshot/report capture
 - [~] privacy/network endpoint visibility foundation
-- [~] remote bridge backend/companion transport foundation
+- [x] remote bridge backend/companion transport foundation
+- [x] Browser Probe modern HTTPS inspection
+- [~] legacy large-text rendering/performance hardening
 
 **Exit criterion:** modern interactive SaaS communication is usable directly from the P4 without an external transfer workflow.
 
@@ -365,21 +400,23 @@ This phase starts conceptually much earlier but becomes a dedicated milestone he
 
 ## Phase 12 — Optional Python host
 
-Python is an optional capability, not a dependency.
+Python remains optional to SalixWeb32 and is not a prerequisite for the native product.
 
-Parallel investigation:
+A future modern-Python-on-NT5 effort is expected to be developed as a separate project
+rather than turning SalixWeb32 into the Python port itself. SalixWeb32 may later consume
+such a runtime through a narrow scripting/plugin boundary.
 
-- [~] CPython 3.13.3 source extracted on Server 2003
-- [x] official x86 installer tested
-- [x] installer rejected as `not a valid Win32 application`
-- [ ] establish first stock-source build failure
-- [ ] identify viable compiler/toolchain
-- [ ] port/runtime compatibility investigation
-- [ ] embed successful interpreter behind scripting interface
-- [ ] expose selected Salix services to Python
-- [ ] investigate reuse/migration of SalixTorrent framework concepts
+- [ ] define optional scripting host contract if/when required
+- [ ] integrate a separately validated Python runtime provider
+- [ ] expose selected Salix services safely to scripts
+- [ ] keep SalixWeb32 fully operational when the provider is absent
 
-**Exit criterion:** Python scripts/plugins can run if the module is present; SalixWeb32 still works if it is absent.
+Historical experiment: the CPython 3.13.3 source archive was unpacked on Server 2003
+and the official modern x86 installer was rejected by that OS as not being a valid
+Win32 application. Further porting work belongs outside the SalixWeb32 critical path.
+
+**Exit criterion:** optional scripts/plugins can run through a provider boundary;
+SalixWeb32 still works when the provider is absent.
 
 ## Phase 13 — Portability / productization
 
@@ -395,6 +432,18 @@ Parallel investigation:
 - [ ] examples
 - [ ] performance profiling on actual P4
 - [ ] release/versioning policy
+
+## Current near-term priority
+
+1. keep the real P4 build clean under VC7.1,
+2. profile/optimize the Win32 formatted-text path so large diagnostic/content views
+   repaint naturally on Pentium 4 hardware,
+3. extend Browser Probe only where measurements help choose the next service/runtime
+   boundary,
+4. define the first semantic chat/service transport without sending credentials over
+   the current plaintext LAN protocol,
+5. connect streamed service results to the existing native Conversation/Markdown
+   presentation.
 
 # Guiding priority
 

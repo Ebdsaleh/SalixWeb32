@@ -98,6 +98,22 @@ The controller does not replace the application host or its message pump.
 - Diagnostic capture records the visible window pixels. If another window is deliberately placed over SalixWeb32 at capture time, those visible pixels can appear in the BMP.
 - BMP is used deliberately for NT5 simplicity and zero codec dependencies; PNG export can be added later if it becomes useful.
 
+## Current target status
+
+The diagnostic screenshot/report path has been exercised successfully on the primary
+Windows Server 2003 / Pentium 4 target: SalixWeb32 created the timestamped BMP and text
+report, and the Browser report correctly exposed backend state useful for diagnosing a
+placeholder-vs-remote launch.
+
+The later `Go to Files` action required a VC7.1 compatibility correction because the
+legacy Platform SDK `ShellAPI.h` assumes Win32 base declarations have already been
+introduced. The project now supplies the narrow `src/shellapi.h` compatibility shim
+documented in `docs/BUILD_ENVIRONMENT.md`.
+
+The checklist below remains authoritative for features that have not yet been explicitly
+recorded as target-validated, including the final `Go to Files` interaction if a
+separate target confirmation has not been captured.
+
 ## Target validation
 
 This tranche must be rebuilt under Visual C++ 7.1 and exercised on the real Pentium 4 under Windows Server 2003 SP2, then MiniXP.

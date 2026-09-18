@@ -20,21 +20,37 @@ The source is the starting material. If a dependency is otherwise a strong archi
 
 ## Primary product direction
 
-The remote bridge is useful validation scaffolding, a development oracle, and potentially a supported optional backend. It is **not a substitute for the native SalixWeb32 communications path**.
-
-The primary native goal remains:
+The current implementation path is **companion-assisted, native-presentation first**.
 
 ```text
 Pentium 4 / Windows Server 2003
-        -> Salix DNS/socket layer
-        -> Salix HTTP layer
-        -> qualified TLS provider
-        -> modern HTTPS
-        -> service protocol / authentication
-        -> https://chatgpt.com and other modern services
+        |
+        v
+SalixWeb32 native application + framework
+        |
+        v
+Salix-owned backend/network contracts
+        |
+        v
+trusted-LAN companion
+        |
+        +-- modern TLS
+        +-- service/session adapter
+        +-- optional browser/runtime compatibility
+        `-- other modern-only dependencies
+        |
+        v
+modern Internet services
 ```
 
-SalixWeb32 on the legacy machine is intended to communicate, authenticate, transport, parse, and translate the data required by the selected modern service. The project may use open-source libraries internally to reach that goal without surrendering ownership of the surrounding architecture.
+The legacy machine remains the semantic application client. The companion is not meant
+to turn SalixWeb32 into a remote-pixel viewer; it supplies compatibility/execution
+capabilities and should return structured/semantic data whenever practical.
+
+A direct native P4 networking/TLS backend remains a valid research and future provider,
+but it is no longer the prerequisite for delivering useful modern-service functionality.
+Both paths must stay behind Salix-owned interfaces so one can be replaced or selected
+without rewriting the application.
 
 ## Architecture rule
 
@@ -244,18 +260,21 @@ replaceable Salix-facing boundary
 The current priority is:
 
 ```text
-1. qualify and, if necessary, port/fork a modern TLS source base
-2. prove direct modern TLS from the P4
-3. prove one real modern HTTPS request
-4. integrate JSON behind a Salix contract
-5. prove a small service request/response payload
-6. establish authentication/session handling
-7. connect MessageComposer/ConversationView to the service layer
-8. add attachment upload/download
-9. progressively internalize networking modules where it improves Salix
+1. keep the remote compatibility transport stable on NT5/VC7.1
+2. optimize native presentation hot paths exposed by real modern payloads
+3. define semantic service request/stream/event contracts
+4. establish a secure credential/session boundary
+5. add one real service backend through the companion
+6. stream responses into the native Conversation/Markdown pipeline
+7. add attachment transfer through the same semantic service layer
+8. evaluate direct native TLS/HTTP providers as an alternate backend
+9. progressively internalize or replace dependencies where that improves Salix
 ```
 
-The already validated remote bridge remains useful as a test oracle, comparison backend, and recovery path while the direct native path is built.
+The remote bridge has moved beyond a transport oracle: it is now the active
+compatibility path for Browser Probe and can become the foundation for service/session
+adapters. It must still remain replaceable and must not leak Python, browser-automation,
+TLS-library, or provider-specific objects into application/framework code.
 
 ## Guiding principle
 

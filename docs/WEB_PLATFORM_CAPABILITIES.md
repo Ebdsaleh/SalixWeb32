@@ -123,8 +123,26 @@ This is a planning inventory, not a promise that every item will be implemented.
 - accessibility tree
 - keyboard/mouse/focus/IME
 
+## Capability placement
+
+A capability may be implemented locally on the legacy machine or supplied by a selected
+backend/companion. Capability reporting describes what SalixWeb32 can actually use
+through the active backend; it does not imply that every facility executes inside the
+P4 process.
+
+For example, the current remote backend can truthfully report network capability while
+modern HTTPS/TLS execution occurs on the companion. Browser Probe still reports HTML,
+JavaScript, WebSocket, and upload as unavailable because it does not expose those
+runtime semantics to SalixWeb32.
+
 ## Principle
 
-Only implement what a concrete compatibility target requires unless the feature belongs in a reusable foundation.
+Only implement what a concrete compatibility target requires unless the feature belongs
+in a reusable foundation.
 
-The project should prefer porting or adapting mature implementations for cryptography, JavaScript execution, complex text shaping, and other high-risk/high-complexity areas.
+Prefer semantic data/events over remote-rendered pixels when a modern companion supplies
+a capability. The legacy machine should continue to own native application presentation
+where practical.
+
+The project should prefer porting or adapting mature implementations for cryptography,
+JavaScript execution, complex text shaping, and other high-risk/high-complexity areas.

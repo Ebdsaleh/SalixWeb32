@@ -29,6 +29,12 @@ WebPlatformHost
 RemoteBridgeWebBackend
         |
         v
+NetworkRequestExecutor
+        |
+        v
+Win32NetworkRequestExecutor
+        |
+        v
 Win32HttpTransport / Winsock2
         |
         v
@@ -44,7 +50,14 @@ Python urllib / modern TLS
 http:// or https:// target
 ```
 
-The Browser Probe UI does not know how the fetch is implemented. A future native NT5 HTTPS provider can populate the same backend-neutral snapshot fields without changing the workspace.
+The Browser Probe UI does not know how the fetch is implemented. The current blocking
+Winsock transport runs on a Win32 worker behind the backend-neutral
+`NetworkRequestExecutor` contract, and completion is applied from the normal
+application update thread.
+
+A future native NT5 HTTPS provider, service adapter, or modern browser/runtime companion
+can populate the same backend-neutral surface/service boundaries without coupling the
+workspace to that implementation.
 
 ## Browser workspace
 
@@ -197,16 +210,45 @@ The first probe deliberately keeps the implementation small:
 - no file upload,
 - no automatic background polling.
 
-The bridge HTTP transport itself remains blocking, but it now runs behind the
-backend-neutral `NetworkRequestExecutor` boundary on a Win32 worker. The UI
-thread only queues the request and later consumes its completion during the
-normal runtime update.
+The bridge HTTP transport itself remains blocking, but it runs behind the
+backend-neutral `NetworkRequestExecutor` boundary on a Win32 worker. The UI thread
+only queues the request and later consumes its completion during the normal runtime
+update.
 
 Browser Probe presentation is revision-driven. The view copies a large
 `WebSurfaceSnapshot` only when the backend publishes a new surface revision.
-Summary/Headers/Raw/Extracted then switch entirely against the cached view data,
-so tab/result switching does not repeatedly copy the roughly 0.5 MiB raw page
-from the backend.
+Summary/Headers/Raw/Extracted then switch against cached view data rather than causing
+another backend/network request.
+
+Raw is a special presentation case. Modern pages can return very large minified lines,
+which are pathological for the current formatted-text renderer on the Pentium 4.
+Therefore the complete Raw body remains available for Copy while the visible Raw
+preview is capped at 1 KiB and hard-wrapped before rendering.
+
+## Validated P4 result
+
+The Browser Probe path has now been exercised on the real Pentium 4 /
+Windows Server 2003 SP2 target through the Windows Server 2022 companion.
+
+A September 18, 2026 ChatGPT probe returned:
+
+```text
+Requested:       https://www.chatgpt.com/
+Final:           https://chatgpt.com/
+HTTP:            200 OK
+MIME:            text/html
+Captured bytes:  497574
+Redirects:       1
+HTML signals:    scripts 16 | forms 1 | links 11
+```
+
+The Raw export was verified to begin with the actual `<!DOCTYPE html>` ChatGPT
+document and to contain the complete captured HTML rather than repeating the Headers
+section. Extracted text exposed server-rendered ChatGPT UI content.
+
+Network/UI decoupling and the bounded Raw preview materially improved responsiveness.
+The target is still reported as less natural-feeling than desired when dealing with
+large text, so generic Win32 formatted-text rendering remains a performance target.
 
 ## What this tells us
 

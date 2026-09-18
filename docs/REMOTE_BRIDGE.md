@@ -4,21 +4,17 @@ This document records the first real transport path between SalixWeb32 on the le
 
 ## Architectural role
 
-The bridge is a **development/reference backend**, not a replacement for SalixWeb32's long-term native communications path.
+The bridge is currently the project's **primary compatibility path** for capabilities
+that are unreasonable to force into the Pentium 4 process, while remaining one backend
+behind Salix-owned contracts.
 
-The primary product goal remains:
+The architectural goal is not remote pixels. SalixWeb32 keeps the native application,
+conversation/document presentation, attachments, clipboard behavior, and diagnostics on
+the legacy machine. The companion can supply modern TLS, service/session behavior, or a
+future browser/runtime adapter and return semantic data/events.
 
-```text
-Pentium 4 / Windows Server 2003
-        |
-        v
-SalixWeb32 native networking / TLS / HTTP / service adapters
-        |
-        v
-modern Internet services
-```
-
-The bridge remains useful as a test oracle, compatibility backend, diagnostics path, and a way to inspect modern HTTPS behavior while native pieces are still being built.
+A native/direct modern-network backend remains a valid future option, but it is no
+longer a prerequisite for progressing the application.
 
 ## Transport architecture
 
@@ -77,7 +73,10 @@ POST /v1/fetch
 - raw textual response content,
 - lightweight extracted text/title.
 
-The companion does not execute target JavaScript and does not claim to provide a browser DOM.
+The current companion does not execute target JavaScript and does not claim to provide
+a browser DOM. A future browser/runtime compatibility adapter would be a separate
+capability behind the same architectural boundary rather than a change to the native
+Salix UI model.
 
 See `docs/BROWSER_PROBE.md` for the Browser Probe workflow and limits.
 
@@ -124,16 +123,15 @@ The current startup banner reports both bridge and Browser Probe protocol versio
 
 ## Starting SalixWeb32
 
-On the Pentium 4:
+The normal development path uses the ignored repository-root
+`salixweb32.local.ini` created from `salixweb32.local.ini.example`. This lets
+Visual Studio .NET 2003 launch the correct remote backend without re-entering
+environment variables for each shell.
 
-```text
-set SALIX_WEB_BACKEND=remote
-set SALIX_BRIDGE_HOST=<modern-machine-LAN-IP>
-set SALIX_BRIDGE_PORT=8765
-bin\Debug\SalixWeb32.exe
-```
+Environment variables remain supported as explicit overrides.
 
-The Browser Probe no longer performs a real Internet fetch during SalixWeb32 startup. The user explicitly presses `Go` in the Browser workspace.
+The Browser Probe does not perform a real Internet fetch during SalixWeb32 startup.
+The user explicitly presses `Go` in the Browser workspace.
 
 Remote mode uses a longer bounded bridge receive timeout so the companion has enough time to complete a modern HTTPS request while still failing cleanly if the companion or target becomes unresponsive.
 
@@ -170,7 +168,14 @@ Observed results included:
 - preserved `https://www.chatgpt.com/` navigation target,
 - clean round-trip through `WebView -> WebPlatformHost -> RemoteBridgeWebBackend -> NetworkTransport -> Win32HttpTransport -> companion` and back.
 
-That validation applies to the transport foundation. Browser Probe v1's new `/v1/fetch` behavior still requires its own real P4 validation.
+That transport validation has since been extended by real Browser Probe
+`/v1/fetch` validation. On September 18, 2026, the P4 successfully requested
+`https://www.chatgpt.com/` through the companion and received a real upstream HTTP
+200 HTML result. The validated probe reported a final `https://chatgpt.com/` URL,
+one redirect, 497574 captured bytes, 16 script signals, one form, and 11 links.
+
+Raw export correctness was also verified: the copied Raw section contained the actual
+HTML document rather than the response-header block.
 
 ## Current limits
 
@@ -184,4 +189,10 @@ The bridge is intentionally simple:
 - no background polling of the companion,
 - no authenticated service data.
 
-These limits keep the bridge understandable while SalixWeb32 learns which modern web/service capabilities are actually required.
+These limits keep the bridge understandable while SalixWeb32 learns which modern
+web/service capabilities are actually required.
+
+The next bridge-level expansion should be semantic service/session work, not an
+unbounded increase in Browser Probe payload size. Any credential-bearing path must first
+define a secure boundary; the current plaintext LAN protocol is deliberately excluded
+from that role.

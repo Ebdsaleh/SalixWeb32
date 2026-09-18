@@ -18,14 +18,16 @@ web::platform::WebPlatformHost
         v
 web::platform::WebPlatformBackend
         |
-        +-- PlaceholderWebBackend   (Phase 3 validation backend)
+        +-- PlaceholderWebBackend   (fallback/validation)
+        +-- RemoteBridgeWebBackend  (active compatibility backend)
         +-- NativeBackend           (future)
         +-- GeckoBackend            (future)
-        +-- TranslatorBackend       (future)
-        `-- RemoteBackend           (transport work now active)
+        `-- TranslatorBackend       (future)
 ```
 
-The placeholder backend performs **no network access**. It exists so the component, lifecycle, navigation, surface, input, diagnostics, and backend-selection boundaries can be compiled and exercised on the Pentium 4 before a real web engine is chosen.
+The placeholder backend performs **no network access** and remains the safe fallback.
+The remote bridge backend now exercises the same contract with real trusted-LAN
+transport and companion-side modern HTTPS.
 
 ## WebPlatformBackend
 
@@ -51,6 +53,7 @@ navigation
     backend-neutral WebNavigationRequest
 
 surface
+    monotonically changing surface revision
     backend-neutral WebSurfaceSnapshot
 
 input
@@ -95,6 +98,7 @@ The host exposes only generic operations to consumers:
 
 ```text
 navigate
+get surface revision
 get surface snapshot
 forward input
 query capabilities
@@ -159,16 +163,21 @@ Consumers can cheaply compare the revision before copying a potentially large
 surface. This keeps the contract polling-based and explicit rather than adding
 an implicit observer/callback graph.
 
-The first surface contract is intentionally modest:
+The current diagnostic surface is still intentionally modest but has grown to support
+Browser Probe:
 
 ```text
 title
 address
 status
 content
+response_headers
+raw_content
+extracted_content
 ```
 
-This is a Phase 3 diagnostic/presentation surface, not an attempt to define the future DOM or full rendering engine.
+This is a diagnostic/presentation surface, not an attempt to define the future DOM,
+service-event model, or full rendering engine.
 
 A future backend may expose a document tree, raster surface, retained display list, native child surface, or another representation behind an extended contract. The application must not assume that this first textual snapshot is the final browser rendering architecture.
 
@@ -176,22 +185,23 @@ A future backend may expose a document tree, raster surface, retained display li
 
 `framework::WebView` is a semantic framework component built from existing framework primitives.
 
-It displays:
+The Browser workspace displays:
 
 - backend identity and family,
 - lifecycle state,
 - requested address,
 - explicit capability flags,
-- backend surface status/content.
+- backend surface status/content,
+- Browser Probe Summary/Headers/Raw/Extracted views when supplied by the remote backend.
 
 It binds only to `WebPlatformHost`; it does not know a concrete backend exists.
 Browser Probe caches the latest snapshot and only refreshes that cache when the
 host reports a different surface revision.
 
-The application shell contains:
+The application shell currently contains:
 
 ```text
-Conversation | Web | Runtime
+Conversation | Browser | Runtime
 ```
 
 Conversation-native child controls are detached while `Web` is active in exactly the same way they are detached for `Runtime`, preserving the existing native-control lifecycle discipline.
@@ -246,6 +256,44 @@ file upload      no
 
 The `Runtime` tab and the `Web` tab both expose capability information so missing features are visible rather than silently implied.
 
+## Remote backend execution discipline
+
+The active remote backend does not perform blocking Winsock work on the UI thread.
+
+```text
+BrowserProbeView / UI thread
+        |
+        v
+WebPlatformHost
+        |
+        v
+RemoteBridgeWebBackend::navigate()
+        |
+        v
+NetworkRequestExecutor::submit()
+        |
+        v
+Win32NetworkRequestExecutor worker
+        |
+        v
+NetworkTransport::send()
+        |
+        v
+completion record
+        |
+        v
+WebPlatformHost::update() / application thread
+        |
+        v
+new surface revision
+        |
+        v
+BrowserProbeView refreshes cached presentation
+```
+
+Worker code never mutates framework/application widgets. The revision contract avoids
+copying a large surface every frame and avoids an implicit cross-thread observer graph.
+
 ## Architectural rule
 
 The important rule for every later backend tranche is:
@@ -274,7 +322,12 @@ This satisfies the Phase 3 Server 2003 exit criterion: the shell displays a `Web
 
 MiniXP remains a separate smoke target and is not implied by this Server 2003 result.
 
-The next transport work is documented in `docs/REMOTE_BRIDGE.md`.
+The placeholder Phase 3 result remains valid. The same abstraction has since supported
+the validated remote bridge/Browser Probe path without making the application depend on
+the concrete transport.
+
+Current remote validation and limits are documented in `docs/REMOTE_BRIDGE.md` and
+`docs/BROWSER_PROBE.md`.
 
 ## Phase 3 regression checklist
 

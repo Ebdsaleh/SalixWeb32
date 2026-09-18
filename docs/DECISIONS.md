@@ -82,3 +82,72 @@ The restrictive development-license period is intended to cover releases through
 Outside copyrightable contributions are not accepted by default during this period unless separately approved under written contribution/relicensing terms. This preserves the project's ability to change licensing cleanly later.
 
 See `LICENSE` and `docs/LICENSE_POLICY.md`.
+
+
+---
+
+## ADR-010 — Keep the legacy machine as the semantic application client
+
+**Status:** Accepted
+
+SalixWeb32 should keep application state, native conversation presentation, Markdown,
+attachments, diagnostics, and ordinary interaction on the legacy machine.
+
+A modern companion may provide expensive compatibility capabilities such as modern TLS,
+service-specific protocols, or a browser/runtime adapter, but the preferred architecture
+is to return semantic data/events rather than remote-rendered pixels.
+
+This preserves a useful native Win32 application instead of turning SalixWeb32 into a
+thin remote-desktop/browser viewport.
+
+---
+
+## ADR-011 — Background workers do not mutate UI state
+
+**Status:** Accepted
+
+Blocking network work may execute on a platform worker, but worker threads do not call
+framework widgets or mutate application presentation state.
+
+The current web path uses:
+
+```text
+RemoteBridgeWebBackend::navigate()
+    -> NetworkRequestExecutor::submit()
+    -> Win32 background worker
+    -> blocking NetworkTransport
+    -> completion record
+    -> WebPlatformHost::update() on application thread
+    -> backend publishes new surface revision
+    -> BrowserProbeView refreshes on application thread
+```
+
+This mirrors the broader Salix separation between background work and presentation
+ownership and avoids implicit callback graphs crossing thread boundaries.
+
+---
+
+## ADR-012 — Large diagnostic payloads use bounded presentation
+
+**Status:** Accepted
+
+The complete canonical payload may be retained for diagnostics/copy while the visible
+legacy UI presents a smaller bounded representation.
+
+Browser Probe Raw currently keeps the complete captured response but displays only a
+small hard-wrapped preview. This is a deliberate protection for constrained hardware,
+not permission to ignore renderer performance. The generic Win32 text path remains a
+profiling/optimization target.
+
+---
+
+## ADR-013 — Machine-local bridge configuration stays out of source control
+
+**Status:** Accepted
+
+Bridge host/port/backend selection can be stored in `salixweb32.local.ini` for
+repeatable target launches. That file is ignored by Git. The repository contains only
+`salixweb32.local.ini.example`.
+
+Environment variables remain supported as overrides, and no machine-specific address,
+credential, token, or private session material belongs in the repository.
