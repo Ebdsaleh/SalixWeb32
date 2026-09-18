@@ -567,19 +567,19 @@ Modern companion preparation:
 
 1. Pull the same commit on the modern machine.
 2. Run `tools\setup_chat_session.bat` once to install/update Selenium.
-3. If authentication is not already present in the dedicated relay profile, run
-   `python tools\salix_chat_session.py --prepare-login`.
-4. Complete login in the ordinary LibreWolf window, verify ChatGPT is usable, then close
-   that window.
-5. Start `python tools\salix_chat_session.py` and confirm the visible automated
-   LibreWolf reuses the authenticated profile.
-6. Open the desired ChatGPT thread if needed.
-7. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
-7. Confirm the bridge reports browser-relay text mode and the worker endpoint.
-8. Run `python tools\test_chat_relay.py` and require
-   `conversation_browser_session=ready`.
-9. Optionally run the same helper with `--message` to prove the complete
-   bridge -> worker -> LibreWolf -> ChatGPT -> bridge loop before involving the P4.
+3. Close ordinary LibreWolf so its active profile is not locked.
+4. Start `python tools\salix_chat_session.py`.
+5. Confirm the worker reports an installed LibreWolf profile source and prints the
+   expected normal LibreWolf profile path.
+6. Confirm the visible automated LibreWolf opens with the existing authenticated ChatGPT
+   session. Do not perform another login if it does not.
+7. Open the desired ChatGPT thread if needed.
+8. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+9. Confirm the bridge reports browser-relay text mode and the worker endpoint.
+10. Run `python tools\test_chat_relay.py` and require
+    `conversation_browser_session=ready`.
+11. Optionally run the same helper with `--message` to prove the complete
+    bridge -> worker -> LibreWolf -> ChatGPT -> bridge loop before involving the P4.
 
 P4 validation:
 

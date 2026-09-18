@@ -15,6 +15,7 @@ owned LibreWolf window.
 from __future__ import annotations
 
 import argparse
+import configparser
 import json
 import os
 import subprocess
@@ -35,11 +36,175 @@ POLL_SECONDS = 0.20
 STABLE_SECONDS = 2.0
 
 
-def _default_profile_directory() -> Path:
+def _fallback_profile_directory() -> Path:
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
         return Path(local_app_data) / "SalixWeb32" / "LibreWolfProfile"
     return Path.home() / "AppData" / "Local" / "SalixWeb32" / "LibreWolfProfile"
+
+
+def _candidate_profile_roots() -> list[Path]:
+    roots: list[Path] = []
+
+    for variable in ("LOCALAPPDATA", "APPDATA"):
+        value = os.environ.get(variable)
+        if not value:
+            continue
+
+        base = Path(value)
+        roots.extend(
+            [
+                base / "librewolf",
+                base / "LibreWolf",
+            ]
+        )
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+
+    for root in roots:
+        key = os.path.normcase(str(root))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(root)
+
+    return unique
+
+
+def _discover_installed_profiles() -> list[tuple[Path, str, bool]]:
+    discovered: list[tuple[Path, str, bool]] = []
+    seen: set[str] = set()
+    roots = _candidate_profile_roots()
+
+    for root in roots:
+        ini_path = root / "profiles.ini"
+        if not ini_path.is_file():
+            continue
+
+        parser = configparser.RawConfigParser()
+
+        try:
+            parser.read(ini_path, encoding="utf-8")
+        except (OSError, configparser.Error):
+            continue
+
+        for section in parser.sections():
+            if not section.lower().startswith("profile"):
+                continue
+
+            path_value = parser.get(section, "Path", fallback="").strip()
+            if not path_value:
+                continue
+
+            is_relative = parser.getboolean(
+                section,
+                "IsRelative",
+                fallback=True,
+            )
+            name = parser.get(section, "Name", fallback=section).strip()
+            is_default = parser.getboolean(
+                section,
+                "Default",
+                fallback=False,
+            )
+
+            candidates: list[Path] = []
+
+            if is_relative:
+                candidates.append(root / Path(path_value))
+                for alternate_root in roots:
+                    candidates.append(alternate_root / Path(path_value))
+            else:
+                candidates.append(Path(path_value))
+
+            for candidate in candidates:
+                if not candidate.is_dir():
+                    continue
+
+                resolved = candidate.resolve()
+                key = os.path.normcase(str(resolved))
+                if key in seen:
+                    continue
+
+                seen.add(key)
+                discovered.append((resolved, name, is_default))
+                break
+
+    # Some LibreWolf installations keep the profile directories in LocalAppData
+    # even when profiles.ini is absent or stored elsewhere. Preserve those as
+    # visible candidates instead of silently creating a second browser identity.
+    for root in roots:
+        profiles_root = root / "Profiles"
+        if not profiles_root.is_dir():
+            continue
+
+        try:
+            children = list(profiles_root.iterdir())
+        except OSError:
+            continue
+
+        for child in children:
+            if not child.is_dir():
+                continue
+
+            resolved = child.resolve()
+            key = os.path.normcase(str(resolved))
+            if key in seen:
+                continue
+
+            seen.add(key)
+            discovered.append((resolved, child.name, False))
+
+    return discovered
+
+
+def _select_profile(explicit: str | None) -> tuple[Path, str]:
+    requested = explicit or os.environ.get("SALIX_LIBREWOLF_PROFILE")
+
+    if requested:
+        path = Path(requested).expanduser().resolve()
+        if not path.is_dir():
+            raise RuntimeError(
+                f"requested LibreWolf profile does not exist: {path}"
+            )
+        return path, "explicit LibreWolf profile"
+
+    profiles = _discover_installed_profiles()
+
+    defaults = [item for item in profiles if item[2]]
+    if len(defaults) == 1:
+        return defaults[0][0], "installed LibreWolf default profile"
+
+    if len(profiles) == 1:
+        return profiles[0][0], "installed LibreWolf profile"
+
+    # LibreWolf commonly names the primary generated profile *.default-default.
+    # Use it only when it uniquely disambiguates an otherwise metadata-free scan.
+    generated_defaults = [
+        item
+        for item in profiles
+        if item[0].name.lower().endswith(".default-default")
+    ]
+    if not defaults and len(generated_defaults) == 1:
+        return (
+            generated_defaults[0][0],
+            "installed LibreWolf default-default profile",
+        )
+
+    if profiles:
+        choices = "\n".join(
+            f"  {path}  ({name}{', default' if is_default else ''})"
+            for path, name, is_default in profiles
+        )
+        raise RuntimeError(
+            "Multiple LibreWolf profiles were discovered and no single default "
+            "could be selected safely. Re-run with --profile and one of:\n"
+            + choices
+        )
+
+    fallback = _fallback_profile_directory().resolve()
+    return fallback, "Salix fallback profile (no installed profile discovered)"
 
 
 def _candidate_librewolf_paths() -> list[Path]:
@@ -164,9 +329,9 @@ class ChatBrowserSession:
         options.binary_location = str(self.browser_path)
 
         # Selenium/geckodriver normally creates a temporary Firefox profile. The
-        # explicit -profile argument gives this worker a dedicated persistent
-        # profile so a user-authenticated ChatGPT session can survive restarts.
-        # Do not point this at a profile simultaneously opened by another browser.
+        # explicit -profile argument gives this worker the selected persistent
+        # LibreWolf profile, normally the user's installed default profile.
+        # Do not open the same profile simultaneously in another LibreWolf process.
         options.add_argument("-profile")
         options.add_argument(str(self.profile_directory))
 
@@ -619,8 +784,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--profile",
-        default=str(_default_profile_directory()),
-        help="dedicated persistent LibreWolf profile directory",
+        default=None,
+        help=(
+            "LibreWolf profile directory; when omitted the installed LibreWolf "
+            "default profile is discovered automatically"
+        ),
     )
     parser.add_argument(
         "--geckodriver",
@@ -656,8 +824,8 @@ def main() -> int:
         "--prepare-login",
         action="store_true",
         help=(
-            "open the dedicated profile in ordinary LibreWolf without "
-            "WebDriver so manual ChatGPT/Google authentication can be completed"
+            "open the selected LibreWolf profile normally without WebDriver "
+            "for manual authentication if needed"
         ),
     )
     args = parser.parse_args()
@@ -672,7 +840,15 @@ def main() -> int:
         parser.error("--listen-port must be between 1 and 65535")
 
     browser_path = _find_librewolf(args.browser)
-    profile_directory = Path(args.profile).expanduser().resolve()
+
+    try:
+        profile_directory, profile_source = _select_profile(args.profile)
+    except Exception as error:
+        print(
+            f"ERROR: {type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.prepare_login:
         try:
@@ -711,15 +887,20 @@ def main() -> int:
 
     print(f"Chat session protocol : {SESSION_PROTOCOL}")
     print(f"LibreWolf binary      : {browser_path}")
-    print(f"Persistent profile    : {profile_directory}")
+    print(f"Profile source        : {profile_source}")
+    print(f"Profile path          : {profile_directory}")
     print(f"Worker endpoint       : http://{args.listen_host}:{args.listen_port}")
-    print("Authentication        : manual, inside visible LibreWolf")
+    print("Authentication        : reused from selected LibreWolf profile")
     print("Active conversation   : whichever ChatGPT thread is open")
     print("Forwarding            : message text + rendered assistant text only")
     print("Cookies/credentials   : never exposed by this worker API")
     print()
 
     try:
+        print(
+            "Close any ordinary LibreWolf window using this profile "
+            "before continuing."
+        )
         print("Starting LibreWolf...")
         session.start()
     except Exception as error:
@@ -733,7 +914,11 @@ def main() -> int:
     )
 
     print("LibreWolf started.")
-    print("Log in to ChatGPT in the visible window and open the desired thread.")
+    print(
+        "The selected installed profile should already contain your "
+        "normal ChatGPT login/session."
+    )
+    print("Open the desired ChatGPT thread if it is not already open.")
     print("When the composer is visible, salix_bridge.py will report relay ready.")
     print("Press Ctrl+C here to stop the browser worker.")
 

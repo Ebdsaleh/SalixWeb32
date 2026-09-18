@@ -85,39 +85,43 @@ tools\setup_chat_session.bat
 ```
 
 Selenium can drive Firefox-family browsers using GeckoDriver and a custom browser binary.
-The worker checks common LibreWolf installation locations. An explicit path can be used:
+The worker checks common LibreWolf installation locations. An explicit binary path can
+still be used:
 
 ```bat
 python tools\salix_chat_session.py --browser "C:\Program Files\LibreWolf\librewolf.exe"
 ```
 
-The default persistent profile lives beneath:
+By default the worker now discovers and reuses the **installed LibreWolf default
+profile**, including the user's normal authenticated ChatGPT browser session. It checks
+LibreWolf profile metadata first and then the normal profile directories beneath
+`APPDATA` and `LOCALAPPDATA`.
+
+The worker prints:
 
 ```text
-%LOCALAPPDATA%\SalixWeb32\LibreWolfProfile
+Profile source : ...
+Profile path   : ...
 ```
 
-Do not open that same dedicated profile simultaneously in another LibreWolf process.
+before launching so the selected browser identity is explicit.
 
-If the ChatGPT account uses Google sign-in, prepare the dedicated profile in ordinary
-LibreWolf first:
+An exact profile can still be selected when needed:
 
 ```bat
-python tools\salix_chat_session.py --prepare-login
+python tools\salix_chat_session.py --profile "C:\Users\...\AppData\Local\librewolf\Profiles\<profile>"
 ```
 
-This mode does **not** use WebDriver. Log in normally, confirm ChatGPT is usable, then
-close LibreWolf so the profile is released.
-
-Now start the automated worker using that already-authenticated profile:
+Do not open the selected profile in two LibreWolf processes at once. Close ordinary
+LibreWolf, then start the worker:
 
 ```bat
 python tools\salix_chat_session.py
 ```
 
-Open the desired ChatGPT conversation if one is not already open. If Google redirects an
-automation-controlled login attempt to its rejected-browser page, the worker reports
-`google_oauth_rejected_use_prepare_login` through bridge health.
+The visible automated LibreWolf should reuse the existing ChatGPT login. If no installed
+profile can be discovered, the older `--prepare-login` mode remains available as a
+fallback rather than silently requiring another account login.
 
 Then start the existing bridge in another terminal:
 
