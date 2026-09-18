@@ -24,12 +24,16 @@ namespace {
         return format_id;
     }
 
-    bool set_clipboard_text(UINT format, const char* text) {
-        if (format == 0 || text == 0) {
+    bool set_clipboard_text(
+        UINT format,
+        const char* text,
+        int text_length
+    ) {
+        if (format == 0 || text == 0 || text_length < 0) {
             return false;
         }
 
-        SIZE_T text_size = strlen(text) + 1;
+        SIZE_T text_size = (SIZE_T)text_length + 1;
         HGLOBAL global_memory = GlobalAlloc(GMEM_MOVEABLE, text_size);
 
         if (global_memory == NULL) {
@@ -42,7 +46,10 @@ namespace {
             return false;
         }
 
-        memcpy(destination, text, text_size);
+        if (text_length > 0) {
+            memcpy(destination, text, (SIZE_T)text_length);
+        }
+        destination[text_length] = '\0';
         GlobalUnlock(global_memory);
 
         if (SetClipboardData(format, global_memory) == NULL) {
@@ -95,7 +102,11 @@ bool Win32Clipboard::set_data(const MimeData& data) {
     bool did_set_data = false;
 
     if (EmptyClipboard()) {
-        did_set_data = set_clipboard_text(CF_TEXT, text);
+        did_set_data = set_clipboard_text(
+            CF_TEXT,
+            text,
+            data.get_data_size(MimeTypes::text_plain())
+        );
 
         if (data.has_format(MimeTypes::salix_selection_preserved())) {
             UINT preserved_format = get_preserved_selection_format();
@@ -106,7 +117,13 @@ bool Win32Clipboard::set_data(const MimeData& data) {
             // The standard text format is the interoperability requirement.
             // The private format is an optional richer payload for Salix paste
             // options and must not make an otherwise valid copy fail.
-            set_clipboard_text(preserved_format, preserved_text);
+            set_clipboard_text(
+                preserved_format,
+                preserved_text,
+                data.get_data_size(
+                    MimeTypes::salix_selection_preserved()
+                )
+            );
         }
     }
 

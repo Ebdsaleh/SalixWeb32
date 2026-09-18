@@ -26,6 +26,7 @@ class MimeData {
         int get_data_size(const char* mime_type) const;
 
         void set_text(const char* text);
+        void set_text(const char* text, int text_length);
         const char* get_text() const;
 
     private:

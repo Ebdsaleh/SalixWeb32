@@ -81,9 +81,15 @@ Raw       -> complete captured raw section
 Extracted -> complete extracted-text section
 ```
 
-This is intentionally different from the on-screen display limit. Large sections such as Raw remain capped at 32 KiB for presentation on the Pentium 4, while `Copy` uses the complete captured section retained by the backend snapshot. This makes it practical to paste probe results directly into text files without photographing every screen.
+This is intentionally different from the on-screen display limit. Ordinary probe sections remain capped at 32 KiB for presentation. Raw uses a
+much smaller 1 KiB hard-wrapped preview because minified HTML is exceptionally
+expensive for the current legacy formatted-text renderer. `Copy` still uses the
+complete captured Raw section retained by the view cache. This makes it practical to paste probe results directly into text files without photographing every screen.
 
-Probe text is normalized from CRLF to LF before display/copy so carriage-return glyphs are not exposed by the native text renderer.
+Headers and extracted presentation text are normalized from CRLF to LF so
+carriage-return glyphs are not exposed by the native text renderer. Raw keeps
+the complete decoded body unchanged for Copy; only its small on-screen preview
+is normalized/hard-wrapped.
 
 ### Summary
 
@@ -107,7 +113,11 @@ Shows response headers returned by the upstream target. Sensitive response heade
 
 ### Raw
 
-Shows the captured textual response body. The companion captures at most 512 KiB in this tranche; the on-screen label intentionally displays at most 32 KiB so a large page cannot turn the diagnostic view itself into a memory/performance test on the Pentium 4. The `Copy` button still copies the complete captured Raw section.
+Shows the captured textual response body. The companion captures at most
+512 KiB in this tranche. The on-screen Raw preview intentionally displays at
+most 1 KiB and inserts hard line breaks before handing text to the legacy
+renderer, avoiding the very expensive formatted soft-wrap path for minified
+HTML. The `Copy` button still copies the complete captured Raw section.
 
 ### Extracted
 
@@ -176,8 +186,10 @@ The first probe deliberately keeps the implementation small:
 - P4 bridge receive timeout: 12 seconds in remote mode,
 - maximum captured upstream body: 512 KiB,
 - maximum extracted text: 64 KiB,
-- maximum on-screen probe section: 32 KiB,
+- maximum ordinary on-screen probe section: 32 KiB,
+- maximum on-screen Raw preview: 1 KiB, hard-wrapped for legacy rendering,
 - `Copy` exports the complete captured current section rather than the display-capped text,
+- clipboard export passes the known byte length through the MIME/Win32 path instead of rescanning large text with repeated `strlen` calls,
 - no JavaScript execution,
 - no DOM,
 - no authenticated session,
@@ -236,13 +248,19 @@ Those observations drive the next runtime decision. They do not commit SalixWeb3
     does not report the application as not responding.
 17. After a large ChatGPT response is present, switch repeatedly among Summary,
     Headers, Raw, and Extracted; confirm those changes are immediate and do not
-    cause a new bridge request.
-18. For Summary, Headers, Raw, and Extracted in turn, click `Copy` and paste
+    cause a new bridge request. Raw should show the 1 KiB legacy-safe preview
+    notice rather than attempting to render the full captured page.
+18. Leave Raw selected for several seconds, move another window across SalixWeb32,
+    and confirm exposed/repainted areas remain responsive without visible
+    system-wide stalls.
+19. For Summary, Headers, Raw, and Extracted in turn, click `Copy` and paste
     into a text file; confirm each complete current section is copied.
-19. Confirm Headers no longer displays visible carriage-return box glyphs.
-20. Probe a simple known text/HTML URL as a control and compare results.
-21. Switch Conversation -> Browser -> Runtime repeatedly and confirm the existing
+20. Confirm the pasted Raw section is the raw HTML/body rather than the Headers
+    section, and that copying it does not leave the desktop visibly stalled.
+21. Confirm Headers no longer displays visible carriage-return box glyphs.
+22. Probe a simple known text/HTML URL as a control and compare results.
+23. Switch Conversation -> Browser -> Runtime repeatedly and confirm the existing
     tab/native-control lifecycle remains stable.
-22. Close SalixWeb32 and confirm clean shutdown.
+24. Close SalixWeb32 and confirm clean shutdown.
 
 Only the real P4 build/runtime test should mark this Browser Probe interaction tranche target-validated.

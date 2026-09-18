@@ -77,14 +77,30 @@ int MimeData::get_data_size(const char* mime_type) const {
 
 void MimeData::set_text(const char* text) {
     if (text == 0) {
+        set_text("", 0);
+        return;
+    }
+
+    set_text(text, (int)strlen(text));
+}
+
+void MimeData::set_text(
+    const char* text,
+    int text_length
+) {
+    if (text == 0) {
         set_data("text/plain", "", 0);
         return;
+    }
+
+    if (text_length < 0) {
+        text_length = 0;
     }
 
     set_data(
         "text/plain",
         text,
-        (int)strlen(text)
+        text_length
     );
 }
 

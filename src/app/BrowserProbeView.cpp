@@ -22,6 +22,8 @@
 
 namespace {
     const int probe_display_limit = 32 * 1024;
+    const int raw_probe_display_limit = 1024;
+    const int raw_probe_columns = 96;
 
     const char* capability_flag(bool value) {
         return value ? "yes" : "no";
@@ -48,15 +50,66 @@ namespace {
         return normalized;
     }
 
-    std::string make_probe_display_text(const std::string& source) {
-        if ((int)source.size() <= probe_display_limit) {
-            return source;
+    std::string make_probe_display_text(
+        const std::string& source,
+        bool raw_mode
+    ) {
+        int display_limit = raw_mode
+            ? raw_probe_display_limit
+            : probe_display_limit;
+
+        int copy_count = (int)source.size();
+        if (copy_count > display_limit) {
+            copy_count = display_limit;
         }
 
-        std::string display = source.substr(0, probe_display_limit);
-        display +=
-            "\n\n[Browser Probe display capped at 32 KiB. Use Copy to copy the "
-            "complete captured section.]";
+        std::string display;
+        display.reserve(
+            (std::string::size_type)copy_count +
+            (raw_mode ? 160U : 96U)
+        );
+
+        int column = 0;
+
+        for (int index = 0; index < copy_count; ++index) {
+            char value = source[index];
+
+            if (value == '\r') {
+                continue;
+            }
+
+            if (
+                raw_mode &&
+                value != '\n' &&
+                column >= raw_probe_columns
+            ) {
+                display += '\n';
+                column = 0;
+            }
+
+            display += value;
+
+            if (value == '\n') {
+                column = 0;
+            } else if (value == '\t') {
+                column += 4;
+            } else {
+                ++column;
+            }
+        }
+
+        if ((int)source.size() > display_limit) {
+            if (raw_mode) {
+                display +=
+                    "\n\n[Raw preview capped at 1 KiB for the legacy renderer. "
+                    "Copy still exports the complete captured Raw section.]";
+            } else {
+                display +=
+                    "\n\n[Browser Probe display capped at 32 KiB. Use Copy to "
+                    "copy the complete captured section.]";
+            }
+        }
+
         return display;
     }
 
@@ -681,11 +734,9 @@ void BrowserProbeView::cache_probe_outputs(
             : snapshot.response_headers
     );
 
-    raw_output_text = normalize_probe_text(
-        snapshot.raw_content.empty()
-            ? "No raw response body is available yet."
-            : snapshot.raw_content
-    );
+    raw_output_text = snapshot.raw_content.empty()
+        ? "No raw response body is available yet."
+        : snapshot.raw_content;
 
     extracted_output_text = normalize_probe_text(
         snapshot.extracted_content.empty()
@@ -716,7 +767,13 @@ void BrowserProbeView::refresh_probe_content() {
 }
 
 void BrowserProbeView::set_output_text(const std::string& text) {
-    std::string new_display = make_probe_display_text(text);
+    bool raw_mode = probe_mode == probe_raw;
+    std::string new_display = make_probe_display_text(
+        text,
+        raw_mode
+    );
+
+    content_label.set_word_wrap(!raw_mode);
 
     if (new_display == displayed_output_text) {
         return;
@@ -725,7 +782,7 @@ void BrowserProbeView::set_output_text(const std::string& text) {
     displayed_output_text = new_display;
     content_label.set_text(displayed_output_text.c_str());
     scroll_offset_y = 0;
-    layout_dirty = true;
+    layout_dirty = !raw_mode;
 
     update_content_metrics(0);
     layout_output();
@@ -736,8 +793,13 @@ void BrowserProbeView::copy_current_output() {
         return;
     }
 
+    const std::string& output = get_active_output_text();
+
     MimeData data;
-    data.set_text(get_active_output_text().c_str());
+    data.set_text(
+        output.c_str(),
+        (int)output.size()
+    );
     active_clipboard->set_data(data);
 }
 
@@ -771,6 +833,20 @@ void BrowserProbeView::update_content_metrics(TextMetrics* text_metrics) {
 
     const char* text = content_label.get_text();
     int text_length = text == 0 ? 0 : (int)displayed_output_text.size();
+
+    if (probe_mode == probe_raw) {
+        content_height = estimate_wrapped_height(
+            text,
+            viewport_width
+        );
+
+        if (content_height < 18) {
+            content_height = 18;
+        }
+
+        layout_dirty = false;
+        return;
+    }
 
     if (text_metrics != 0) {
         content_height = TextWrapLayout::measure_height(
