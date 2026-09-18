@@ -177,12 +177,16 @@ settings.ini        user_data_root\settings.ini      user_data_root\settings.ini
 
 Diagnostics         user_data_root\Diagnostics       user_data_root\Diagnostics
 
-Attachment browser  independent remembered directory independent remembered directory
+Attachment picker   recent navigation history          recent navigation history
 ```
 
-The launch directory is still captured once for development/local-config discovery and
-as the first-run attachment-browser location. It is not a persistent application storage
-root.
+The launch directory is still captured once for development/local-config discovery. It
+is not a persistent application storage root.
+
+Attachment navigation is deliberately not a user-facing storage preference. The picker
+remembers its last successful directory in `settings.ini`; when no history exists, its
+first-use directory is `%USERPROFILE%`. If that environment value is unavailable, the
+captured launch directory and then the executable directory are fallback locations.
 
 The attachment picker uses `OFN_NOCHANGEDIR`. Diagnostic screenshot/report capture and
 Browser Diagnostic Report export receive their destination explicitly rather than

@@ -498,15 +498,13 @@ void StatusView::sync_file_location_preferences() {
             last_directory
         );
 
-        // Remembering the picker location is best-effort and must never
-        // block attachment use. The Settings dialog reports persistence
-        // failures when the user explicitly saves preferences.
+        // Recent picker history is best-effort and must never block
+        // attachment use. It is persistent state, not a user-facing setting.
         application_settings->save_user_preferences();
     }
 
-    // Settings can also change the attachment folder without opening a file
-    // dialog. Reapply the persisted preference so the toolbar '+' button and
-    // File -> Attach File... share the same next-open location.
+    // Keep every attachment entry point synchronized with the remembered
+    // recent directory.
     file_dialog->set_initial_directory(
         application_settings->get_attachment_directory()
     );

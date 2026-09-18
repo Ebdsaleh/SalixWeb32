@@ -325,11 +325,11 @@ attachment from an external RenderWare directory, diagnostic exports were create
 that directory because the old capture helper derived its destination from process
 current working directory.
 
-The current corrective tranche is pending target validation. It adds
-`Options -> Settings...`, separates Diagnostics and Attachment browser locations,
-persists those paths beneath the startup-selected Standard/Portable data root, applies
-`OFN_NOCHANGEDIR` to the native attachment picker, and removes `GetCurrentDirectoryA`
-from diagnostic destination selection.
+The current corrective tranche is pending target validation. `Options -> Settings...`
+keeps Diagnostics user-configurable while attachment browsing uses automatic
+recent-directory history persisted in `settings.ini`. The picker applies
+`OFN_NOCHANGEDIR`, first-use navigation starts at `%USERPROFILE%`, and diagnostic
+destination selection no longer uses `GetCurrentDirectoryA`.
 
 The primary regression test is simple: browse to an unrelated attachment directory,
 then capture/export diagnostics and confirm they still land in the configured Diagnostics

@@ -130,7 +130,7 @@ class StatusView : public View {
                 report += application_settings->get_launch_directory();
                 report += "\r\nDiagnostics folder: ";
                 report += application_settings->get_diagnostics_directory();
-                report += "\r\nAttachment folder: ";
+                report += "\r\nAttachment recent folder: ";
                 report += application_settings->get_attachment_directory();
                 report += "\r\nPreferences: ";
                 report += application_settings->get_user_preferences_path();

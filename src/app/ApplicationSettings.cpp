@@ -283,8 +283,8 @@ bool ApplicationSettings::save_user_preferences() const {
 
     if (fprintf(
             file,
-            "# SalixWeb32 user preferences\n"
-            "# This file is managed by Options -> Settings.\n"
+            "# SalixWeb32 persistent user state\n"
+            "# Diagnostics is user-configurable; attachment_directory is recent picker history.\n"
             "\n"
         ) < 0) {
         result = false;
@@ -381,6 +381,20 @@ std::string ApplicationSettings::get_default_diagnostics_directory() const {
 }
 
 std::string ApplicationSettings::get_default_attachment_directory() const {
+    const char* user_profile = getenv("USERPROFILE");
+
+    if (
+        user_profile != 0 &&
+        user_profile[0] != '\0'
+    ) {
+        std::string profile_directory =
+            strip_trailing_separators(user_profile);
+
+        if (!profile_directory.empty()) {
+            return profile_directory;
+        }
+    }
+
     if (!launch_directory.empty()) {
         return launch_directory;
     }

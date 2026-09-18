@@ -465,9 +465,11 @@ The first explicit file-location policy is now implemented:
 - [x] store Portable writable state beside the executable when launched with `--portable`,
 - [x] use `settings.ini` and `Diagnostics\` beneath the selected data root,
 - [x] keep development bridge configuration separate from user-facing preferences,
-- [x] add `Options -> Settings...` for Diagnostics and Attachment browser folders,
+- [x] add `Options -> Settings...` for the user-configurable Diagnostics folder,
 - [x] make the attachment picker use `OFN_NOCHANGEDIR`,
-- [x] persist the last successful attachment directory independently,
+- [x] keep attachment navigation history out of Settings,
+- [x] use `%USERPROFILE%` as the first-use attachment picker location,
+- [x] persist the last successful attachment directory automatically,
 - [x] pass the diagnostics directory explicitly to screenshot/report exporters,
 - [ ] validate Standard and Portable storage behavior on Server 2003,
 - [ ] repeat the file-location smoke pass on MiniXP.

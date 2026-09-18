@@ -9,12 +9,12 @@ application-owned data therefore use explicit roots that are resolved once at st
 
 ## Application roots
 
-SalixWeb32 distinguishes three concepts:
+SalixWeb32 distinguishes these concepts:
 
 ```text
 launch_directory
     process working directory captured at startup
-    useful for development/local-config discovery and the first attachment browse
+    useful for development/local-config discovery
 
 executable_root
     directory containing SalixWeb32.exe
@@ -24,7 +24,7 @@ user_data_root
     owner of writable persistent application state
 ```
 
-The storage rule is:
+The application-storage rule is:
 
 ```text
                     STANDARD                         PORTABLE (--portable)
@@ -36,13 +36,11 @@ user_data_root      %APPDATA%\SalixWeb32            executable directory
 settings.ini        user_data_root\settings.ini      user_data_root\settings.ini
 
 Diagnostics         user_data_root\Diagnostics       user_data_root\Diagnostics
-
-Attachment browser  independent remembered directory independent remembered directory
 ```
 
 Standard mode never derives writable persistent storage from the executable directory or
-from a file dialog. If `%APPDATA%\SalixWeb32` cannot be resolved/created, startup reports
-that failure instead of silently changing the storage contract.
+from a file dialog. If `%APPDATA%\SalixWeb32` cannot be resolved or created, startup
+reports that failure instead of silently changing the storage contract.
 
 Portable mode deliberately opts into executable-directory storage:
 
@@ -51,6 +49,48 @@ SalixWeb32.exe --portable
 ```
 
 The mode is decided once at startup and remains immutable for that process.
+
+## Attachment picker history is not a storage preference
+
+The attachment picker has different semantics from Diagnostics.
+
+Diagnostics answers:
+
+> Where should SalixWeb32-owned diagnostic output be written?
+
+The attachment picker answers:
+
+> Where did the user browse most recently?
+
+That second value is navigation history, not application-storage policy. SalixWeb32
+therefore keeps it out of the Settings dialog.
+
+The picker behavior is:
+
+```text
+settings.ini contains attachment_directory
+        |
+        +-- yes -> open from that remembered directory
+        |
+        `-- no  -> start at %USERPROFILE%
+                       |
+                       +-- unavailable -> captured launch directory
+                       |
+                       `-- unavailable -> executable directory
+```
+
+After a successful selection, the picker directory is written back to:
+
+```ini
+attachment_directory=X:\most\recent\folder
+```
+
+This happens automatically and best-effort. Attachment use must not fail merely because
+recent-folder persistence fails.
+
+There is intentionally no "always use this directory" control at this stage. Such an
+override would compete with normal last-used-folder behavior and add friction. It can be
+introduced later if a concrete workflow requires fixed-directory behavior.
 
 ## Standard mode
 
@@ -76,7 +116,9 @@ Launching with `--portable` makes the executable directory the data root:
     Diagnostics\
 ```
 
-This is intentional portable behavior, not a fallback used by Standard mode.
+The attachment picker still uses its own remembered navigation history. With no saved
+history, its first-use location remains `%USERPROFILE%`; Portable mode changes
+application-owned state placement, not the user's normal file-browsing starting point.
 
 ## Launch directory and development configuration
 
@@ -105,51 +147,62 @@ User data / Data root:
 Diagnostics folder:
     configurable absolute path
 
-Attachment browser folder:
-    configurable remembered browse location
-
 Preferences file:
     resolved settings.ini
 ```
 
-The mode is informational in Settings. It is not a checkbox because changing storage
-roots in the middle of a running process would make ownership and migration ambiguous.
+The application mode is informational in Settings. It is not a checkbox because changing
+storage roots in the middle of a running process would make ownership and migration
+ambiguous.
 
-`Restore Defaults` restores Diagnostics to `<user_data_root>\Diagnostics`. The
-attachment browser returns to the captured launch directory (or executable directory if
-no launch directory is available).
+`Restore Defaults` restores only the visible Diagnostics preference to
+`<user_data_root>\Diagnostics`. It does not erase the attachment picker's automatic
+recent-directory history.
 
-## Preference persistence
-
-User-facing preferences are intentionally separate from `salixweb32.local.ini`.
+## Preference and state persistence
 
 `salixweb32.local.ini` remains the machine/development configuration layer for bridge
 selection and companion endpoint settings.
 
-`settings.ini` stores user-facing location state:
+`settings.ini` contains both explicit user preferences and small pieces of persistent UI
+state:
 
 ```ini
 diagnostics_directory=C:\...\Diagnostics
-attachment_directory=X:\...
+attachment_directory=X:\most\recent\folder
 ```
 
-In Standard mode that file belongs under `%APPDATA%\SalixWeb32`. In Portable mode it
+These keys deliberately have different semantics:
+
+```text
+diagnostics_directory
+    user preference
+    visible/editable in Options -> Settings...
+
+attachment_directory
+    automatic recent-navigation state
+    not exposed as an editable setting
+```
+
+In Standard mode the file belongs under `%APPDATA%\SalixWeb32`. In Portable mode it
 belongs beside the executable.
 
 ## File-dialog rule
 
 The Win32 attachment picker uses `OFN_NOCHANGEDIR`.
 
-The picker receives its initial directory explicitly and reports the last successful
-selection directory back to the application. SalixWeb32 persists that browse directory
-without changing any application storage root.
+The picker receives its remembered initial directory explicitly and reports the last
+successful selection directory back to the application. SalixWeb32 persists that browse
+history without changing any application storage root.
 
 Therefore:
 
 ```text
 open attachment from X:\RenderWare\Textures
         |
-        +-- next attachment dialog may reopen there
+        +-- next attachment dialog reopens there
+        |
+        +-- settings.ini quietly records that recent folder
         |
         `-- diagnostics remain under the configured Diagnostics folder
 ```
@@ -176,6 +229,9 @@ Portable:
 The user may choose another absolute Diagnostics location through Settings. `Go to Files`
 opens the directory that actually received the generated artifact.
 
+Diagnostic reports may include the current **Attachment recent folder** for observability.
+That does not make the value a user-facing application-storage setting.
+
 ## Future categories
 
 Future persistent categories should be added beneath or explicitly derived from
@@ -193,11 +249,10 @@ ApplicationPaths
     exports_root
 ```
 
-Each feature asks for the directory it owns. Nothing asks "what folder are we in right
-now?"
+Navigation history such as a file picker's recent directory remains separate from these
+application-owned storage categories.
 
 ## Design invariant
 
-> Standard mode stores SalixWeb32 state under `%APPDATA%\SalixWeb32`. Portable mode
-> stores it beside the executable. File dialogs never determine application storage
-> locations.
+> Application-owned storage has explicit roots. File-picker navigation is remembered
+> automatically, but it never determines where SalixWeb32 stores its own data.

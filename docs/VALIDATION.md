@@ -509,17 +509,18 @@ unrelated common-dialog navigation could redirect application-owned output.
 
 The corrective tranche now establishes explicit startup roots:
 
-- launch directory captured once for development/local-config and first attachment browse,
+- launch directory captured once for development/local-config discovery,
 - executable directory captured independently,
 - Standard `user_data_root = %APPDATA%\SalixWeb32`,
 - Portable `user_data_root = executable directory` only when launched with `--portable`,
 - `settings.ini` beneath the selected data root,
 - Diagnostics defaulting to `<user_data_root>\Diagnostics`,
-- Attachment browser location tracked independently,
+- attachment picker recent-directory history tracked independently,
+- first-use attachment browsing defaulting to `%USERPROFILE%` when no history exists,
 - `OFN_NOCHANGEDIR` on the native attachment picker,
 - diagnostic exporters receiving the configured destination explicitly,
-- `Options -> Settings...` displaying application mode, data root, preferences path,
-  Diagnostics, and Attachment browser location.
+- `Options -> Settings...` displaying application mode, data root, preferences path, and
+  Diagnostics only; attachment history remains automatic state.
 
 Target checklist:
 
@@ -529,28 +530,32 @@ Target checklist:
 4. Confirm the data root is `%APPDATA%\SalixWeb32`.
 5. Confirm the preferences file is `%APPDATA%\SalixWeb32\settings.ini`.
 6. Confirm Diagnostics defaults to `%APPDATA%\SalixWeb32\Diagnostics`.
-7. Confirm the Attachment browser defaults to the captured launch folder on a clean
-   `settings.ini`.
-8. Save a custom Diagnostics folder and reopen Settings; confirm persistence.
-9. Use `File -> Attach File...` to browse to a different drive/directory and select a file.
-10. Reopen Attach File and confirm the attachment browser remembers its own last location.
-11. Take a diagnostic screenshot and confirm it is written to the configured Diagnostics
+7. Confirm the Settings window contains no editable Attachment browser directory.
+8. For a first-use test, temporarily remove only the `attachment_directory=` line from
+   `settings.ini`, launch SalixWeb32, and open the attachment picker.
+9. Confirm that picker starts at `%USERPROFILE%`.
+10. Browse to another directory, select a file, reopen the picker, and confirm the new
+    directory is remembered automatically.
+11. Confirm `settings.ini` now contains the new `attachment_directory=` history value.
+12. Change the Diagnostics folder, save/reopen Settings, and confirm the Diagnostics
+    choice persists without resetting the remembered attachment directory.
+13. Take a diagnostic screenshot and confirm it is written to the configured Diagnostics
     folder, not the attachment directory.
-12. Export a Browser Diagnostic Report and confirm it uses the same configured Diagnostics
+14. Confirm the diagnostic report labels the navigation state as
+    `Attachment recent folder`.
+15. Export a Browser Diagnostic Report and confirm it uses the same configured Diagnostics
     folder.
-13. Confirm `Go to Files` opens the actual configured Diagnostics folder.
-14. Restart normally and confirm Standard-mode preferences persist.
-15. Use `Restore Defaults`, save, and confirm Diagnostics returns to
-    `%APPDATA%\SalixWeb32\Diagnostics`.
-16. Launch `SalixWeb32.exe --portable`.
-17. Confirm `Application mode: Portable (--portable)`.
-18. Confirm Data root is the directory containing `SalixWeb32.exe`.
-19. Confirm the preferences file is `<executable_root>\settings.ini`.
-20. Confirm Diagnostics defaults to `<executable_root>\Diagnostics`.
-21. Change a Portable-mode path preference and verify it persists in the portable
-    `settings.ini` without changing the Standard-mode preferences under APPDATA.
-22. Browse an unrelated attachment directory again and confirm neither mode's application
-    storage root follows that browse location.
-23. Repeat the smoke pass on MiniXP after Server 2003 is green.
+16. Confirm `Go to Files` opens the actual configured Diagnostics folder.
+17. Use `Restore Defaults`, save, and confirm only Diagnostics returns to
+    `%APPDATA%\SalixWeb32\Diagnostics`; attachment history should remain unchanged.
+18. Launch `SalixWeb32.exe --portable`.
+19. Confirm `Application mode: Portable (--portable)`.
+20. Confirm Data root is the directory containing `SalixWeb32.exe`.
+21. Confirm the preferences file is `<executable_root>\settings.ini`.
+22. Confirm Diagnostics defaults to `<executable_root>\Diagnostics`.
+23. With no portable `attachment_directory=` history, confirm the first attachment picker
+    still starts at `%USERPROFILE%`, then remembers subsequent navigation in the portable
+    `settings.ini`.
+24. Repeat the smoke pass on MiniXP after Server 2003 is green.
 
 See `docs/FILE_LOCATIONS.md`.

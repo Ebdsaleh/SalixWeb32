@@ -45,7 +45,6 @@ namespace {
         "SalixWeb32SettingsDialog";
 
     const int settings_browse_diagnostics = 45201;
-    const int settings_browse_attachments = 45202;
     const int settings_restore_defaults = 45203;
 
     const UINT salix_bif_return_only_file_system_dirs = 0x0001;
@@ -56,13 +55,11 @@ namespace {
     struct SettingsDialogState {
         ApplicationSettings* settings;
         HWND diagnostics_edit;
-        HWND attachments_edit;
         bool saved;
 
         SettingsDialogState()
             : settings(0),
               diagnostics_edit(NULL),
-              attachments_edit(NULL),
               saved(false) {
         }
     };
@@ -309,17 +306,9 @@ namespace {
         std::string diagnostics_directory =
             state->settings->get_default_diagnostics_directory();
 
-        std::string attachments_directory =
-            state->settings->get_default_attachment_directory();
-
         SetWindowTextA(
             state->diagnostics_edit,
             diagnostics_directory.c_str()
-        );
-
-        SetWindowTextA(
-            state->attachments_edit,
-            attachments_directory.c_str()
         );
     }
 
@@ -337,9 +326,6 @@ namespace {
         std::string diagnostics_directory =
             get_control_text(state->diagnostics_edit);
 
-        std::string attachments_directory =
-            get_control_text(state->attachments_edit);
-
         if (
             !validate_directory(
                 dialog_handle,
@@ -350,36 +336,16 @@ namespace {
             return false;
         }
 
-        if (
-            !validate_directory(
-                dialog_handle,
-                "Attachment browser folder",
-                attachments_directory
-            )
-        ) {
-            return false;
-        }
-
         std::string previous_diagnostics =
             state->settings->get_diagnostics_directory();
-
-        std::string previous_attachments =
-            state->settings->get_attachment_directory();
 
         state->settings->set_diagnostics_directory(
             diagnostics_directory.c_str()
         );
 
-        state->settings->set_attachment_directory(
-            attachments_directory.c_str()
-        );
-
         if (!state->settings->save_user_preferences()) {
             state->settings->set_diagnostics_directory(
                 previous_diagnostics.c_str()
-            );
-            state->settings->set_attachment_directory(
-                previous_attachments.c_str()
             );
 
             MessageBoxA(
@@ -440,30 +406,6 @@ namespace {
                     )) {
                     SetWindowTextA(
                         state->diagnostics_edit,
-                        selected_directory.c_str()
-                    );
-                }
-                return 0;
-            }
-
-            if (
-                command_id == settings_browse_attachments &&
-                state != 0
-            ) {
-                std::string selected_directory;
-                std::string current =
-                    get_control_text(
-                        state->attachments_edit
-                    );
-
-                if (browse_for_directory(
-                        dialog_handle,
-                        "Choose the default attachment browser folder",
-                        current,
-                        selected_directory
-                    )) {
-                    SetWindowTextA(
-                        state->attachments_edit,
                         selected_directory.c_str()
                     );
                 }
@@ -634,7 +576,7 @@ bool Win32SettingsDialog::show(
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         730,
-        370,
+        300,
         owner_handle,
         NULL,
         instance_handle,
@@ -723,44 +665,6 @@ bool Win32SettingsDialog::show(
         false
     );
 
-    create_label(
-        dialog_handle,
-        instance_handle,
-        "Attachment browser folder:",
-        18,
-        172,
-        200,
-        20
-    );
-
-    state.attachments_edit = CreateWindowExA(
-        WS_EX_CLIENTEDGE,
-        "EDIT",
-        settings->get_attachment_directory(),
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP |
-            ES_AUTOHSCROLL,
-        18,
-        194,
-        580,
-        24,
-        dialog_handle,
-        NULL,
-        instance_handle,
-        NULL
-    );
-    set_default_gui_font(state.attachments_edit);
-
-    create_button(
-        dialog_handle,
-        instance_handle,
-        "Browse...",
-        settings_browse_attachments,
-        608,
-        193,
-        88,
-        false
-    );
-
     std::string preference_text(
         "Preferences file: "
     );
@@ -772,7 +676,7 @@ bool Win32SettingsDialog::show(
         instance_handle,
         preference_text.c_str(),
         18,
-        234,
+        180,
         680,
         38
     );
@@ -783,7 +687,7 @@ bool Win32SettingsDialog::show(
         "Restore Defaults",
         settings_restore_defaults,
         18,
-        292,
+        226,
         120,
         false
     );
@@ -794,7 +698,7 @@ bool Win32SettingsDialog::show(
         "Cancel",
         IDCANCEL,
         516,
-        292,
+        226,
         84,
         false
     );
@@ -805,7 +709,7 @@ bool Win32SettingsDialog::show(
         "Save",
         IDOK,
         612,
-        292,
+        226,
         84,
         true
     );

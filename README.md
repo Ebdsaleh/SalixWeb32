@@ -108,7 +108,7 @@ The native application/framework foundation is operational on the real Pentium 4
 - code-block presentation and copy support,
 - attachments, image preview, and file actions,
 - native tabs, scrollbars, menus, diagnostics, screenshots, and clipboard integration,
-- explicit persistent file-location ownership with user-configurable diagnostics and attachment folders,
+- explicit persistent file-location ownership with configurable diagnostics and remembered attachment-picker history,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
 - the `ConversationServiceBackend` / `ConversationServiceHost` semantic chat abstraction,
 - local and remote-probe conversation backends that emit request/message/text-delta/completion events,
@@ -143,10 +143,11 @@ paths, credentials, cookies, or session data** over the plaintext LAN.
 
 File storage now follows the same explicit-ownership philosophy. File dialogs no longer
 own process-wide path state: the attachment picker uses `OFN_NOCHANGEDIR`, diagnostics
-receive an explicit configured directory, and `Options -> Settings...` persists
-user-facing file locations independently of the machine/development bridge config.
-Standard launches keep writable application state under `%APPDATA%\SalixWeb32`; launching
-with `--portable` deliberately moves that state beside `SalixWeb32.exe`.
+receive an explicit configured directory, and `Options -> Settings...` exposes only
+actual storage policy. Attachment browsing keeps its most recent directory automatically
+in `settings.ini`; first use starts at `%USERPROFILE%`. Standard launches keep writable
+application state under `%APPDATA%\SalixWeb32`; launching with `--portable` deliberately
+moves that state beside `SalixWeb32.exe`.
 
 ## Documentation
 

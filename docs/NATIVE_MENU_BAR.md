@@ -53,9 +53,12 @@ The Edit commands reuse the existing framework keyboard/character command paths 
 `File -> Attach File...` uses the same `FileDialog`/composer attachment path used by the existing attachment button. `Ctrl+O` is intercepted by the Win32 menu controller and dispatches the same semantic Attach command. The Win32 picker uses `OFN_NOCHANGEDIR`, so browsing for an attachment cannot silently redirect unrelated application output.
 
 `Options -> Settings...` opens a native NT5-compatible settings dialog for persistent
-file locations. The dialog also reports whether the process is running in Standard or
-Portable (`--portable`) mode, the resolved data root, and the active `settings.ini`.
-`Options` also changes the active top-level `TabView` page through application commands.
+application locations. The dialog reports whether the process is running in Standard or
+Portable (`--portable`) mode, the resolved data root, the active `settings.ini`, and
+the configurable Diagnostics folder. Attachment browsing is deliberately absent from
+this view because its last-used directory is automatic navigation history rather than a
+storage preference. `Options` also changes the active top-level `TabView` page through
+application commands.
 
 ## Browser diagnostic report
 
@@ -111,8 +114,9 @@ In Standard mode the default Diagnostics directory is `%APPDATA%\SalixWeb32\Diag
 `engine/application_hosts/Win32DiagnosticCapture.h` contains the small Win32/GDI capture helper. The helper asks the active application `View` for a text report, captures the visible window rectangle, writes a 24-bit BMP directly, and writes the text report beside it. Its destination is passed explicitly; it no longer derives storage from `GetCurrentDirectoryA`.
 
 `engine/application_hosts/Win32SettingsDialog` owns the native Settings window.
-`ApplicationSettings` persists user-facing file locations separately from the
-machine/development bridge configuration.
+`ApplicationSettings` persists the user-configurable Diagnostics location plus
+automatic attachment-picker history separately from the machine/development bridge
+configuration.
 
 The success notification is implemented as a small owned Win32 window rather than a modern TaskDialog, because the Server 2003 target needs custom button text while remaining independent of Vista-era common controls. Folder opening uses the existing `shell32.lib` dependency through `ShellExecuteA`.
 
@@ -164,8 +168,8 @@ Validation points:
 2. `File -> Attach File...` and `Ctrl+O` open the existing multi-file picker and update the composer attachment count.
 3. `Edit -> Undo / Cut / Copy / Paste / Select All` follow the same active-control behavior as the corresponding keyboard shortcuts.
 4. `Options -> Settings...` opens the native Settings dialog.
-5. In a normal launch, confirm the dialog reports `Standard`, preferences at `%APPDATA%\SalixWeb32\settings.ini`, and Diagnostics at `%APPDATA%\SalixWeb32\Diagnostics`; confirm the Attachment browser starts from the captured launch folder on a clean preference file.
-6. Change the Diagnostics folder, save, reopen Settings, and confirm the choice persists; then launch with `--portable` and confirm the data root, `settings.ini`, and default `Diagnostics` directory move beside `SalixWeb32.exe` without changing Standard-mode storage.
+5. In a normal launch, confirm the dialog reports `Standard`, preferences at `%APPDATA%\SalixWeb32\settings.ini`, and Diagnostics at `%APPDATA%\SalixWeb32\Diagnostics`; confirm no Attachment browser path is exposed in Settings.
+6. With no `attachment_directory` entry in `settings.ini`, open the attachment picker and confirm it starts at `%USERPROFILE%`; select a file elsewhere, reopen the picker, and confirm it remembers the new directory automatically. Then change the Diagnostics folder, save/reopen Settings, and confirm that saving Diagnostics does not reset the remembered attachment directory.
 7. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
 8. Open an attachment from an unrelated external directory and confirm the process does not redirect diagnostic storage.
 9. `Options -> Export Browser Diagnostic Report...` creates a timestamped text report in the configured Diagnostics folder containing complete cached Browser Probe data.

@@ -267,13 +267,20 @@ SalixWeb32 therefore:
 - uses the executable directory as `user_data_root` only for `--portable`,
 - stores `settings.ini` and the default `Diagnostics` directory beneath that root,
 - keeps user-facing preferences separate from development bridge configuration,
-- gives Diagnostics and the Attachment browser distinct persistent locations,
+- treats Diagnostics as a user-configurable location,
+- treats the attachment directory as automatic recent-navigation state rather than a
+  user-facing preference,
+- uses `%USERPROFILE%` as the first-use attachment location when no history exists,
 - uses `OFN_NOCHANGEDIR` for the attachment picker,
 - passes the diagnostics destination explicitly to diagnostic exporters,
 - exposes the first path controls through `Options -> Settings...`.
 
 Standard mode does not silently fall back to launch/executable storage if APPDATA cannot
-be resolved. Portable storage is an explicit launch-time opt-in. The attachment browser
-may remember its own last successful directory without affecting application storage.
+be resolved. Portable storage is an explicit launch-time opt-in.
+
+The attachment picker is intentionally frictionless: its most recent successful
+directory is persisted automatically in `attachment_directory`, but that history is not
+shown as an editable Settings field. A fixed "always open here" override is deferred
+unless a concrete workflow demonstrates the need for one.
 
 See `docs/FILE_LOCATIONS.md`.
