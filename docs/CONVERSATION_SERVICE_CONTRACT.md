@@ -254,12 +254,17 @@ text_len=<UTF-8 byte count>
 ```
 
 `salix_bridge.py` is still the P4-facing listener. It forwards the message over
-localhost to `salix_chat_session.py`, which owns a visible LibreWolf session. The user
-authenticates directly in LibreWolf and opens the desired ChatGPT conversation there.
+localhost to `salix_chat_session.py`, which is now a broker rather than a browser
+automation process.
 
-The worker does not expose credentials, cookies, or browser session storage. It enters
-the supplied message into the visible ChatGPT composer, waits for the rendered assistant
-message to stabilize, and returns that rendered text to the bridge.
+A small WebExtension runs inside the user's normal LibreWolf process. The user
+authenticates normally in that browser and opens the desired ChatGPT conversation there.
+The extension receives message text from the localhost broker, enters it into the visible
+ChatGPT composer, waits for the rendered assistant message to stabilize, and returns that
+rendered text to the broker.
+
+The broker/extension path does not expose credentials, cookies, or browser session
+storage.
 
 The bridge then frames:
 
@@ -301,9 +306,9 @@ conversation_transport_security=trusted_lan
 conversation_browser_session=ready
 ```
 
-The final field becomes `ready` only when the localhost browser worker is reachable and
-the ChatGPT composer is visible. Until then the remote backend remains unavailable for
-content dispatch.
+The final field becomes `ready` only when the localhost broker is reachable, the
+WebExtension has sent a recent heartbeat, and the ChatGPT composer is visible. Until then
+the remote backend remains unavailable for content dispatch.
 
 ## Security boundary
 

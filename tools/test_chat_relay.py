@@ -113,13 +113,32 @@ def main() -> int:
     ready_marker = "conversation_browser_session=ready"
 
     if ready_marker not in health_text:
-        print(
-            "ERROR: LibreWolf chat worker is not ready. "
-            "Start 'python tools\\salix_chat_session.py' in a separate "
-            "terminal, leave it running, and make sure the ChatGPT composer "
-            "is visible before retrying.",
-            file=sys.stderr,
-        )
+        if "conversation_browser_session=worker_unavailable" in health_text:
+            detail = (
+                "The localhost chat-session broker is not running. "
+                "Start 'python tools\\salix_chat_session.py' and leave it running."
+            )
+        elif "conversation_browser_session=extension_not_connected" in health_text:
+            detail = (
+                "The broker is running but the LibreWolf relay extension is not "
+                "connected. In normal LibreWolf open "
+                "'about:debugging#/runtime/this-firefox', load "
+                "'tools\\librewolf_chat_relay_extension\\manifest.json', "
+                "then reload the ChatGPT tab."
+            )
+        elif "conversation_browser_session=chatgpt_composer_not_ready" in health_text:
+            detail = (
+                "The LibreWolf extension is connected, but it cannot see a usable "
+                "ChatGPT composer. Open the desired ChatGPT thread in normal "
+                "LibreWolf and reload that tab."
+            )
+        else:
+            detail = (
+                "The browser relay is not ready. Review "
+                "conversation_browser_session in the health output above."
+            )
+
+        print("ERROR: " + detail, file=sys.stderr)
         return 2
 
     if args.message is None:

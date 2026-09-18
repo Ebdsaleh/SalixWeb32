@@ -8,7 +8,7 @@ The user should be able to type in the native SalixWeb32 Conversation interface 
 Pentium 4 and receive the real ChatGPT response back in the native Salix conversation
 view.
 
-The modern machine is temporary development scaffolding. It owns the current web browser
+The modern machine is temporary development scaffolding. It hosts the current browser
 and service session so the required behavior can be proven before equivalent NT5-native
 capabilities exist.
 
@@ -26,10 +26,14 @@ Modern companion
         | localhost JSON only
         v
     salix_chat_session.py :8766
+        ^
         |
-        | Selenium / GeckoDriver
+        | localhost fetch
+        |
+    SalixWeb32 Chat Relay WebExtension
+        |
         v
-    visible LibreWolf
+    normal LibreWolf
         |
         v
     chatgpt.com
@@ -37,15 +41,20 @@ Modern companion
 
 `salix_bridge.py` remains the only P4-facing listener.
 
-`salix_chat_session.py` is intentionally localhost-only. It owns the visible browser
-instance and a dedicated persistent LibreWolf profile.
+`salix_chat_session.py` is localhost-only and no longer launches or controls the
+browser. It is a broker between the bridge and a small LibreWolf WebExtension.
+
+LibreWolf itself runs normally with the user's normal installed profile. There is no
+Selenium, GeckoDriver, Marionette, WebDriver automation mode, or secondary Salix browser
+profile in the normal workflow.
 
 ## Authentication
 
-Authentication is manual.
+Authentication stays entirely inside ordinary LibreWolf.
 
-The user logs into ChatGPT directly inside the visible LibreWolf window. SalixWeb32 and
-`salix_bridge.py` do not receive or store:
+The user logs into ChatGPT normally using their regular browser profile. SalixWeb32,
+`salix_bridge.py`, `salix_chat_session.py`, and the relay protocol do not receive or
+store:
 
 - account passwords,
 - MFA values,
@@ -53,14 +62,15 @@ The user logs into ChatGPT directly inside the visible LibreWolf window. SalixWe
 - authorization headers,
 - local/session storage.
 
-The worker API exposes only readiness plus message/response text.
+The extension only exchanges relay readiness, message text, and rendered assistant
+response text with the localhost broker.
 
 ## First baseline scope
 
 Enabled:
 
 - current open ChatGPT thread,
-- Salix user text -> browser composer,
+- Salix user text -> normal LibreWolf ChatGPT composer,
 - rendered assistant text -> Salix semantic events,
 - repeated text requests in the same browser session.
 
@@ -78,120 +88,163 @@ incremental presentation path is exercised.
 
 ## Modern-machine setup
 
-Install/update Selenium once:
+Start LibreWolf **normally** using the profile you already use for ChatGPT.
+
+Then run:
 
 ```bat
 tools\setup_chat_session.bat
 ```
 
-Selenium can drive Firefox-family browsers using GeckoDriver and a custom browser binary.
-The worker checks common LibreWolf installation locations. An explicit binary path can
-still be used:
+The helper opens LibreWolf's development-extension page when LibreWolf is installed in a
+standard Program Files location and prints the exact extension manifest path.
 
-```bat
-python tools\salix_chat_session.py --browser "C:\Program Files\LibreWolf\librewolf.exe"
-```
+In LibreWolf:
 
-By default the worker now discovers and reuses the **installed LibreWolf per-install
-default profile**, matching the profile-selection model used by current Firefox-family
-browsers. It first checks the `[Install...]` default recorded in LibreWolf's
-`profiles.ini` / `installs.ini`, then falls back to the older profile-level
-`Default=1` marker only when no per-install default exists. This is intended to select
-the same normal profile LibreWolf itself opens, including the user's authenticated
-ChatGPT browser session.
+1. open `about:debugging#/runtime/this-firefox`,
+2. click **Load Temporary Add-on...**,
+3. select:
 
-The worker prints:
+   ```text
+   tools\librewolf_chat_relay_extension\manifest.json
+   ```
 
-```text
-Profile source : ...
-Profile path   : ...
-```
+4. keep LibreWolf running,
+5. open the ChatGPT conversation you want Salix to use.
 
-before launching so the selected browser identity is explicit.
+Firefox-family browsers support loading a development WebExtension this way. The
+temporary extension remains installed until LibreWolf restarts.
 
-An exact profile can still be selected when needed:
-
-```bat
-python tools\salix_chat_session.py --profile "C:\Users\...\AppData\Local\librewolf\Profiles\<profile>"
-```
-
-Do not open the selected profile in two LibreWolf processes at once. Close ordinary
-LibreWolf, then start the worker:
+Now start the localhost broker:
 
 ```bat
 python tools\salix_chat_session.py
 ```
 
-The visible automated LibreWolf should reuse the existing ChatGPT login. If no installed
-profile can be discovered, the older `--prepare-login` mode remains available as a
-fallback rather than silently requiring another account login.
+Expected startup includes:
 
-Then start the existing bridge in another terminal:
+```text
+Browser control       : normal LibreWolf WebExtension (no Marionette)
+Authentication        : existing normal LibreWolf profile/session
+```
+
+Then start the P4-facing bridge in another terminal:
 
 ```bat
 python tools\salix_bridge.py --host 0.0.0.0 --port 8765
 ```
 
-Keep the existing firewall rule restricted to the P4. Port 8766 should not be exposed to
-the LAN.
+Keep the existing firewall rule restricted to the P4. Port 8766 remains localhost-only
+and should not be exposed to the LAN.
 
-Before involving the P4, the complete modern-side chain can be checked locally:
+## Modern-side smoke test
+
+Before involving the P4:
 
 ```bat
 python tools\test_chat_relay.py
 ```
 
-That prints bridge health. Once `conversation_browser_session=ready` appears, an
-optional real-message smoke test is:
+When the WebExtension is loaded and the ChatGPT composer is visible, bridge health should
+contain:
+
+```text
+conversation_browser_session=ready
+```
+
+Then run:
 
 ```bat
 python tools\test_chat_relay.py --message "Hello from the Salix relay smoke test"
 ```
 
-The message should appear in the visible ChatGPT conversation and the resulting assistant
-text should be printed in the terminal through the same semantic framing used by the P4.
+The message should appear in the currently open ChatGPT conversation in normal
+LibreWolf. After the assistant response stabilizes, the returned text should be printed
+in the terminal through the same semantic framing used by the P4.
 
 ## Relay health contract
 
-When the worker is reachable and the ChatGPT composer is visible, bridge health includes:
+`salix_chat_session.py` considers the browser side ready only when:
+
+- the WebExtension has sent a recent heartbeat,
+- a ChatGPT tab is open,
+- the content script can see the ChatGPT composer.
+
+If the extension is not loaded, health reports:
 
 ```text
-conversation_relay=enabled
-conversation_protocol=SALIX-CONVERSATION/1
-conversation_mode=browser_relay
-conversation_text_forwarding=enabled
-conversation_attachment_forwarding=disabled
-conversation_credential_forwarding=disabled
-conversation_session_forwarding=disabled
-conversation_transport_security=trusted_lan
+extension_not_connected
+```
+
+If the extension is loaded but no usable ChatGPT composer is visible:
+
+```text
+chatgpt_composer_not_ready
+```
+
+When ready:
+
+```text
+ready
+```
+
+The bridge exposes that as:
+
+```text
 conversation_browser_session=ready
 ```
 
-The P4 backend requires this exact policy before sending text.
-
 ## Browser interaction strategy
 
-The worker prefers stable semantic/browser attributes rather than screen coordinates.
+The extension uses a background script for localhost communication and a content script
+for page interaction.
 
-Composer lookup includes the current ChatGPT textarea/name/test-id forms and a
-contenteditable fallback. Submission prefers the page's enabled Send control and falls
-back to Enter.
+The content script prefers semantic browser/page attributes rather than screen
+coordinates.
+
+Composer lookup includes:
+
+- ChatGPT prompt textarea forms,
+- `#prompt-textarea`,
+- ChatGPT contenteditable forms.
+
+Submission prefers the page's enabled Send control and falls back to an Enter key event.
 
 Assistant extraction prefers `data-message-author-role="assistant"` and then a
-conversation-turn/Markdown fallback. Buttons and accessibility-only decorative elements
-are removed from the copied response text.
+conversation-turn/Markdown fallback. Decorative controls are removed from the copied
+assistant text.
 
-These selectors are intentionally isolated in the worker so ordinary website markup
-changes do not require changes to the VC7.1 application.
+These selectors are isolated inside the extension so normal ChatGPT markup changes do
+not require changes to the VC7.1 application.
+
+## Development-extension lifecycle
+
+The initial relay uses a **temporary** WebExtension installation to prove the architecture
+without introducing signing/distribution work into the baseline.
+
+After LibreWolf restarts, reload the extension from:
+
+```text
+about:debugging#/runtime/this-firefox
+```
+
+Once the relay is target-green, persistent packaging/signing or another deployment method
+can be handled as a separate tranche.
 
 ## Failure behavior
 
-If login is incomplete or no conversation composer is visible, health reports the
-browser session as not ready and Salix does not dispatch the message.
+If the extension is missing, the localhost worker remains healthy but reports
+`extension_not_connected`.
 
-If browser interaction fails after a request begins, the bridge reports the failure to
-the existing Conversation event/error path. The visible browser remains open so the
-failure can be inspected directly.
+If no ChatGPT composer is available, the worker reports
+`chatgpt_composer_not_ready`.
+
+If page interaction fails after a request begins, the extension returns a failure to the
+localhost broker, which propagates through `salix_bridge.py` into the existing
+Conversation failure event path.
+
+The ordinary LibreWolf window remains visible throughout, so browser-side failures can be
+inspected directly.
 
 ## Target validation
 

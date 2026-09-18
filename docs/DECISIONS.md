@@ -354,8 +354,9 @@ For the first useful ChatGPT baseline:
 SalixWeb32 / P4
     -> SALIX-CONVERSATION/1 text request
     -> salix_bridge.py
-    -> localhost salix_chat_session.py
-    -> visible user-authenticated LibreWolf / chatgpt.com
+    -> localhost salix_chat_session.py broker
+    -> LibreWolf relay WebExtension
+    -> normal user-authenticated LibreWolf / chatgpt.com
     -> rendered assistant text
     -> semantic Conversation events
     -> native Salix ConversationView
@@ -364,9 +365,14 @@ SalixWeb32 / P4
 Authentication remains inside the visible browser. The Salix protocol does not transport
 ChatGPT credentials, cookies, or browser session storage.
 
-The first pass uses whichever ChatGPT thread is already open in the worker-owned browser.
+The first pass uses whichever ChatGPT thread is already open in normal LibreWolf.
 Conversation selection, true byte-streaming response transport, and attachments are
 separate later tranches.
+
+A Selenium/GeckoDriver implementation was tested and rejected because Marionette remote
+control changed the browser state enough that ChatGPT did not load the selected
+conversation normally. The accepted baseline therefore keeps LibreWolf ordinary and
+places only the page-integration logic in the development WebExtension.
 
 As NT5-native equivalents become practical, companion responsibilities should migrate
 back toward the legacy platform without changing the application-facing conversation

@@ -13,8 +13,9 @@ so current browser/service behavior can be proven quickly, measured, and then re
 NT5-native analogues where practical.
 
 The current ChatGPT baseline uses semantic text relay rather than a general remote
-desktop. A separate localhost-only browser worker owns a visible LibreWolf session; the
-bridge brokers only message text and rendered assistant response text to/from the P4.
+desktop. A localhost-only broker communicates with a small WebExtension running inside
+the user's normal LibreWolf process; the bridge brokers only message text and rendered
+assistant response text to/from the P4.
 
 ## Transport architecture
 
@@ -95,9 +96,10 @@ The content-free probe remains a regression/diagnostic path.
 
 `/v1/conversation/message` is the current text-only browser-relay path. The bridge
 forwards the framed Salix request to `salix_chat_session.py` over localhost. That
-worker owns a visible LibreWolf instance, uses the ChatGPT conversation currently open
-there, and returns the rendered assistant response text. The bridge reframes that text
-as ordinary `SALIX-CONVERSATION/1` semantic events for the native P4 client.
+broker queues the request for the LibreWolf relay WebExtension, which uses the ChatGPT
+conversation currently open in the user's normal browser process and returns the rendered
+assistant response text. The bridge reframes that text as ordinary
+`SALIX-CONVERSATION/1` semantic events for the native P4 client.
 
 See `docs/BROWSER_PROBE.md` for the Browser Probe workflow and limits.
 
@@ -132,22 +134,30 @@ backend. `SALIX_BRIDGE_PORT` defaults to `8765`.
 
 ## Starting the companion
 
-On the modern machine, install the browser-worker dependency once:
+Run LibreWolf normally with the profile already used for ChatGPT.
 
-```bat
-tools\setup_chat_session.bat
+Load the development relay extension from:
+
+```text
+about:debugging#/runtime/this-firefox
 ```
 
-Then start the localhost-only LibreWolf worker:
+Choose **Load Temporary Add-on...** and select:
+
+```text
+tools\librewolf_chat_relay_extension\manifest.json
+```
+
+Reload/open the desired ChatGPT thread after loading the extension so its content script
+is active.
+
+Start the localhost broker:
 
 ```text
 python tools/salix_chat_session.py
 ```
 
-The worker auto-detects common LibreWolf install locations, or accepts
-`--browser C:\path\to\librewolf.exe`. It owns a dedicated persistent profile by
-default. Authentication is manual inside the visible browser window; after login, open
-the ChatGPT thread to use.
+It binds only to `127.0.0.1:8766` and does not launch or remotely control LibreWolf.
 
 In a second terminal start the P4-facing listener:
 
@@ -156,10 +166,9 @@ python tools/salix_bridge.py --host 0.0.0.0 --port 8765
 ```
 
 Binding the bridge to `0.0.0.0` permits LAN access. Keep the host firewall rule narrowly
-scoped to the Pentium 4 source address. The browser worker itself remains bound only to
-localhost.
+scoped to the Pentium 4 source address. Port 8766 remains localhost-only.
 
-`GET /v1/health` now advertises the current relay state:
+`GET /v1/health` advertises the current relay state:
 
 ```text
 conversation_probe=enabled
@@ -174,23 +183,9 @@ conversation_transport_security=trusted_lan
 conversation_browser_session=ready
 ```
 
-The final field is not `ready` until the worker is reachable and the ChatGPT composer
-is visible in LibreWolf. The P4 backend rejects the real-content path until that health
-contract matches.
+The final field becomes `ready` only when the localhost broker has a recent heartbeat
+from the WebExtension and the extension can see the ChatGPT composer in an open tab.
 
-## Starting SalixWeb32
-
-The normal development path uses the ignored repository-root
-`salixweb32.local.ini` created from `salixweb32.local.ini.example`. This lets
-Visual Studio .NET 2003 launch the correct remote backend without re-entering
-environment variables for each shell.
-
-Environment variables remain supported as explicit overrides.
-
-The Browser Probe does not perform a real Internet fetch during SalixWeb32 startup.
-The user explicitly presses `Go` in the Browser workspace.
-
-Remote mode uses a longer bounded bridge receive timeout so the companion has enough time to complete a modern HTTPS request while still failing cleanly if the companion or target becomes unresponsive.
 
 ## Security boundary
 

@@ -1,0 +1,35 @@
+{
+  "manifest_version": 2,
+  "name": "SalixWeb32 Chat Relay",
+  "version": "0.1.0",
+  "description": "Relays the currently open ChatGPT conversation to the local SalixWeb32 companion without Marionette/WebDriver.",
+  "permissions": [
+    "tabs",
+    "http://127.0.0.1:8766/*",
+    "https://chatgpt.com/*",
+    "https://www.chatgpt.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://www.chatgpt.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "salix-chat-relay@salixweb32.local",
+      "strict_min_version": "109.0"
+    }
+  }
+}

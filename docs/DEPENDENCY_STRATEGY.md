@@ -35,7 +35,8 @@ Salix-owned backend/network contracts
 trusted-LAN companion
         |
         +-- temporary modern HTTPS/browser reference behavior
-        +-- visible LibreWolf ChatGPT session worker
+        +-- localhost chat-session broker
+        +-- normal LibreWolf + small relay WebExtension
         `-- other development-only compatibility scaffolding
         |
         v

@@ -462,7 +462,9 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] validate the host content-dispatch boundary on the real P4,
 - [x] preserve the content-free Conversation probe as a regression/diagnostic path,
 - [x] evolving native Debug diagnostics submenu implemented and target-validated,
-- [x] add a separate localhost-only LibreWolf session worker on the modern companion,
+- [x] add a localhost-only chat-session broker on the modern companion,
+- [x] add a normal-LibreWolf development WebExtension so ChatGPT relay does not require
+  Selenium/GeckoDriver/Marionette browser automation,
 - [x] add a trusted-LAN text-only browser-relay path without forwarding credentials,
   cookies, browser session state, or attachments,
 - [ ] validate the LibreWolf browser relay end-to-end on the real P4,

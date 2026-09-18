@@ -563,25 +563,34 @@ surface for future feature probes.
 
 The next gate is the first useful text-in/text-out ChatGPT baseline.
 
+The original Selenium/GeckoDriver approach was rejected after real testing because
+LibreWolf entered Marionette remote-control mode and ChatGPT would not load the selected
+conversation normally. The current baseline therefore uses a normal LibreWolf process
+plus a temporary development WebExtension.
+
 Modern companion preparation:
 
 1. Pull the same commit on the modern machine.
-2. Run `tools\setup_chat_session.bat` once to install/update Selenium.
-3. Close ordinary LibreWolf so its active profile is not locked.
-4. Start `python tools\salix_chat_session.py`.
-5. Confirm the worker reports `installed LibreWolf per-install default profile` and
-   prints the same profile LibreWolf itself uses for the normal installation. If multiple
-   per-install defaults are discovered, select the correct one explicitly with
-   `--profile` rather than guessing.
-6. Confirm the visible automated LibreWolf opens with the existing authenticated ChatGPT
-   session. Do not perform another login if it does not.
-7. Open the desired ChatGPT thread if needed.
-8. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
-9. Confirm the bridge reports browser-relay text mode and the worker endpoint.
+2. Start LibreWolf normally with the user's normal authenticated profile.
+3. Open `about:debugging#/runtime/this-firefox`.
+4. Click **Load Temporary Add-on...** and select
+   `tools\librewolf_chat_relay_extension\manifest.json`.
+5. Reload/open the desired ChatGPT conversation after loading the extension so the
+   content script is active.
+6. Confirm there is **no Marionette/WebDriver remote-control banner**.
+7. Start `python tools\salix_chat_session.py`.
+8. Confirm the worker reports
+   `Browser control : normal LibreWolf WebExtension (no Marionette)`.
+9. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 10. Run `python tools\test_chat_relay.py` and require
     `conversation_browser_session=ready`.
-11. Optionally run the same helper with `--message` to prove the complete
-    bridge -> worker -> LibreWolf -> ChatGPT -> bridge loop before involving the P4.
+11. Run:
+    `python tools\test_chat_relay.py --message "Hello from the Salix relay smoke test"`.
+12. Confirm the text appears in the already-open ChatGPT conversation in normal
+    LibreWolf.
+13. Confirm the real assistant response returns to the smoke-test terminal through
+    `SALIX-CONVERSATION/1` semantic events.
+14. Send a second smoke-test message to prove the browser session remains reusable.
 
 P4 validation:
 
@@ -593,10 +602,11 @@ P4 validation:
 5. Use `Options -> Debug -> Copy Diagnostic Report` and confirm:
    `mode content | transport trusted-lan | text yes | attachments no | credentials no | session no`.
 6. Send `Hello from Pentium 4`.
-7. Confirm the text appears in the already-open ChatGPT conversation in LibreWolf.
+7. Confirm the text appears in the already-open ChatGPT conversation in normal
+   LibreWolf.
 8. Wait for the real assistant response to complete.
 9. Confirm the returned response appears as a native Remote message in SalixWeb32.
-10. Send a second message to prove the worker/browser session remains reusable.
+10. Send a second message to prove the relay remains reusable.
 11. Confirm Browser Probe still works independently.
 12. Confirm no attachment, credential, cookie, or browser-session material is forwarded
     by either companion log.
@@ -606,8 +616,9 @@ returns the completed text to the bridge. The bridge divides it into semantic
 `text_delta` events that Salix releases incrementally. True generation-time byte
 streaming is a later optimization and is not required for this first pass.
 
-If the worker reports that the composer is unavailable, use the visible LibreWolf window
-to finish login/open a ChatGPT thread, then retry after the health check becomes ready.
+If the worker reports `extension_not_connected`, the temporary extension is not
+currently loaded/heartbeating. If it reports `chatgpt_composer_not_ready`, ensure the
+ChatGPT tab is open and reload it after loading the extension.
 
 
 ## Persistent file-location regression — pending target validation

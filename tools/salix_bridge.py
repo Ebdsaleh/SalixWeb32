@@ -919,7 +919,7 @@ def main() -> int:
     print("Probe address family  : IPv4")
     print("Conversation mode     : browser-relay text baseline")
     print(
-        "Chat browser worker   : "
+        "Chat session broker   : "
         f"http://{CHAT_WORKER_HOST}:{CHAT_WORKER_PORT}"
     )
     print("Message forwarding    : text enabled on trusted development LAN")

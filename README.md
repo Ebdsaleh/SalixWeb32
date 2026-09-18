@@ -139,11 +139,12 @@ completed positive real-target passes. That content-free probe remains available
 diagnostic path.
 
 The current experimental baseline goes one step further: `salix_bridge.py` can relay
-text-only Conversation requests to a separate localhost-only
-`tools/salix_chat_session.py` worker. That worker owns a visible LibreWolf instance on
-the modern companion machine. The user authenticates directly inside LibreWolf; Salix
-does not receive ChatGPT credentials, cookies, or browser session storage. Only typed
-message text and rendered assistant response text cross the trusted development LAN.
+text-only Conversation requests to a localhost-only
+`tools/salix_chat_session.py` broker. A small development WebExtension running inside
+the user's **normal LibreWolf process** talks to that broker; no Selenium/Marionette
+browser process is used. The user authenticates normally in LibreWolf, while Salix does
+not receive ChatGPT credentials, cookies, or browser session storage. Only typed message
+text and rendered assistant response text cross the trusted development LAN.
 
 The modern companion is development scaffolding and a behavioral reference, not the
 authoritative SalixWeb32 build environment. The product executable and required native

@@ -274,9 +274,12 @@ modern companion process
   +-- Browser Probe modern HTTPS fetch
   +-- salix_bridge.py
   |      |
-  |      `-- localhost salix_chat_session.py
+  |      `-- localhost salix_chat_session.py broker
+  |              ^
   |              |
-  |              `-- visible LibreWolf / current ChatGPT session
+  |       LibreWolf relay WebExtension
+  |              |
+  |              `-- normal LibreWolf / current ChatGPT session
   `-- other temporary reference/compatibility work
 ```
 
