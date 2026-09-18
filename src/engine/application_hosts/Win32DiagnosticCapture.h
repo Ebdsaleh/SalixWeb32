@@ -95,6 +95,72 @@ class Win32DiagnosticCapture {
             return true;
         }
 
+        static bool export_browser_report(
+            View* application_view,
+            std::string& report_path,
+            std::string& error_text
+        ) {
+            report_path.clear();
+            error_text.clear();
+
+            if (application_view == 0) {
+                error_text = "The SalixWeb32 application view is not available.";
+                return false;
+            }
+
+            std::string diagnostics_directory;
+            if (!get_diagnostics_directory(
+                    diagnostics_directory,
+                    error_text
+                )) {
+                return false;
+            }
+
+            SYSTEMTIME local_time;
+            GetLocalTime(&local_time);
+
+            char timestamp[80];
+            sprintf(
+                timestamp,
+                "SalixWeb32-Browser-%04u%02u%02u-%02u%02u%02u-%03u.txt",
+                (unsigned int)local_time.wYear,
+                (unsigned int)local_time.wMonth,
+                (unsigned int)local_time.wDay,
+                (unsigned int)local_time.wHour,
+                (unsigned int)local_time.wMinute,
+                (unsigned int)local_time.wSecond,
+                (unsigned int)local_time.wMilliseconds
+            );
+
+            report_path = diagnostics_directory;
+            report_path += "\\";
+            report_path += timestamp;
+
+            std::string report;
+            if (
+                !application_view->build_browser_diagnostic_report(report) ||
+                report.empty()
+            ) {
+                error_text =
+                    "No Browser diagnostic data is available to export.";
+                report_path.clear();
+                return false;
+            }
+
+            report += "\r\nExport\r\n------\r\nReport: ";
+            report += report_path;
+            report += "\r\n";
+
+            if (!write_text_file(report_path.c_str(), report)) {
+                error_text =
+                    "The Browser diagnostic report could not be written.";
+                report_path.clear();
+                return false;
+            }
+
+            return true;
+        }
+
     private:
         static bool get_diagnostics_directory(
             std::string& directory,

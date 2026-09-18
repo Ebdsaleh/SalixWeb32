@@ -70,6 +70,8 @@ It contains:
 - backend/capability/status diagnostics,
 - `Summary`, `Headers`, `Raw`, and `Extracted` views,
 - a right-aligned `Copy` button for the currently selected view,
+- `Options -> Export Browser Diagnostic Report...` for one-click export of all
+  four probe sections,
 - selectable output text,
 - a vertical scrollbar and mouse-wheel scrolling when the current output is taller than the viewport.
 
@@ -94,7 +96,13 @@ Raw       -> complete captured raw section
 Extracted -> complete extracted-text section
 ```
 
-This is intentionally different from the on-screen display limit. Ordinary probe sections remain capped at 32 KiB for presentation. Raw uses a
+This is intentionally different from the on-screen display limit.
+
+For repeatable diagnostics, `Options -> Export Browser Diagnostic Report...` writes
+a timestamped text file under `diagnostics/` containing Browser metadata plus the
+complete Summary, Headers, Raw, and Extracted cached sections in one operation. It does
+not trigger another network request, use the clipboard, or force the full Raw body
+through the on-screen renderer. Ordinary probe sections remain capped at 32 KiB for presentation. Raw uses a
 much smaller 1 KiB hard-wrapped preview because minified HTML is exceptionally
 expensive for the current legacy formatted-text renderer. `Copy` still uses the
 complete captured Raw section retained by the view cache. This makes it practical to paste probe results directly into text files without photographing every screen.

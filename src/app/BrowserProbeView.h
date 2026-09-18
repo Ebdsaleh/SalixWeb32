@@ -80,6 +80,22 @@ class BrowserProbeView : public Panel {
 
         const char* get_current_output_text() const;
 
+        const std::string& get_summary_output_text() const {
+            return summary_output_text;
+        }
+
+        const std::string& get_headers_output_text() const {
+            return headers_output_text;
+        }
+
+        const std::string& get_raw_output_text() const {
+            return raw_output_text;
+        }
+
+        const std::string& get_extracted_output_text() const {
+            return extracted_output_text;
+        }
+
         void attach_native_controls(NativeControlHost* control_host);
         void detach_native_controls();
 

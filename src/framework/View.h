@@ -28,6 +28,13 @@ class View {
             return false;
         }
 
+        virtual bool build_browser_diagnostic_report(
+            std::string& report
+        ) const {
+            report.clear();
+            return false;
+        }
+
         virtual void layout(
             int width,
             int height,

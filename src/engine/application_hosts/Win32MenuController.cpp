@@ -33,6 +33,7 @@ namespace {
 
         menu_options_conversation,
         menu_options_runtime,
+        menu_options_browser_diagnostic_report,
         menu_options_diagnostic_screenshot,
 
         menu_help_about
@@ -40,6 +41,7 @@ namespace {
 
     struct DiagnosticDialogState {
         std::string diagnostics_directory;
+        std::string dialog_title;
     };
 
     void append_menu_item(
@@ -118,7 +120,9 @@ namespace {
                     MessageBoxA(
                         dialog_handle,
                         "Windows could not open the diagnostics folder.",
-                        "SalixWeb32 Diagnostic Capture",
+                        state->dialog_title.empty()
+                            ? "SalixWeb32 Diagnostics"
+                            : state->dialog_title.c_str(),
                         MB_OK | MB_ICONERROR
                     );
                 } else {
@@ -204,10 +208,11 @@ namespace {
         );
     }
 
-    void show_diagnostic_capture_success(
+    void show_diagnostic_file_success(
         HWND owner_handle,
-        const std::string& screenshot_path,
-        const std::string& report_path
+        const char* dialog_title,
+        const std::string& message,
+        const std::string& file_path
     ) {
         HINSTANCE instance_handle = NULL;
         if (owner_handle != NULL) {
@@ -217,13 +222,6 @@ namespace {
             );
         }
 
-        std::string message(
-            "Diagnostic capture saved successfully.\r\n\r\nScreenshot: "
-        );
-        message += screenshot_path;
-        message += "\r\nReport: ";
-        message += report_path;
-
         if (
             instance_handle == NULL ||
             !register_diagnostic_dialog_class(instance_handle)
@@ -231,19 +229,22 @@ namespace {
             MessageBoxA(
                 owner_handle,
                 message.c_str(),
-                "SalixWeb32 Diagnostic Capture",
+                dialog_title,
                 MB_OK | MB_ICONINFORMATION
             );
             return;
         }
 
         DiagnosticDialogState state;
-        state.diagnostics_directory = get_parent_directory(report_path);
+        state.diagnostics_directory = get_parent_directory(file_path);
+        state.dialog_title = dialog_title == 0
+            ? "SalixWeb32 Diagnostics"
+            : dialog_title;
 
         HWND dialog_handle = CreateWindowExA(
             WS_EX_DLGMODALFRAME,
             diagnostic_dialog_class,
-            "SalixWeb32 Diagnostic Capture",
+            dialog_title,
             WS_POPUP | WS_CAPTION | WS_SYSMENU,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
@@ -259,7 +260,7 @@ namespace {
             MessageBoxA(
                 owner_handle,
                 message.c_str(),
-                "SalixWeb32 Diagnostic Capture",
+                dialog_title,
                 MB_OK | MB_ICONINFORMATION
             );
             return;
@@ -383,6 +384,43 @@ namespace {
         if (repost_quit) {
             PostQuitMessage(quit_code);
         }
+    }
+
+    void show_diagnostic_capture_success(
+        HWND owner_handle,
+        const std::string& screenshot_path,
+        const std::string& report_path
+    ) {
+        std::string message(
+            "Diagnostic capture saved successfully.\r\n\r\nScreenshot: "
+        );
+        message += screenshot_path;
+        message += "\r\nReport: ";
+        message += report_path;
+
+        show_diagnostic_file_success(
+            owner_handle,
+            "SalixWeb32 Diagnostic Capture",
+            message,
+            report_path
+        );
+    }
+
+    void show_browser_report_success(
+        HWND owner_handle,
+        const std::string& report_path
+    ) {
+        std::string message(
+            "Browser diagnostic report saved successfully.\r\n\r\nReport: "
+        );
+        message += report_path;
+
+        show_diagnostic_file_success(
+            owner_handle,
+            "SalixWeb32 Browser Diagnostic Report",
+            message,
+            report_path
+        );
     }
 }
 
@@ -541,6 +579,11 @@ bool Win32MenuController::create_menu_bar() {
     AppendMenuA(options_menu, MF_SEPARATOR, 0, NULL);
     append_menu_item(
         options_menu,
+        menu_options_browser_diagnostic_report,
+        "Export &Browser Diagnostic Report..."
+    );
+    append_menu_item(
+        options_menu,
         menu_options_diagnostic_screenshot,
         "Take &Diagnostic Screenshot"
     );
@@ -660,6 +703,38 @@ bool Win32MenuController::handle_menu_command(int command_id) {
                 application_command_show_runtime
             );
             return true;
+
+        case menu_options_browser_diagnostic_report: {
+            std::string report_path;
+            std::string error_text;
+
+            if (Win32DiagnosticCapture::export_browser_report(
+                    application_view,
+                    report_path,
+                    error_text
+                )) {
+                show_browser_report_success(
+                    window_handle,
+                    report_path
+                );
+            } else {
+                std::string message(
+                    "Browser diagnostic report export failed."
+                );
+                if (!error_text.empty()) {
+                    message += "\r\n\r\n";
+                    message += error_text;
+                }
+
+                MessageBoxA(
+                    window_handle,
+                    message.c_str(),
+                    "SalixWeb32 Browser Diagnostic Report",
+                    MB_OK | MB_ICONERROR
+                );
+            }
+            return true;
+        }
 
         case menu_options_diagnostic_screenshot: {
             std::string screenshot_path;

@@ -39,6 +39,7 @@ Options
     Conversation
     Runtime Diagnostics
     ----------------
+    Export Browser Diagnostic Report...
     Take Diagnostic Screenshot
 
 Help
@@ -48,6 +49,22 @@ Help
 The Edit commands reuse the existing framework keyboard/character command paths rather than implementing a second editor command system. Undo, Cut, Copy, Paste, and Select All therefore retain the same active-control semantics as their keyboard equivalents.
 
 `File -> Attach File...` uses the same `FileDialog`/composer attachment path used by the existing attachment button. `Ctrl+O` is intercepted by the Win32 menu controller and dispatches the same semantic Attach command. `Options` changes the active top-level `TabView` page through application commands.
+
+## Browser diagnostic report
+
+`Options -> Export Browser Diagnostic Report...` writes a timestamped text-only report:
+
+```text
+diagnostics/SalixWeb32-Browser-YYYYMMDD-HHMMSS-mmm.txt
+```
+
+The export contains Browser title/URL/backend/capability/status metadata followed by the
+complete cached `Summary`, `Headers`, `Raw`, and `Extracted` sections. The action
+does not perform another web request, does not use the clipboard, and does not render the
+complete Raw payload. It exists specifically so target diagnostics can be captured in a
+single repeatable operation instead of manually switching modes and pasting into Notepad.
+
+After export, the same NT5-compatible result dialog offers `Go to Files` and `OK`.
 
 ## Diagnostic screenshot
 

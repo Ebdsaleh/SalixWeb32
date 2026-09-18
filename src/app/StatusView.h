@@ -120,6 +120,55 @@ class StatusView : public View {
             return true;
         }
 
+        virtual bool build_browser_diagnostic_report(
+            std::string& report
+        ) const {
+            const std::string& summary =
+                browser_probe_view.get_summary_output_text();
+            const std::string& headers =
+                browser_probe_view.get_headers_output_text();
+            const std::string& raw =
+                browser_probe_view.get_raw_output_text();
+            const std::string& extracted =
+                browser_probe_view.get_extracted_output_text();
+
+            report.clear();
+            report.reserve(
+                summary.size() +
+                headers.size() +
+                raw.size() +
+                extracted.size() +
+                2048
+            );
+
+            report += "SalixWeb32 Browser Diagnostic Report\r\n";
+            report += "====================================\r\n\r\n";
+            report += "Title: ";
+            report += browser_probe_view.get_title_text();
+            report += "\r\n";
+            report += "URL: ";
+            report += browser_probe_view.get_address_text();
+            report += "\r\n";
+            report += browser_probe_view.get_backend_text();
+            report += "\r\n";
+            report += browser_probe_view.get_capability_text();
+            report += "\r\n";
+            report += browser_probe_view.get_status_text();
+            report += "\r\n\r\n";
+
+            report += "Summary:\r\n";
+            report += summary;
+            report += "\r\n\r\nHeaders:\r\n";
+            report += headers;
+            report += "\r\n\r\nRaw:\r\n";
+            report += raw;
+            report += "\r\n\r\nExtracted:\r\n";
+            report += extracted;
+            report += "\r\n";
+
+            return true;
+        }
+
         virtual void layout(int width, int height, TextMetrics* text_metrics = 0);
         virtual bool handle_event(const UIEvent& event);
         virtual void render(ComponentRenderer& renderer);
