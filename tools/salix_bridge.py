@@ -252,6 +252,8 @@ def _parse_conversation_probe_request(raw_body: bytes) -> int:
         "request_id",
         "text_forwarded",
         "attachments_forwarded",
+        "credentials_forwarded",
+        "session_forwarded",
     }
 
     for line in lines[1:]:
@@ -272,6 +274,12 @@ def _parse_conversation_probe_request(raw_body: bytes) -> int:
 
     if values.get("attachments_forwarded") != "0":
         raise ValueError("conversation probe must not forward attachments")
+
+    if values.get("credentials_forwarded") != "0":
+        raise ValueError("conversation probe must not forward credentials")
+
+    if values.get("session_forwarded") != "0":
+        raise ValueError("conversation probe must not forward session material")
 
     try:
         request_id = int(values.get("request_id", "0"))
@@ -315,6 +323,9 @@ def _frame_conversation_probe(request_id: int) -> bytes:
         "mode=probe",
         "text_forwarded=0",
         "attachments_forwarded=0",
+        "credentials_forwarded=0",
+        "session_forwarded=0",
+        "transport_security=plaintext",
     ]
 
     for index, (event_type, event_text) in enumerate(encoded_events):
@@ -327,6 +338,11 @@ def _frame_conversation_probe(request_id: int) -> bytes:
 
 def _perform_conversation_probe(raw_body: bytes) -> bytes:
     request_id = _parse_conversation_probe_request(raw_body)
+    print(
+        "[conversation] probe request "
+        f"id={request_id} "
+        "text=0 attachments=0 credentials=0 session=0"
+    )
     return _frame_conversation_probe(request_id)
 
 
@@ -469,7 +485,13 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
                 "service=salix_bridge\n"
                 "probe=enabled\n"
                 "conversation_probe=enabled\n"
-                f"conversation_protocol={CONVERSATION_PROTOCOL}\n",
+                f"conversation_protocol={CONVERSATION_PROTOCOL}\n"
+                "conversation_mode=probe_only\n"
+                "conversation_text_forwarding=disabled\n"
+                "conversation_attachment_forwarding=disabled\n"
+                "conversation_credential_forwarding=disabled\n"
+                "conversation_session_forwarding=disabled\n"
+                "conversation_transport_security=plaintext\n",
             )
             return
 
@@ -597,7 +619,10 @@ def main() -> int:
     print(f"Listening             : http://{args.host}:{args.port}")
     print("Modern HTTPS probe    : enabled (unauthenticated GET only)")
     print("Probe address family  : IPv4")
+    print("Conversation mode     : probe-only")
     print("Conversation probe    : semantic events; message text not forwarded")
+    print("Sensitive forwarding  : attachments/credentials/session disabled")
+    print("P4 conversation link  : plaintext LAN; real content blocked")
     print("Credentials/cookies   : never forwarded by probe paths")
     print("Press Ctrl+C to stop.")
 

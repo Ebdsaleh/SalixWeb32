@@ -133,13 +133,13 @@ The Conversation workspace now has a provider-neutral semantic service contract.
 local placeholder path has been exercised on the real Pentium 4, and remote bridge mode
 selects a separate `RemoteConversationBackend` proof.
 
-The first remote target pass exposed a companion capability/deployment mismatch cleanly:
-Browser Probe remained reachable while Conversation reported that the companion lacked
-the new probe capability. The asynchronous `/v1/health` negotiation is therefore doing
-its job: SalixWeb32 no longer equates "host reachable" with "Conversation protocol
-available". A complete `SALIX-CONVERSATION/1` response still requires a current,
-restarted companion. This first remote proof sends **no typed message text, attachment
-paths, credentials, cookies, or session data** over the plaintext LAN.
+The remote semantic Conversation probe has now completed a positive real-target pass:
+the P4 negotiated `SALIX-CONVERSATION/1`, the current companion accepted repeated
+Conversation probes with HTTP 200, and Browser Probe remained operational in the same
+run. The next security tranche makes the existing privacy rule part of protocol
+readiness: the companion must advertise probe-only/plaintext mode with text, attachment,
+credential, and session forwarding disabled. Real conversation content remains blocked
+until a separate approved secure content/session profile exists.
 
 File storage now follows the same explicit-ownership philosophy. File dialogs no longer
 own process-wide path state: the attachment picker uses `OFN_NOCHANGEDIR`, diagnostics

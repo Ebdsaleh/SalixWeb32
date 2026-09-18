@@ -143,11 +143,19 @@ The current startup banner reports the bridge, Browser Probe, and Conversation p
 ```text
 conversation_probe=enabled
 conversation_protocol=SALIX-CONVERSATION/1
+conversation_mode=probe_only
+conversation_text_forwarding=disabled
+conversation_attachment_forwarding=disabled
+conversation_credential_forwarding=disabled
+conversation_session_forwarding=disabled
+conversation_transport_security=plaintext
 ```
 
 The P4 remote Conversation backend checks those values asynchronously during startup.
 This prevents an older/stale companion process from being presented as Conversation-ready
-merely because the shared host/port is reachable.
+merely because the shared host/port is reachable. Readiness also requires the explicit
+probe-only security profile; a companion that claims content forwarding or a different
+transport-security state is rejected rather than trusted implicitly.
 
 ## Starting SalixWeb32
 
@@ -208,16 +216,24 @@ one redirect, 497574 captured bytes, 16 script signals, one form, and 11 links.
 Raw export correctness was also verified: the copied Raw section contained the actual
 HTML document rather than the response-header block.
 
-A September 19, 2026 Conversation target pass then confirmed that Browser Probe and the
-remote Conversation backend can be selected at the same time, but the running companion
-returned HTTP 404 for `POST /v1/conversation/probe`. Browser Probe still returned a
-real ChatGPT HTTP 200 response in the same session, reaching the 524288-byte capture cap.
-That combination isolates the failure to Conversation-route/capability compatibility
-rather than general P4-to-companion connectivity.
+An earlier September 19, 2026 Conversation target pass confirmed that Browser Probe and
+the remote Conversation backend can be selected at the same time, but a stale companion
+returned HTTP 404 for `POST /v1/conversation/probe`. That failure drove the explicit
+Conversation capability/version handshake.
 
-The client now performs an explicit Conversation capability/version handshake before
-accepting a probe request and reports a clear update/restart message when the companion
-does not advertise the expected route/protocol.
+A later September 19 target pass with the current restarted companion closed the positive
+path:
+
+- `GET /v1/health` returned HTTP 200,
+- two `POST /v1/conversation/probe` requests returned HTTP 200,
+- the P4 diagnostic reported
+  `Remote Conversation Bridge Backend | SALIX-CONVERSATION/1 ready`,
+- the same run kept the Remote Bridge Web Backend initialized,
+- Browser Probe independently returned a real ChatGPT HTTP 200 response.
+
+The semantic probe is therefore validated end-to-end on the real Server 2003/Pentium 4
+target. The next gate is security: real draft text, attachments, credentials, and session
+material remain blocked until an approved content-capable transport profile exists.
 
 ## Current limits
 

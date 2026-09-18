@@ -177,6 +177,8 @@ mode=probe
 request_id=<Salix-generated ID>
 text_forwarded=0
 attachments_forwarded=0
+credentials_forwarded=0
+session_forwarded=0
 ```
 
 The typed draft remains local. The companion returns a length-framed event sequence
@@ -200,12 +202,21 @@ and requires the response to identify `SALIX-BRIDGE/1` with:
 status=ok
 conversation_probe=enabled
 conversation_protocol=SALIX-CONVERSATION/1
+conversation_mode=probe_only
+conversation_text_forwarding=disabled
+conversation_attachment_forwarding=disabled
+conversation_credential_forwarding=disabled
+conversation_session_forwarding=disabled
+conversation_transport_security=plaintext
 ```
 
 Until that succeeds, the backend reports a capability-checking, incompatible, or
-unreachable state and will not send a Conversation probe. If a send is attempted after
-an incompatible/unreachable result, the backend rechecks health so an updated/restarted
-companion can recover without restarting SalixWeb32.
+unreachable state and will not send a Conversation probe. The security-policy fields are
+part of readiness, not advisory diagnostics: a companion that does not explicitly
+advertise probe-only operation, disabled sensitive forwarding, and plaintext transport is
+rejected as incompatible. If a send is attempted after an incompatible/unreachable
+result, the backend rechecks health so an updated/restarted companion can recover without
+restarting SalixWeb32.
 
 This behavior was added after the first real remote target pass found that the P4 could
 still use Browser Probe while `POST /v1/conversation/probe` returned HTTP 404. Host
@@ -221,12 +232,20 @@ a semantic streaming **contract proof**, not yet byte-streaming HTTP/SSE transpo
 
 The current companion LAN transport remains plaintext and is **not** approved for
 credentials, session cookies, private conversation traffic, or attachment uploads.
-The remote semantic probe is permitted only because it intentionally omits those data.
 
-Creating the semantic conversation contract does not change that rule.
+That rule is now enforced in protocol metadata as well as implementation behavior:
 
-A real remote conversation backend must establish an appropriate credential/session
-boundary before private content is transmitted.
+- health negotiation must advertise `conversation_mode=probe_only`,
+- text, attachment, credential, and session forwarding must all advertise `disabled`,
+- the transport must identify itself as `plaintext`,
+- every probe request carries explicit zero-valued forwarding flags,
+- every framed response must echo probe mode, the zero-valued forwarding flags, and
+  `transport_security=plaintext`,
+- a mismatch is rejected before semantic events reach the application.
+
+The remote semantic probe is permitted only because it intentionally omits sensitive
+data. A future content-capable backend must introduce a distinct approved security
+profile; it must not weaken the probe-only assertions in place.
 
 ## Provider independence
 

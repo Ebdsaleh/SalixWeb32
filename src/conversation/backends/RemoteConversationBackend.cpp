@@ -125,6 +125,17 @@ namespace {
             return false;
         }
 
+        if (
+            get_protocol_value(metadata, "mode") != "probe" ||
+            get_protocol_value(metadata, "text_forwarded") != "0" ||
+            get_protocol_value(metadata, "attachments_forwarded") != "0" ||
+            get_protocol_value(metadata, "credentials_forwarded") != "0" ||
+            get_protocol_value(metadata, "session_forwarded") != "0" ||
+            get_protocol_value(metadata, "transport_security") != "plaintext"
+        ) {
+            return false;
+        }
+
         unsigned long request_id =
             get_protocol_unsigned(metadata, "request_id");
 
@@ -393,18 +404,21 @@ bool RemoteConversationBackend::submit_request(
         return false;
     }
 
-    // SECURITY: This first remote proof deliberately does not serialize the
-    // draft text, attachment count, attachment paths, credentials, cookies,
-    // or session data. Only the Salix request ID and fixed probe flags cross
-    // the current plaintext trusted-LAN transport.
-    char body[256];
+    // SECURITY: The current remote backend is protocol-gated to probe-only
+    // operation. It never serializes the draft text, attachment count/paths,
+    // credentials, cookies, or session material onto the plaintext LAN.
+    // A future content-capable transport must use a different approved
+    // security profile rather than weakening these assertions.
+    char body[320];
     sprintf(
         body,
         "%s\n"
         "mode=probe\n"
         "request_id=%lu\n"
         "text_forwarded=0\n"
-        "attachments_forwarded=0\n",
+        "attachments_forwarded=0\n"
+        "credentials_forwarded=0\n"
+        "session_forwarded=0\n",
         conversation_protocol,
         request_id
     );
@@ -454,7 +468,8 @@ bool RemoteConversationBackend::take_event(
         pending_operation == operation_none &&
         capability_state == capability_ready
     ) {
-        status_text = "SALIX-CONVERSATION/1 ready";
+        status_text =
+            "SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN";
     }
 
     return true;
@@ -541,9 +556,40 @@ void RemoteConversationBackend::apply_health_response(
         return;
     }
 
+    if (
+        get_protocol_value(body, "conversation_mode") !=
+            "probe_only" ||
+        get_protocol_value(
+            body,
+            "conversation_text_forwarding"
+        ) != "disabled" ||
+        get_protocol_value(
+            body,
+            "conversation_attachment_forwarding"
+        ) != "disabled" ||
+        get_protocol_value(
+            body,
+            "conversation_credential_forwarding"
+        ) != "disabled" ||
+        get_protocol_value(
+            body,
+            "conversation_session_forwarding"
+        ) != "disabled" ||
+        get_protocol_value(
+            body,
+            "conversation_transport_security"
+        ) != "plaintext"
+    ) {
+        set_capability_status(
+            capability_incompatible,
+            "conversation security policy mismatch; update/restart companion"
+        );
+        return;
+    }
+
     set_capability_status(
         capability_ready,
-        "SALIX-CONVERSATION/1 ready"
+        "SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN"
     );
 }
 

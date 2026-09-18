@@ -465,32 +465,65 @@ ChatGPT `HTTP 403 Forbidden` Cloudflare challenge response with redacted Set-Coo
 headers. That is an upstream response, not evidence of local bridge failure, and further
 supports that the Conversation warning was capability-specific.
 
-The **positive** `SALIX-CONVERSATION/1 ready` path remains pending.
+### Conversation capability handshake — positive path validated
+
+The September 19, 2026 target pass closed the positive
+`SALIX-CONVERSATION/1` milestone on the real Windows Server 2003 / Pentium 4 target.
+
+Observed evidence:
+
+- the current Server 2022 companion advertised `SALIX-CONVERSATION/1`,
+- the P4 completed `GET /v1/health` with HTTP 200,
+- the companion accepted two `POST /v1/conversation/probe` requests with HTTP 200,
+- the P4 diagnostic reported
+  `Remote Conversation Bridge Backend | SALIX-CONVERSATION/1 ready`,
+- the same diagnostic reported the Win32 host operational and Remote Bridge Web Backend
+  initialized,
+- Browser Probe still returned a real ChatGPT `HTTP 200 OK` in the same run.
+
+This validates capability negotiation, Conversation routing, request-ID framing, semantic
+event delivery, and coexistence with Browser Probe. The probe still intentionally sends
+no draft text, attachment paths, credentials, cookies, or session material.
+
+### Probe-only security-policy gate — pending target validation
+
+The next tranche makes that privacy rule machine-checkable. `GET /v1/health` must now
+advertise:
+
+```text
+conversation_mode=probe_only
+conversation_text_forwarding=disabled
+conversation_attachment_forwarding=disabled
+conversation_credential_forwarding=disabled
+conversation_session_forwarding=disabled
+conversation_transport_security=plaintext
+```
+
+Each probe request also carries explicit zero-valued text/attachment/credential/session
+forwarding flags. The companion rejects non-zero values, and the P4 rejects framed
+responses that do not echo probe mode, all zero-valued flags, and
+`transport_security=plaintext`.
 
 Validation checklist:
 
-1. Pull the same commit on both the P4 and Server 2022 companion machine.
-2. Stop the previously running companion process.
-3. Restart:
-   `python tools\\salix_bridge.py --host 0.0.0.0 --port 8765`.
-4. Confirm the startup banner lists `SALIX-CONVERSATION/1`.
-5. Confirm `GET /v1/health` includes both
-   `conversation_probe=enabled` and
-   `conversation_protocol=SALIX-CONVERSATION/1`.
-6. Clean/Rebuild `Debug | Win32` on the P4 under VC7.1 and keep the zero-warning gate.
-7. Launch SalixWeb32 with the existing remote bridge configuration.
-8. Confirm the Conversation header progresses from capability checking to
-   `SALIX-CONVERSATION/1 ready`.
-9. Type a clearly non-sensitive test string and press Send.
-10. Confirm the companion logs `POST /v1/conversation/probe`.
-11. Confirm one native Remote message appears progressively and begins
-    `Remote semantic bridge online.`
-12. Confirm the message states that typed text, attachment paths, credentials, cookies,
-    and session data were not transmitted.
-13. Confirm Browser Probe still works before/after the Conversation probe.
-14. Capture a diagnostic screenshot/report after completion.
+1. Pull the security-gate commit on both machines.
+2. Restart the companion.
+3. Confirm its startup banner reports `Conversation mode : probe-only` and that real
+   content is blocked on the plaintext P4 link.
+4. Clean/Rebuild `Debug | Win32` on the P4 with zero errors and zero warnings.
+5. Confirm the Conversation header reaches
+   `SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`.
+6. Send a non-sensitive probe message.
+7. Confirm the companion logs a safe audit line containing
+   `text=0 attachments=0 credentials=0 session=0`.
+8. Confirm `POST /v1/conversation/probe` returns HTTP 200 and the native Remote message
+   still completes.
+9. Confirm Browser Probe still works.
+10. Capture a diagnostic report showing the probe-only/plaintext status.
 
-This proof intentionally does **not** send the typed test string to the companion.
+Real conversation content remains prohibited after this validation; the following tranche
+must establish a separate approved secure content/session boundary rather than changing
+these probe-only flags.
 
 
 ## Persistent file-location regression — pending target validation
