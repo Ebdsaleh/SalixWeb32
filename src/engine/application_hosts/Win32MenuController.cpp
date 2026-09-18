@@ -12,9 +12,11 @@
 #include "Win32SettingsDialog.h"
 #include "app/ApplicationSettings.h"
 #include "framework/ApplicationCommand.h"
+#include "framework/MimeData.h"
 #include "framework/UIEvent.h"
 #include "framework/View.h"
 #include "engine/platform/win32/Win32Clipboard.h"
+#include "engine/platform/win32/Win32ApplicationPaths.h"
 
 namespace {
     const char* menu_controller_property = "SalixWeb32MenuController";
@@ -35,9 +37,12 @@ namespace {
 
         menu_options_settings,
         menu_options_conversation,
-        menu_options_runtime,
-        menu_options_browser_diagnostic_report,
-        menu_options_diagnostic_screenshot,
+
+        menu_debug_runtime,
+        menu_debug_copy_diagnostic_report,
+        menu_debug_diagnostic_capture,
+        menu_debug_browser_diagnostic_report,
+        menu_debug_open_diagnostics_folder,
 
         menu_help_about
     };
@@ -425,6 +430,61 @@ namespace {
             report_path
         );
     }
+
+
+    bool copy_diagnostic_report(
+        HWND owner_handle,
+        View* application_view
+    ) {
+        if (application_view == 0) {
+            return false;
+        }
+
+        std::string report;
+        if (
+            !application_view->build_diagnostic_report(report) ||
+            report.empty()
+        ) {
+            return false;
+        }
+
+        MimeData data;
+        data.set_text(report.c_str());
+
+        Win32Clipboard clipboard(owner_handle);
+        return clipboard.set_data(data);
+    }
+
+    bool open_diagnostics_folder(
+        HWND owner_handle,
+        ApplicationSettings* application_settings
+    ) {
+        if (application_settings == 0) {
+            return false;
+        }
+
+        const char* directory =
+            application_settings->get_diagnostics_directory();
+
+        if (
+            directory == 0 ||
+            directory[0] == '\0' ||
+            !Win32ApplicationPaths::ensure_directory_exists(directory)
+        ) {
+            return false;
+        }
+
+        HINSTANCE result = ShellExecuteA(
+            owner_handle,
+            "open",
+            directory,
+            NULL,
+            NULL,
+            SW_SHOWNORMAL
+        );
+
+        return (INT_PTR)result > 32;
+    }
 }
 
 Win32MenuController::Win32MenuController()
@@ -537,6 +597,7 @@ bool Win32MenuController::create_menu_bar() {
     HMENU file_menu = CreatePopupMenu();
     HMENU edit_menu = CreatePopupMenu();
     HMENU options_menu = CreatePopupMenu();
+    HMENU debug_menu = CreatePopupMenu();
     HMENU help_menu = CreatePopupMenu();
 
     if (
@@ -544,6 +605,7 @@ bool Win32MenuController::create_menu_bar() {
         file_menu == NULL ||
         edit_menu == NULL ||
         options_menu == NULL ||
+        debug_menu == NULL ||
         help_menu == NULL
     ) {
         if (menu_handle != NULL) {
@@ -557,6 +619,9 @@ bool Win32MenuController::create_menu_bar() {
         }
         if (options_menu != NULL) {
             DestroyMenu(options_menu);
+        }
+        if (debug_menu != NULL) {
+            DestroyMenu(debug_menu);
         }
         if (help_menu != NULL) {
             DestroyMenu(help_menu);
@@ -588,21 +653,39 @@ bool Win32MenuController::create_menu_bar() {
         menu_options_conversation,
         "&Conversation"
     );
+
     append_menu_item(
-        options_menu,
-        menu_options_runtime,
+        debug_menu,
+        menu_debug_runtime,
         "&Runtime Diagnostics"
     );
-    AppendMenuA(options_menu, MF_SEPARATOR, 0, NULL);
     append_menu_item(
-        options_menu,
-        menu_options_browser_diagnostic_report,
+        debug_menu,
+        menu_debug_copy_diagnostic_report,
+        "&Copy Diagnostic Report"
+    );
+    AppendMenuA(debug_menu, MF_SEPARATOR, 0, NULL);
+    append_menu_item(
+        debug_menu,
+        menu_debug_diagnostic_capture,
+        "Take Diagnostic &Capture"
+    );
+    append_menu_item(
+        debug_menu,
+        menu_debug_browser_diagnostic_report,
         "Export &Browser Diagnostic Report..."
     );
     append_menu_item(
+        debug_menu,
+        menu_debug_open_diagnostics_folder,
+        "&Open Diagnostics Folder"
+    );
+
+    AppendMenuA(
         options_menu,
-        menu_options_diagnostic_screenshot,
-        "Take &Diagnostic Screenshot"
+        MF_POPUP,
+        (UINT_PTR)debug_menu,
+        "&Debug"
     );
 
     append_menu_item(help_menu, menu_help_about, "&About SalixWeb32");
@@ -728,13 +811,27 @@ bool Win32MenuController::handle_menu_command(int command_id) {
             );
             return true;
 
-        case menu_options_runtime:
+        case menu_debug_runtime:
             dispatch_application_command(
                 application_command_show_runtime
             );
             return true;
 
-        case menu_options_browser_diagnostic_report: {
+        case menu_debug_copy_diagnostic_report:
+            if (!copy_diagnostic_report(
+                    window_handle,
+                    application_view
+                )) {
+                MessageBoxA(
+                    window_handle,
+                    "The diagnostic report could not be copied to the clipboard.",
+                    "SalixWeb32 Debug",
+                    MB_OK | MB_ICONERROR
+                );
+            }
+            return true;
+
+        case menu_debug_browser_diagnostic_report: {
             std::string report_path;
             std::string error_text;
 
@@ -769,7 +866,7 @@ bool Win32MenuController::handle_menu_command(int command_id) {
             return true;
         }
 
-        case menu_options_diagnostic_screenshot: {
+        case menu_debug_diagnostic_capture: {
             std::string screenshot_path;
             std::string report_path;
             std::string error_text;
@@ -805,6 +902,20 @@ bool Win32MenuController::handle_menu_command(int command_id) {
             }
             return true;
         }
+
+        case menu_debug_open_diagnostics_folder:
+            if (!open_diagnostics_folder(
+                    window_handle,
+                    application_settings
+                )) {
+                MessageBoxA(
+                    window_handle,
+                    "The diagnostics folder could not be opened.",
+                    "SalixWeb32 Debug",
+                    MB_OK | MB_ICONERROR
+                );
+            }
+            return true;
 
         case menu_help_about:
             MessageBoxA(

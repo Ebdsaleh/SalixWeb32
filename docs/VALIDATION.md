@@ -523,36 +523,63 @@ This closes the host dispatch-boundary milestone. The current remote backend rem
 unable to receive the `ConversationRequest` object through probe dispatch, and its real
 content method remains a hard refusal.
 
-### Secure transport provider ABI — pending target validation
+### Secure transport provider ABI — validated
 
-The next tranche introduces optional discovery for a future
-`SalixSecureTransport.dll`.
+The September 19, 2026 P4 pass validated the provider-absent discovery state.
 
-No DLL is expected for this validation pass. SalixWeb32 must construct an absolute path
-from its executable directory, attempt discovery without treating absence as a startup
-failure, and keep real Conversation content blocked.
+Observed evidence:
+
+- SalixWeb32 remained operational with no `SalixSecureTransport.dll` installed,
+- the diagnostic report recorded
+  `Secure transport: Salix Secure Transport Provider | not installed | real content remains blocked`,
+- the Conversation profile remained
+  `mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`,
+- the companion continued to receive only content-free Conversation probes,
+- Browser Probe remained operational and returned a real ChatGPT HTTP 200 response.
+
+This proves that secure-provider discovery is optional and fail-closed on the real
+Server 2003/Pentium 4 target. It does not yet validate a loaded TLS provider.
+
+### Options Debug diagnostics submenu — pending target validation
+
+To shorten repeated legacy-hardware feedback loops, the native Options menu now owns a
+nested `Debug` submenu:
+
+```text
+Options
+    Debug
+        Runtime Diagnostics
+        Copy Diagnostic Report
+        ----------------
+        Take Diagnostic Capture
+        Export Browser Diagnostic Report...
+        Open Diagnostics Folder
+```
+
+The submenu deliberately reuses existing diagnostic contracts rather than creating
+feature-specific report formats. `Copy Diagnostic Report` calls the active
+`View::build_diagnostic_report()` and writes the resulting plain text through the
+existing Win32 clipboard provider. Success is silent; failures remain explicit.
 
 Validation checklist:
 
 1. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
-2. Confirm no `SalixSecureTransport.dll` exists beside the executable.
-3. Launch SalixWeb32 normally.
-4. Confirm the application starts and the current Conversation probe still reaches
-   `SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`.
-5. Send a harmless probe and confirm the companion still logs only
-   `text=0 attachments=0 credentials=0 session=0`.
-6. Capture a diagnostic report.
-7. Confirm it contains:
-   `Secure transport: Salix Secure Transport Provider | not installed | real content remains blocked`.
-8. Confirm the existing Conversation security line still reports
-   `mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`.
-9. Confirm Browser Probe still returns successfully.
-10. Do not add or rename any arbitrary DLL in PATH to satisfy provider discovery; the
-    provider loader is intentionally rooted at the SalixWeb32 executable directory.
+2. Open `Options` and confirm `Debug` appears as a nested native submenu.
+3. Confirm the five expected Debug actions are present in the order documented above.
+4. Select `Runtime Diagnostics` and confirm the Runtime tab becomes active.
+5. Return to Conversation, select `Copy Diagnostic Report`, paste into Notepad, and
+   confirm the report includes runtime/host/web state, secure transport state,
+   Conversation security state, and file locations.
+6. Confirm successful copy does not interrupt the workflow with a modal dialog.
+7. Select `Open Diagnostics Folder` and confirm Explorer opens the configured folder.
+8. Select `Take Diagnostic Capture` and confirm the existing BMP+TXT capture path still
+   works.
+9. Select `Export Browser Diagnostic Report...` after a Browser Probe and confirm the
+   existing complete report still exports.
+10. Confirm Conversation probe and Browser Probe behavior remain unchanged.
 
-After this passes, the next spike is a separate x86 `SalixSecureTransport.dll` build
-using a newer NT5-capable toolset and a maintained TLS provider. The initial candidate is
-Mbed TLS 3.6.x LTS. Discovery success by itself will still not authorize real content.
+This submenu is intended to evolve with development. New entries should expose
+diagnostic/inspection actions rather than application preferences.
 
 
 ## Persistent file-location regression — pending target validation

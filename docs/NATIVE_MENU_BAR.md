@@ -39,10 +39,13 @@ Options
     Settings...
     ----------------
     Conversation
-    Runtime Diagnostics
-    ----------------
-    Export Browser Diagnostic Report...
-    Take Diagnostic Screenshot
+    Debug
+        Runtime Diagnostics
+        Copy Diagnostic Report
+        ----------------
+        Take Diagnostic Capture
+        Export Browser Diagnostic Report...
+        Open Diagnostics Folder
 
 Help
     About SalixWeb32
@@ -60,9 +63,28 @@ this view because its last-used directory is automatic navigation history rather
 storage preference. `Options` also changes the active top-level `TabView` page through
 application commands.
 
+`Options -> Debug` is the development-feedback surface. It groups diagnostics that are
+useful while feature work is being exercised on real legacy hardware without turning the
+ordinary Options menu into a growing list of engineering probes.
+
+The first Debug submenu contains:
+
+- `Runtime Diagnostics` — switches to the existing Runtime workspace,
+- `Copy Diagnostic Report` — builds the same backend-neutral report used by diagnostic
+  capture and writes it directly to the clipboard; success is intentionally silent so
+  the report can be pasted immediately into a bug/test conversation,
+- `Take Diagnostic Capture` — writes the visible-window BMP plus text report,
+- `Export Browser Diagnostic Report...` — writes the complete cached Browser Probe
+  diagnostic report,
+- `Open Diagnostics Folder` — opens the configured Diagnostics directory.
+
+Feature-specific development probes may be added to this submenu as the project evolves.
+They should remain diagnostic/inspection actions; ordinary user preferences belong in
+Settings and normal navigation belongs in the main application UI.
+
 ## Browser diagnostic report
 
-`Options -> Export Browser Diagnostic Report...` writes a timestamped text-only report:
+`Options -> Debug -> Export Browser Diagnostic Report...` writes a timestamped text-only report:
 
 ```text
 diagnostics/SalixWeb32-Browser-YYYYMMDD-HHMMSS-mmm.txt
@@ -78,7 +100,7 @@ After export, the same NT5-compatible result dialog offers `Go to Files` and `OK
 
 ## Diagnostic screenshot
 
-`Options -> Take Diagnostic Screenshot` creates a timestamped pair in the configured Diagnostics folder. The default is `<user_data_root>\Diagnostics`:
+`Options -> Debug -> Take Diagnostic Capture` creates a timestamped pair in the configured Diagnostics folder. The default is `<user_data_root>\Diagnostics`:
 
 ```text
 diagnostics/SalixWeb32-YYYYMMDD-HHMMSS-mmm.bmp
@@ -119,6 +141,11 @@ automatic attachment-picker history separately from the machine/development brid
 configuration.
 
 The success notification is implemented as a small owned Win32 window rather than a modern TaskDialog, because the Server 2003 target needs custom button text while remaining independent of Vista-era common controls. Folder opening uses the existing `shell32.lib` dependency through `ShellExecuteA`.
+
+`Copy Diagnostic Report` reuses `View::build_diagnostic_report()`, `MimeData`, and
+`Win32Clipboard`; it does not maintain a second report format. `Open Diagnostics Folder`
+uses the configured absolute Diagnostics path and ensures that directory exists before
+asking the shell to open it.
 
 The controller does not replace the application host or its message pump.
 
@@ -170,15 +197,19 @@ Validation points:
 4. `Options -> Settings...` opens the native Settings dialog.
 5. In a normal launch, confirm the dialog reports `Standard`, preferences at `%APPDATA%\SalixWeb32\settings.ini`, and Diagnostics at `%APPDATA%\SalixWeb32\Diagnostics`; confirm no Attachment browser path is exposed in Settings.
 6. With no `attachment_directory` entry in `settings.ini`, open the attachment picker and confirm it starts at `%USERPROFILE%`; select a file elsewhere, reopen the picker, and confirm it remembers the new directory automatically. Then change the Diagnostics folder, save/reopen Settings, and confirm that saving Diagnostics does not reset the remembered attachment directory.
-7. `Options -> Runtime Diagnostics` and `Options -> Conversation` switch the existing native tabs without losing state.
-8. Open an attachment from an unrelated external directory and confirm the process does not redirect diagnostic storage.
-9. `Options -> Export Browser Diagnostic Report...` creates a timestamped text report in the configured Diagnostics folder containing complete cached Browser Probe data.
-10. `Options -> Take Diagnostic Screenshot` creates both a timestamped `.bmp` and `.txt` in the configured Diagnostics folder.
-11. Confirm the capture result dialog shows both `Go to Files` and `OK`.
-12. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
-13. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
-14. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
-15. With Browser active, confirm the report contains the title, URL, backend/capability/status lines, selected Browser Probe mode, and that mode's complete output.
-16. `Help -> About SalixWeb32` opens a normal native message box.
-17. `File -> Exit` follows the normal application close/shutdown path.
-18. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.
+7. `Options -> Conversation` switches to Conversation without losing state.
+8. Open `Options -> Debug` and confirm the nested native submenu contains Runtime Diagnostics, Copy Diagnostic Report, Take Diagnostic Capture, Export Browser Diagnostic Report, and Open Diagnostics Folder.
+9. `Options -> Debug -> Runtime Diagnostics` switches to the existing Runtime workspace.
+10. `Copy Diagnostic Report` places the current diagnostic report on the clipboard and does not show a success modal; paste it into Notepad and confirm active-view/runtime/security/file-location state is present.
+11. `Open Diagnostics Folder` opens the configured Diagnostics directory.
+12. Open an attachment from an unrelated external directory and confirm the process does not redirect diagnostic storage.
+13. `Options -> Debug -> Export Browser Diagnostic Report...` creates a timestamped text report in the configured Diagnostics folder containing complete cached Browser Probe data.
+14. `Options -> Debug -> Take Diagnostic Capture` creates both a timestamped `.bmp` and `.txt` in the configured Diagnostics folder.
+15. Confirm the capture result dialog shows both `Go to Files` and `OK`.
+16. Click `Go to Files` and confirm Explorer opens the generated diagnostics directory and the result dialog closes.
+17. Open the generated BMP and confirm it contains the complete visible SalixWeb32 window.
+18. Open the generated TXT and confirm `Active view` matches the tab that was visible at capture time.
+19. With Browser active, confirm the Browser export contains the title, URL, backend/capability/status lines and complete cached Summary/Headers/Raw/Extracted data.
+20. `Help -> About SalixWeb32` opens a normal native message box.
+21. `File -> Exit` follows the normal application close/shutdown path.
+22. Existing native combo boxes, scrollbars, tabs, context menus, and keyboard navigation remain operational.

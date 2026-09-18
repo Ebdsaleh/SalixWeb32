@@ -108,6 +108,7 @@ The native application/framework foundation is operational on the real Pentium 4
 - code-block presentation and copy support,
 - attachments, image preview, and file actions,
 - native tabs, scrollbars, menus, diagnostics, screenshots, and clipboard integration,
+- an evolving `Options -> Debug` submenu for one-click target diagnostics/capture/export workflows,
 - explicit persistent file-location ownership with configurable diagnostics and remembered attachment-picker history,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
 - the `ConversationServiceBackend` / `ConversationServiceHost` semantic chat abstraction,

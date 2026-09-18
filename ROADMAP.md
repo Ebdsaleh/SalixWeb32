@@ -115,6 +115,7 @@ Implemented or active post-baseline work:
 - [~] image Preview mouse-wheel zoom
 - [~] attachment-aware plain conversation selection/copy surrogate
 - [~] native application menu bar (`File / Edit / Options / Help`)
+- [~] evolving `Options -> Debug` diagnostics submenu for target-hardware feedback
 - [x] reusable framework `TabView` with native Win32 tab peer
 - [x] Conversation/Runtime tab lifecycle on Server 2003 SP2 and MiniXP
 - [~] Bold/Italic/Underline composer state (`Ctrl+B`, `Ctrl+I`, `Ctrl+U`)
@@ -458,7 +459,8 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] select a narrow secure-provider ABI and Mbed TLS 3.6.x LTS as the first compatibility
   candidate,
 - [x] implement fail-closed `SalixSecureTransport.dll` discovery in the VC7.1 client,
-- [ ] validate provider-absent discovery behavior on the real P4,
+- [x] validate provider-absent discovery behavior on the real P4,
+- [~] evolving native Debug diagnostics submenu implemented; target validation pending,
 - [ ] build/validate the first x86 NT5 secure transport provider DLL,
 - [ ] secure authenticated content/session backend,
 - [ ] real provider response streaming.
