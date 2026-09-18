@@ -50,6 +50,7 @@ venv/
 # Local machine configuration
 .local/
 *.local
+salixweb32.local.ini
 
 # Private development continuity (never commit)
 .private/

@@ -74,9 +74,22 @@ See `docs/BROWSER_PROBE.md` for the Browser Probe workflow and limits.
 
 ## Backend selection
 
-The placeholder backend remains the default.
+The placeholder backend remains the fallback when no bridge configuration is present.
 
-To opt into the remote backend:
+For day-to-day development, copy `salixweb32.local.ini.example` to
+`salixweb32.local.ini` in the repository root and set the companion address:
+
+```text
+web_backend=remote
+bridge_host=<modern-machine-ip-or-hostname>
+bridge_port=8765
+```
+
+The local file is ignored by Git. SalixWeb32 checks the current working directory
+first and then `..\\..\\salixweb32.local.ini`, which allows a Visual Studio .NET
+2003 launch from `build\\vs2003` to reuse the repository-root file.
+
+Environment variables remain supported and override file values:
 
 ```text
 SALIX_WEB_BACKEND=remote
@@ -84,9 +97,9 @@ SALIX_BRIDGE_HOST=<modern-machine-ip-or-hostname>
 SALIX_BRIDGE_PORT=8765
 ```
 
-`SALIX_BRIDGE_PORT` defaults to `8765`.
-
-For the P4-to-modern-machine test, set `SALIX_BRIDGE_HOST` to the modern machine's LAN address.
+`SALIX_CONFIG` can point to a different local settings file. If no explicit
+backend is configured, supplying a bridge host automatically selects the remote
+backend. `SALIX_BRIDGE_PORT` defaults to `8765`.
 
 ## Starting the companion
 

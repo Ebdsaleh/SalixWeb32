@@ -5,11 +5,12 @@
 // =================================================================================
 
 #include <windows.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
+#include <string>
 
 #include "runtime/ApplicationRuntime.h"
 #include "runtime/Diagnostics.h"
+#include "app/ApplicationSettings.h"
 #include "app/StatusView.h"
 #include "engine/application_hosts/Win32ApplicationHost.h"
 #include "engine/application_hosts/Win32MenuController.h"
@@ -23,46 +24,26 @@
 #include "web/platform/WebPlatformBackend.h"
 #include "web/platform/WebPlatformHost.h"
 
-namespace {
-    unsigned short get_bridge_port() {
-        const char* port_text = getenv("SALIX_BRIDGE_PORT");
-        if (port_text == 0 || port_text[0] == '\0') {
-            return 8765;
-        }
-
-        int port = atoi(port_text);
-        if (port < 1 || port > 65535) {
-            return 8765;
-        }
-
-        return (unsigned short)port;
-    }
-}
-
 int APIENTRY WinMain(
     HINSTANCE instance_handle,
     HINSTANCE previous_instance_handle,
     LPSTR command_line,
     int show_command
 ) {
+    ApplicationSettings settings;
+    settings.load();
+
     ApplicationRuntime application_runtime;
     PlaceholderWebBackend placeholder_web_backend;
     Win32HttpTransport bridge_transport;
 
-    const char* bridge_host = getenv("SALIX_BRIDGE_HOST");
-    if (bridge_host == 0 || bridge_host[0] == '\0') {
-        bridge_host = "127.0.0.1";
-    }
-
     RemoteBridgeWebBackend remote_bridge_web_backend(
         &bridge_transport,
-        bridge_host,
-        get_bridge_port()
+        settings.get_bridge_host(),
+        settings.get_bridge_port()
     );
 
-    const char* backend_mode = getenv("SALIX_WEB_BACKEND");
-    bool use_remote_bridge =
-        backend_mode != 0 && strcmp(backend_mode, "remote") == 0;
+    bool use_remote_bridge = settings.get_use_remote_bridge();
 
     // Browser Probe asks the companion to perform a bounded modern HTTPS GET.
     // Keep the request explicit (Go button) and allow enough receive time for
@@ -101,6 +82,23 @@ int APIENTRY WinMain(
             ? "Web backend selection: remote Browser Probe bridge."
             : "Web backend selection: placeholder."
     );
+
+    if (settings.get_source_path()[0] != '\0') {
+        std::string settings_message("Startup settings: ");
+        settings_message += settings.get_source_path();
+        Diagnostics::write_line(settings_message.c_str());
+    }
+
+    if (use_remote_bridge) {
+        char endpoint_message[512];
+        sprintf(
+            endpoint_message,
+            "Bridge endpoint: %s:%u",
+            settings.get_bridge_host(),
+            (unsigned int)settings.get_bridge_port()
+        );
+        Diagnostics::write_line(endpoint_message);
+    }
 
     if (!graphics_runtime.initialize()) {
         MessageBoxA(

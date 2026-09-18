@@ -1,0 +1,7 @@
+# SalixWeb32 machine-local startup settings.
+# Copy this file to salixweb32.local.ini and edit the bridge_host value.
+# salixweb32.local.ini is ignored by Git.
+
+web_backend=remote
+bridge_host=192.168.1.10
+bridge_port=8765

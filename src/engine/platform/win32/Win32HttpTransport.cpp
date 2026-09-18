@@ -46,16 +46,35 @@ namespace {
         return true;
     }
 
+    bool socket_is_in_set(
+        const fd_set& socket_set,
+        SOCKET socket_handle
+    ) {
+        u_int index = 0;
+
+        for (index = 0; index < socket_set.fd_count; ++index) {
+            if (socket_set.fd_array[index] == socket_handle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     bool wait_for_connect(
         SOCKET socket_handle,
         int timeout_milliseconds
     ) {
         fd_set write_set;
         fd_set error_set;
-        FD_ZERO(&write_set);
-        FD_ZERO(&error_set);
-        FD_SET(socket_handle, &write_set);
-        FD_SET(socket_handle, &error_set);
+
+        // Winsock fd_set is an explicit count + socket array.  Populate it
+        // directly instead of using FD_ZERO/FD_SET: the VC7.1 SDK macros emit
+        // C4127 at /W4 even though the code is correct.
+        write_set.fd_count = 1;
+        write_set.fd_array[0] = socket_handle;
+        error_set.fd_count = 1;
+        error_set.fd_array[0] = socket_handle;
 
         timeval timeout;
         timeout.tv_sec = timeout_milliseconds / 1000;
@@ -70,7 +89,10 @@ namespace {
             &timeout
         );
 
-        if (result <= 0 || FD_ISSET(socket_handle, &error_set)) {
+        if (
+            result <= 0 ||
+            socket_is_in_set(error_set, socket_handle)
+        ) {
             return false;
         }
 

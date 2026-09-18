@@ -94,6 +94,7 @@
 	<Files>
 		<Filter Name="Source Files" Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx">
 			<File RelativePath="..\..\src\main.cpp"/>
+			<File RelativePath="..\..\src\app\ApplicationSettings.cpp"/>
 			<File RelativePath="..\..\src\app\Attachment.cpp"/>
 			<File RelativePath="..\..\src\app\AttachmentChip.cpp"/>
 			<File RelativePath="..\..\src\app\AttachmentTray.cpp"/>
@@ -162,6 +163,7 @@
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32TextPainter.cpp"/>
 		</Filter>
 		<Filter Name="Header Files" Filter="h;hpp;hxx;hm;inl;inc;xsd">
+			<File RelativePath="..\..\src\app\ApplicationSettings.h"/>
 			<File RelativePath="..\..\src\app\Attachment.h"/>
 			<File RelativePath="..\..\src\app\AttachmentChip.h"/>
 			<File RelativePath="..\..\src\app\AttachmentTray.h"/>
