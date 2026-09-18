@@ -10,6 +10,7 @@
 #include "Win32TextPainter.h"
 #include "Win32EmoticonPainter.h"
 #include "engine/platform/win32/Win32TextMetrics.h"
+#include "engine/platform/win32/Win32TextFontCache.h"
 #include "framework/EmoticonRegistry.h"
 #include "framework/Label.h"
 #include "framework/TextInput.h"
@@ -48,45 +49,9 @@ namespace {
         DeleteObject(brush);
     }
 
-    HFONT create_formatted_font(
-        HDC device_context,
-        const TextFormat& format
-    ) {
-        int font_size = format.font_size;
-        if (font_size < 1) {
-            font_size = 1;
-        }
-
-        int logical_height = -MulDiv(
-            font_size,
-            GetDeviceCaps(device_context, LOGPIXELSY),
-            72
-        );
-
-        const char* font_name = format.code_style == TextFormat::code_none
-            ? "Tahoma"
-            : "Courier New";
-
-        return CreateFontA(
-            logical_height,
-            0,
-            0,
-            0,
-            format.bold ? FW_BOLD : FW_NORMAL,
-            format.italic ? TRUE : FALSE,
-            format.underline ? TRUE : FALSE,
-            FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            DEFAULT_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE,
-            font_name
-        );
-    }
-
     int measure_character(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         char character,
         const TextFormat& format,
         int* character_height
@@ -95,7 +60,7 @@ namespace {
             *character_height = 0;
         }
 
-        HFONT font = create_formatted_font(device_context, format);
+        HFONT font = font_cache.get_font(format);
         if (font == NULL) {
             return 0;
         }
@@ -115,7 +80,6 @@ namespace {
             SelectObject(device_context, previous_font);
         }
 
-        DeleteObject(font);
         return text_size.cx;
     }
 
@@ -181,6 +145,7 @@ namespace {
 
     int measure_line_width(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const void* context,
@@ -214,6 +179,7 @@ namespace {
 
             width += measure_character(
                 device_context,
+                font_cache,
                 text[position],
                 format,
                 0
@@ -226,6 +192,7 @@ namespace {
 
     int measure_line_height(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const void* context,
@@ -237,6 +204,7 @@ namespace {
         int sample_height = 0;
         measure_character(
             device_context,
+            font_cache,
             'M',
             base_format,
             &sample_height
@@ -278,6 +246,7 @@ namespace {
             int character_height = 0;
             measure_character(
                 device_context,
+                font_cache,
                 text[position],
                 format,
                 &character_height
@@ -295,6 +264,7 @@ namespace {
 
     int measure_block_height(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const void* context,
@@ -309,6 +279,7 @@ namespace {
             int line_end = find_line_end(text, text_length, line_start);
             int line_height = measure_line_height(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 context,
@@ -363,6 +334,7 @@ namespace {
 
     int measure_prefix_width(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const void* context,
@@ -380,6 +352,7 @@ namespace {
 
         return measure_line_width(
             device_context,
+            font_cache,
             text,
             text_length,
             context,
@@ -409,6 +382,7 @@ namespace {
 
     void draw_line(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const RECT& line_rect,
@@ -496,7 +470,7 @@ namespace {
                 continue;
             }
 
-            HFONT font = create_formatted_font(device_context, format);
+            HFONT font = font_cache.get_font(format);
             HGDIOBJ previous_font = NULL;
 
             if (font != NULL) {
@@ -575,10 +549,6 @@ namespace {
                 SelectObject(device_context, previous_font);
             }
 
-            if (font != NULL) {
-                DeleteObject(font);
-            }
-
             ++position;
         }
 
@@ -589,6 +559,7 @@ namespace {
         ) {
             int caret_x = text_x + measure_prefix_width(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 context,
@@ -608,6 +579,7 @@ namespace {
 
     void draw_text_block(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const RECT& text_rect,
@@ -624,6 +596,7 @@ namespace {
     ) {
         int total_height = measure_block_height(
             device_context,
+            font_cache,
             text,
             text_length,
             context,
@@ -645,6 +618,7 @@ namespace {
             int line_end = find_line_end(text, text_length, line_start);
             int line_height = measure_line_height(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 context,
@@ -654,6 +628,7 @@ namespace {
             );
             int line_width = measure_line_width(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 context,
@@ -678,6 +653,7 @@ namespace {
 
             draw_line(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 line_rect,
@@ -705,6 +681,7 @@ namespace {
 
     void draw_wrapped_label_block(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const RECT& text_rect,
@@ -732,6 +709,7 @@ namespace {
             const TextWrapLine& line = lines[index];
             int line_height = measure_line_height(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 &label,
@@ -741,6 +719,7 @@ namespace {
             );
             int line_width = measure_line_width(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 &label,
@@ -779,6 +758,7 @@ namespace {
 
             draw_line(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 line_rect,
@@ -803,6 +783,8 @@ void Win32TextPainter::render_label(
     HDC device_context,
     const Label& label
 ) {
+    Win32TextFontCache font_cache(device_context);
+
     if (
         device_context == NULL ||
         !label.get_is_visible() ||
@@ -848,6 +830,7 @@ void Win32TextPainter::render_label(
     if (label.get_word_wrap()) {
         draw_wrapped_label_block(
             device_context,
+            font_cache,
             text,
             text_length,
             label_rect,
@@ -861,6 +844,7 @@ void Win32TextPainter::render_label(
 
         draw_text_block(
             device_context,
+            font_cache,
             text,
             text_length,
             label_rect,
@@ -888,6 +872,8 @@ void Win32TextPainter::render_text_input(
     HDC device_context,
     const TextInput& text_input
 ) {
+    Win32TextFontCache font_cache(device_context);
+
     if (
         device_context == NULL ||
         !text_input.get_is_visible() ||
@@ -960,6 +946,7 @@ void Win32TextPainter::render_text_input(
 
     draw_text_block(
         device_context,
+        font_cache,
         text,
         text_length,
         text_rect,

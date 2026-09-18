@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include "framework/TextMetrics.h"
+#include "engine/platform/win32/Win32TextFontCache.h"
 
 class Win32TextMetrics : public TextMetrics {
     public:
@@ -59,4 +60,5 @@ class Win32TextMetrics : public TextMetrics {
 
     private:
         HDC device_context;
+        Win32TextFontCache font_cache;
 };

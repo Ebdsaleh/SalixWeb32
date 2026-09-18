@@ -9,40 +9,6 @@
 #include "framework/EmoticonRegistry.h"
 
 namespace {
-    HFONT create_text_font(HDC device_context, const TextFormat& format) {
-        int font_size = format.font_size;
-        if (font_size < 1) {
-            font_size = 1;
-        }
-
-        int logical_height = -MulDiv(
-            font_size,
-            GetDeviceCaps(device_context, LOGPIXELSY),
-            72
-        );
-
-        const char* font_name = format.code_style == TextFormat::code_none
-            ? "Tahoma"
-            : "Courier New";
-
-        return CreateFontA(
-            logical_height,
-            0,
-            0,
-            0,
-            format.bold ? FW_BOLD : FW_NORMAL,
-            format.italic ? TRUE : FALSE,
-            format.underline ? TRUE : FALSE,
-            FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            DEFAULT_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE,
-            font_name
-        );
-    }
-
     TextFormat get_format_at(
         const TextFormat* formats,
         int format_count,
@@ -57,6 +23,7 @@ namespace {
 
     void measure_character(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* character,
         const TextFormat& format,
         int& width,
@@ -65,7 +32,7 @@ namespace {
         width = 0;
         height = 0;
 
-        HFONT font = create_text_font(device_context, format);
+        HFONT font = font_cache.get_font(format);
         if (font == NULL) {
             return;
         }
@@ -84,11 +51,11 @@ namespace {
             SelectObject(device_context, previous_font);
         }
 
-        DeleteObject(font);
     }
 
     int get_default_line_height(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const TextFormat* formats,
         int format_count,
         int source_index
@@ -97,7 +64,14 @@ namespace {
         int width = 0;
         int height = 0;
         char sample = 'M';
-        measure_character(device_context, &sample, format, width, height);
+        measure_character(
+            device_context,
+            font_cache,
+            &sample,
+            format,
+            width,
+            height
+        );
 
         if (height <= 0) {
             height = format.font_size + 6;
@@ -126,6 +100,7 @@ namespace {
 
     int measure_line_height(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const TextFormat* formats,
@@ -135,6 +110,7 @@ namespace {
     ) {
         int height = get_default_line_height(
             device_context,
+            font_cache,
             formats,
             format_count,
             line_start
@@ -172,6 +148,7 @@ namespace {
             int character_height = 0;
             measure_character(
                 device_context,
+                font_cache,
                 text + position,
                 format,
                 character_width,
@@ -190,6 +167,7 @@ namespace {
 
     int measure_line_width(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const TextFormat* formats,
@@ -225,6 +203,7 @@ namespace {
             int character_height = 0;
             measure_character(
                 device_context,
+                font_cache,
                 text + position,
                 format,
                 character_width,
@@ -239,6 +218,7 @@ namespace {
 
     int get_index_at_x_range(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const char* text,
         int text_length,
         const TextFormat* formats,
@@ -291,6 +271,7 @@ namespace {
             int character_height = 0;
             measure_character(
                 device_context,
+                font_cache,
                 text + position,
                 format,
                 character_width,
@@ -311,7 +292,8 @@ namespace {
 }
 
 Win32TextMetrics::Win32TextMetrics(HDC new_device_context)
-    : device_context(new_device_context) {
+    : device_context(new_device_context),
+      font_cache(new_device_context) {
 }
 
 int Win32TextMetrics::measure_text_width(
@@ -422,6 +404,7 @@ int Win32TextMetrics::measure_formatted_text_width(
         int line_end = find_line_end(text, text_length, line_start);
         int width = measure_line_width(
             device_context,
+            font_cache,
             text,
             text_length,
             formats,
@@ -462,6 +445,7 @@ int Win32TextMetrics::get_formatted_character_index_at_x(
     int line_end = find_line_end(text, text_length, 0);
     return get_index_at_x_range(
         device_context,
+        font_cache,
         text,
         text_length,
         formats,
@@ -500,6 +484,7 @@ int Win32TextMetrics::measure_formatted_text_height(
         int line_end = find_line_end(text, text_length, line_start);
         int line_height = measure_line_height(
             device_context,
+            font_cache,
             text,
             text_length,
             formats,
@@ -549,6 +534,7 @@ int Win32TextMetrics::get_formatted_character_index_at_point(
         int line_end = find_line_end(text, text_length, line_start);
         int line_height = measure_line_height(
             device_context,
+            font_cache,
             text,
             text_length,
             formats,
@@ -562,6 +548,7 @@ int Win32TextMetrics::get_formatted_character_index_at_point(
         if (pixel_y < line_bottom + line_spacing || line_end >= text_length) {
             return get_index_at_x_range(
                 device_context,
+                font_cache,
                 text,
                 text_length,
                 formats,

@@ -8,6 +8,7 @@
 
 #include "Win32ScrollableTextPainter.h"
 #include "Win32EmoticonPainter.h"
+#include "engine/platform/win32/Win32TextFontCache.h"
 #include "framework/EmoticonRegistry.h"
 #include "framework/TextInput.h"
 #include "framework/TextFormat.h"
@@ -43,45 +44,9 @@ namespace {
         DeleteObject(brush);
     }
 
-    HFONT create_formatted_font(
-        HDC device_context,
-        const TextFormat& format
-    ) {
-        int font_size = format.font_size;
-        if (font_size < 1) {
-            font_size = 1;
-        }
-
-        int logical_height = -MulDiv(
-            font_size,
-            GetDeviceCaps(device_context, LOGPIXELSY),
-            72
-        );
-
-        const char* font_name = format.code_style == TextFormat::code_none
-            ? "Tahoma"
-            : "Courier New";
-
-        return CreateFontA(
-            logical_height,
-            0,
-            0,
-            0,
-            format.bold ? FW_BOLD : FW_NORMAL,
-            format.italic ? TRUE : FALSE,
-            format.underline ? TRUE : FALSE,
-            FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            DEFAULT_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE,
-            font_name
-        );
-    }
-
     int measure_character(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         char character,
         const TextFormat& format,
         int* character_height
@@ -90,7 +55,7 @@ namespace {
             *character_height = 0;
         }
 
-        HFONT font = create_formatted_font(device_context, format);
+        HFONT font = font_cache.get_font(format);
         if (font == NULL) {
             return 0;
         }
@@ -108,7 +73,6 @@ namespace {
         if (previous_font != NULL && previous_font != HGDI_ERROR) {
             SelectObject(device_context, previous_font);
         }
-        DeleteObject(font);
         return size.cx;
     }
 
@@ -139,6 +103,7 @@ namespace {
 
     int measure_line_width(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const TextInput& text_input,
         const char* text,
         int text_length,
@@ -171,6 +136,7 @@ namespace {
 
             width += measure_character(
                 device_context,
+                font_cache,
                 text[position],
                 format,
                 0
@@ -183,6 +149,7 @@ namespace {
 
     int measure_line_height(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const TextInput& text_input,
         const char* text,
         int text_length,
@@ -191,7 +158,13 @@ namespace {
     ) {
         TextFormat base_format = text_input.get_character_format(line_start);
         int sample_height = 0;
-        measure_character(device_context, 'M', base_format, &sample_height);
+        measure_character(
+            device_context,
+            font_cache,
+            'M',
+            base_format,
+            &sample_height
+        );
 
         int height = sample_height;
         if (height < 16) {
@@ -228,6 +201,7 @@ namespace {
             int character_height = 0;
             measure_character(
                 device_context,
+                font_cache,
                 text[position],
                 format,
                 &character_height
@@ -243,6 +217,7 @@ namespace {
 
     int measure_prefix_width(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const TextInput& text_input,
         const char* text,
         int text_length,
@@ -258,6 +233,7 @@ namespace {
 
         return measure_line_width(
             device_context,
+            font_cache,
             text_input,
             text,
             text_length,
@@ -292,6 +268,7 @@ namespace {
 
     void draw_line(
         HDC device_context,
+        Win32TextFontCache& font_cache,
         const TextInput& text_input,
         const char* text,
         int text_length,
@@ -361,7 +338,7 @@ namespace {
                 continue;
             }
 
-            HFONT font = create_formatted_font(device_context, format);
+            HFONT font = font_cache.get_font(format);
             HGDIOBJ previous_font = NULL;
             if (font != NULL) {
                 previous_font = SelectObject(device_context, font);
@@ -422,9 +399,6 @@ namespace {
             ) {
                 SelectObject(device_context, previous_font);
             }
-            if (font != NULL) {
-                DeleteObject(font);
-            }
             ++position;
         }
 
@@ -436,6 +410,7 @@ namespace {
         ) {
             int caret_x = text_x + measure_prefix_width(
                 device_context,
+                font_cache,
                 text_input,
                 text,
                 text_length,
@@ -457,6 +432,8 @@ void Win32ScrollableTextPainter::render_text_input(
     HDC device_context,
     const TextInput& text_input
 ) {
+    Win32TextFontCache font_cache(device_context);
+
     if (
         device_context == NULL ||
         !text_input.get_is_visible() ||
@@ -540,6 +517,7 @@ void Win32ScrollableTextPainter::render_text_input(
         int line_end = find_line_end(text, text_length, line_start);
         int line_height = measure_line_height(
             device_context,
+            font_cache,
             text_input,
             text,
             text_length,
@@ -559,6 +537,7 @@ void Win32ScrollableTextPainter::render_text_input(
         ) {
             draw_line(
                 device_context,
+                font_cache,
                 text_input,
                 text,
                 text_length,

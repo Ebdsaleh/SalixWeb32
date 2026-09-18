@@ -243,6 +243,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32HttpTransport.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NetworkRequestExecutor.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32TextFontCache.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.h"/>
