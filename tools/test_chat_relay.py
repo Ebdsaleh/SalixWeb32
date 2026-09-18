@@ -109,7 +109,21 @@ def main() -> int:
     if status != 200:
         return 1
 
+    health_text = health.decode("utf-8", errors="replace")
+    ready_marker = "conversation_browser_session=ready"
+
+    if ready_marker not in health_text:
+        print(
+            "ERROR: LibreWolf chat worker is not ready. "
+            "Start 'python tools\\salix_chat_session.py' in a separate "
+            "terminal, leave it running, and make sure the ChatGPT composer "
+            "is visible before retrying.",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.message is None:
+        print("browser relay ready")
         return 0
 
     encoded = args.message.encode("utf-8")
