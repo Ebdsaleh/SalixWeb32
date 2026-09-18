@@ -16,11 +16,18 @@ class PlaceholderConversationBackend : public ConversationServiceBackend {
 
         virtual const char* get_name() const;
         virtual const char* get_status_text() const;
+        virtual void get_security_profile(
+            ConversationSecurityProfile& profile
+        ) const;
 
         virtual bool initialize();
         virtual void update();
         virtual void shutdown();
         virtual bool get_is_initialized() const;
+
+        virtual bool submit_probe(
+            unsigned long request_id
+        );
 
         virtual bool submit_request(
             const ConversationRequest& request,

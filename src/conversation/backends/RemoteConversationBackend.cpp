@@ -9,6 +9,7 @@
 
 #include "RemoteConversationBackend.h"
 #include "conversation/ConversationRequest.h"
+#include "conversation/ConversationSecurityProfile.h"
 #include "web/network/NetworkRequest.h"
 #include "web/network/NetworkRequestExecutor.h"
 #include "web/network/NetworkResponse.h"
@@ -244,6 +245,15 @@ const char* RemoteConversationBackend::get_status_text() const {
     return status_text.c_str();
 }
 
+void RemoteConversationBackend::get_security_profile(
+    ConversationSecurityProfile& profile
+) const {
+    profile = ConversationSecurityProfile();
+    profile.dispatch_mode = conversation_dispatch_probe_only;
+    profile.transport_security =
+        conversation_transport_plaintext;
+}
+
 bool RemoteConversationBackend::initialize() {
     if (is_initialized) {
         return true;
@@ -376,14 +386,12 @@ bool RemoteConversationBackend::get_is_initialized() const {
     return is_initialized;
 }
 
-bool RemoteConversationBackend::submit_request(
-    const ConversationRequest& request,
+bool RemoteConversationBackend::submit_probe(
     unsigned long request_id
 ) {
     if (
         !is_initialized ||
         request_executor == 0 ||
-        request.empty() ||
         request_id == 0 ||
         pending_operation != operation_none ||
         !events.empty() ||
@@ -404,11 +412,10 @@ bool RemoteConversationBackend::submit_request(
         return false;
     }
 
-    // SECURITY: The current remote backend is protocol-gated to probe-only
-    // operation. It never serializes the draft text, attachment count/paths,
-    // credentials, cookies, or session material onto the plaintext LAN.
-    // A future content-capable transport must use a different approved
-    // security profile rather than weakening these assertions.
+    // SECURITY: This method is deliberately content-free.
+    // ConversationServiceHost does not pass ConversationRequest to a
+    // probe-only backend. Only the request ID and fixed zero-forwarding
+    // flags can cross the plaintext LAN through this path.
     char body[320];
     sprintf(
         body,
@@ -445,6 +452,18 @@ bool RemoteConversationBackend::submit_request(
     pending_operation = operation_conversation;
     status_text = "SALIX-CONVERSATION/1 request in flight";
     return true;
+}
+
+bool RemoteConversationBackend::submit_request(
+    const ConversationRequest& request,
+    unsigned long request_id
+) {
+    (void)request;
+    (void)request_id;
+
+    status_text =
+        "real content blocked by probe-only security profile";
+    return false;
 }
 
 bool RemoteConversationBackend::take_event(

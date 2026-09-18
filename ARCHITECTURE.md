@@ -304,6 +304,33 @@ on the P4.
 The first bridge protocol is intentionally non-sensitive and must not carry credentials
 or session tokens over its current plaintext transport. See `docs/REMOTE_BRIDGE.md`.
 
+Conversation dispatch has an additional backend-neutral security gate:
+
+```text
+ConversationRequest
+        |
+        v
+ConversationServiceHost
+        |
+        v
+ConversationSecurityProfile
+        |
+        +-- probe-only
+        |      `-> backend receives request ID only
+        |
+        `-- content
+               |
+               +-- local-process                 -> eligible
+               +-- authenticated-encrypted      -> eligible
+               `-- plaintext                    -> rejected
+```
+
+The profile also declares whether text, attachments, credentials, and session state are
+allowed. The current `RemoteConversationBackend` is probe-only/plaintext with every
+content class disabled. The local placeholder is content/local-process. A future secure
+remote provider must satisfy the authenticated-encrypted profile rather than mutating
+probe mode into a content transport.
+
 ## Capability discovery
 
 Backends report supported features instead of pretending all features exist.

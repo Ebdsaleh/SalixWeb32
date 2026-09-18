@@ -6,6 +6,7 @@
 
 #include "PlaceholderConversationBackend.h"
 #include "conversation/ConversationRequest.h"
+#include "conversation/ConversationSecurityProfile.h"
 
 PlaceholderConversationBackend::PlaceholderConversationBackend()
     : is_initialized(false),
@@ -21,6 +22,17 @@ const char* PlaceholderConversationBackend::get_status_text() const {
     return is_initialized
         ? "semantic contract ready"
         : "stopped";
+}
+
+void PlaceholderConversationBackend::get_security_profile(
+    ConversationSecurityProfile& profile
+) const {
+    profile = ConversationSecurityProfile();
+    profile.dispatch_mode = conversation_dispatch_content;
+    profile.transport_security =
+        conversation_transport_local_process;
+    profile.text = true;
+    profile.attachments = true;
 }
 
 bool PlaceholderConversationBackend::initialize() {
@@ -98,6 +110,13 @@ void PlaceholderConversationBackend::shutdown() {
 
 bool PlaceholderConversationBackend::get_is_initialized() const {
     return is_initialized;
+}
+
+bool PlaceholderConversationBackend::submit_probe(
+    unsigned long request_id
+) {
+    (void)request_id;
+    return false;
 }
 
 bool PlaceholderConversationBackend::submit_request(

@@ -485,45 +485,84 @@ This validates capability negotiation, Conversation routing, request-ID framing,
 event delivery, and coexistence with Browser Probe. The probe still intentionally sends
 no draft text, attachment paths, credentials, cookies, or session material.
 
-### Probe-only security-policy gate — pending target validation
+### Probe-only security-policy gate — validated
 
-The next tranche makes that privacy rule machine-checkable. `GET /v1/health` must now
-advertise:
+The September 19, 2026 follow-up pass validated the explicit probe-only security policy
+on the real P4 and current Server 2022 companion.
+
+Observed evidence:
+
+- the companion banner reported `Conversation mode : probe-only`,
+- it reported `Sensitive forwarding : attachments/credentials/session disabled`,
+- it reported `P4 conversation link : plaintext LAN; real content blocked`,
+- the P4 completed `GET /v1/health` with HTTP 200,
+- two Conversation requests produced safe audit lines containing
+  `text=0 attachments=0 credentials=0 session=0`,
+- both `POST /v1/conversation/probe` requests returned HTTP 200,
+- the P4 diagnostic reported
+  `SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`,
+- Browser Probe remained operational and returned a real ChatGPT HTTP 200 response.
+
+The wire-level privacy gate is therefore target-green.
+
+### Host content-dispatch boundary — pending target validation
+
+The next tranche adds a second independent enforcement layer inside the native
+Conversation service contract.
+
+`ConversationSecurityProfile` declares dispatch mode, transport security, and allowed
+data classes. `ConversationServiceHost` now follows these rules:
 
 ```text
-conversation_mode=probe_only
-conversation_text_forwarding=disabled
-conversation_attachment_forwarding=disabled
-conversation_credential_forwarding=disabled
-conversation_session_forwarding=disabled
-conversation_transport_security=plaintext
+probe-only backend
+    -> submit_probe(request_id)
+    -> ConversationRequest is never handed to backend
+
+content backend
+    -> allowed only for local-process or authenticated-encrypted transport
+    -> requested data classes must be explicitly permitted
+
+plaintext + content
+    -> rejected by host
 ```
 
-Each probe request also carries explicit zero-valued text/attachment/credential/session
-forwarding flags. The companion rejects non-zero values, and the P4 rejects framed
-responses that do not echo probe mode, all zero-valued flags, and
-`transport_security=plaintext`.
+Current profiles:
+
+```text
+PlaceholderConversationBackend
+    mode: content
+    transport: local-process
+    text: yes
+    attachments: yes
+    credentials/session: no
+
+RemoteConversationBackend
+    mode: probe-only
+    transport: plaintext
+    text/attachments/credentials/session: no
+```
 
 Validation checklist:
 
-1. Pull the security-gate commit on both machines.
-2. Restart the companion.
-3. Confirm its startup banner reports `Conversation mode : probe-only` and that real
-   content is blocked on the plaintext P4 link.
-4. Clean/Rebuild `Debug | Win32` on the P4 with zero errors and zero warnings.
-5. Confirm the Conversation header reaches
+1. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
+2. Launch with the existing remote bridge configuration.
+3. Confirm the Conversation header still reaches
    `SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`.
-6. Send a non-sensitive probe message.
-7. Confirm the companion logs a safe audit line containing
+4. Send a non-sensitive probe message and confirm the companion still logs only
    `text=0 attachments=0 credentials=0 session=0`.
-8. Confirm `POST /v1/conversation/probe` returns HTTP 200 and the native Remote message
-   still completes.
-9. Confirm Browser Probe still works.
-10. Capture a diagnostic report showing the probe-only/plaintext status.
+5. Confirm the native Remote semantic response completes normally.
+6. Capture a diagnostic report.
+7. Confirm it contains:
+   `Conversation security: mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`.
+8. Confirm Browser Probe still returns successfully.
+9. Optionally launch without remote configuration and confirm the local placeholder path
+   still accepts ordinary text; its profile is content/local-process.
+10. Keep real message forwarding prohibited. Passing this tranche does not authorize
+    content on the plaintext bridge.
 
-Real conversation content remains prohibited after this validation; the following tranche
-must establish a separate approved secure content/session boundary rather than changing
-these probe-only flags.
+The next implementation step after this target gate is to choose and implement the
+mature cryptographic/transport provider that can satisfy
+`authenticated-encrypted`; SalixWeb32 will not implement cryptography from scratch.
 
 
 ## Persistent file-location regression — pending target validation

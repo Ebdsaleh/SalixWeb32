@@ -133,13 +133,18 @@ The Conversation workspace now has a provider-neutral semantic service contract.
 local placeholder path has been exercised on the real Pentium 4, and remote bridge mode
 selects a separate `RemoteConversationBackend` proof.
 
-The remote semantic Conversation probe has now completed a positive real-target pass:
-the P4 negotiated `SALIX-CONVERSATION/1`, the current companion accepted repeated
-Conversation probes with HTTP 200, and Browser Probe remained operational in the same
-run. The next security tranche makes the existing privacy rule part of protocol
-readiness: the companion must advertise probe-only/plaintext mode with text, attachment,
-credential, and session forwarding disabled. Real conversation content remains blocked
-until a separate approved secure content/session profile exists.
+The remote semantic Conversation probe and its explicit probe-only security policy have
+now completed positive real-target passes. The P4 negotiated
+`SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`; the companion accepted
+repeated content-free probes while auditing text/attachments/credentials/session as
+zero, and Browser Probe remained operational in the same run.
+
+The native service layer now adds a second boundary through
+`ConversationSecurityProfile`: probe-only backends receive only a generated request ID,
+not the `ConversationRequest` object. Real content can be dispatched only to a backend
+declaring content mode over either a local-process boundary or a future
+authenticated-encrypted transport. The current plaintext remote backend therefore cannot
+become content-capable accidentally.
 
 File storage now follows the same explicit-ownership philosophy. File dialogs no longer
 own process-wide path state: the attachment picker uses `OFN_NOCHANGEDIR`, diagnostics

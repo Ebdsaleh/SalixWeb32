@@ -284,3 +284,36 @@ shown as an editable Settings field. A fixed "always open here" override is defe
 unless a concrete workflow demonstrates the need for one.
 
 See `docs/FILE_LOCATIONS.md`.
+
+---
+
+## ADR-019 — Probe dispatch and content dispatch are separate security paths
+
+**Status:** Accepted
+
+`ConversationServiceHost` must not hand a `ConversationRequest` to a backend merely
+because that backend can participate in the semantic Conversation contract.
+
+Every backend exposes a `ConversationSecurityProfile` containing:
+
+- dispatch mode: blocked, probe-only, or content,
+- transport security: none, local-process, plaintext, or authenticated-encrypted,
+- explicit permission flags for text, attachments, credentials, and session state.
+
+Probe-only backends are invoked through `submit_probe(request_id)`. The request object
+is not passed to them at all.
+
+Content backends are invoked through `submit_request(request, request_id)` only when
+the profile allows the requested data classes and the transport is either local-process
+or authenticated-encrypted. Plaintext transport is categorically ineligible for content
+dispatch.
+
+This creates a fail-closed boundary for future service adapters: adding a new backend
+does not automatically authorize private conversation data. A network backend must
+explicitly satisfy the secure profile before the host will pass content to it.
+
+Cryptography/TLS remains subject to ADR-007: SalixWeb32 should use a mature, auditable
+implementation rather than inventing cryptographic primitives in project code.
+
+See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
+

@@ -7,6 +7,7 @@
 
 class ConversationEvent;
 class ConversationRequest;
+class ConversationSecurityProfile;
 class ConversationServiceBackend;
 
 class ConversationServiceHost {
@@ -25,6 +26,9 @@ class ConversationServiceHost {
         bool has_backend() const;
         const char* get_backend_name() const;
         const char* get_backend_status_text() const;
+        bool get_security_profile(
+            ConversationSecurityProfile& profile
+        ) const;
 
         unsigned long submit_request(const ConversationRequest& request);
         bool take_event(ConversationEvent& event);

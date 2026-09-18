@@ -62,6 +62,59 @@ Attachment paths are semantic request input only. Neither the local placeholder 
 initial remote probe transmits them. A real backend must define upload/security behavior
 before attachments leave the legacy machine.
 
+## Security profile and dispatch boundary
+
+Every conversation backend now exposes a machine-readable
+`ConversationSecurityProfile`.
+
+The profile separates two decisions:
+
+```text
+dispatch mode
+    blocked
+    probe-only
+    content
+
+transport security
+    none
+    local-process
+    plaintext
+    authenticated-encrypted
+```
+
+It also declares whether text, attachments, credentials, and session state are permitted
+for a real content request.
+
+`ConversationServiceHost` is the enforcement point. A content request is handed to a
+backend only when:
+
+- the backend declares `dispatch = content`,
+- the transport is either `local-process` or `authenticated-encrypted`,
+- and every data class present in the request is explicitly allowed.
+
+A plaintext transport can therefore never become content-capable merely because a
+backend implementation accidentally sets a text capability flag.
+
+Probe-only dispatch is physically separate from content dispatch:
+
+```text
+ConversationRequest
+    |
+    v
+ConversationServiceHost
+    |
+    +-- probe-only -> submit_probe(request_id)
+    |                 ConversationRequest is NOT passed
+    |
+    `-- content    -> security profile gate
+                       |
+                       `-> submit_request(request, request_id)
+```
+
+The current remote backend is probe-only/plaintext. The local placeholder backend is
+content/local-process. Credentials and session state remain reserved capabilities and are
+not yet represented in `ConversationRequest`.
+
 ## Event model
 
 A backend returns semantic events:
@@ -181,7 +234,10 @@ credentials_forwarded=0
 session_forwarded=0
 ```
 
-The typed draft remains local. The companion returns a length-framed event sequence
+The typed draft remains local. More strongly, the probe-only dispatch path does not
+pass the `ConversationRequest` object to `RemoteConversationBackend` at all; only the
+generated Salix request ID reaches `submit_probe()`. The companion returns a
+length-framed event sequence
 containing `request_started`, `message_started`, several `text_delta` events, and
 `message_completed`. The backend validates the request ID, event types, byte lengths,
 framing boundary, and terminal completion event before exposing them to the application.
@@ -244,8 +300,12 @@ That rule is now enforced in protocol metadata as well as implementation behavio
 - a mismatch is rejected before semantic events reach the application.
 
 The remote semantic probe is permitted only because it intentionally omits sensitive
-data. A future content-capable backend must introduce a distinct approved security
-profile; it must not weaken the probe-only assertions in place.
+data. The host-level `ConversationSecurityProfile` adds a second independent gate:
+plaintext transport is not eligible for real content dispatch.
+
+A future network content backend must introduce a distinct
+`authenticated-encrypted` profile and explicitly opt into each data class it consumes.
+It must not weaken or repurpose the probe-only backend in place.
 
 ## Provider independence
 

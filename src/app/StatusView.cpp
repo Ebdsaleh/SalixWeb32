@@ -11,6 +11,7 @@
 #include "StatusView.h"
 #include "conversation/ConversationEvent.h"
 #include "conversation/ConversationRequest.h"
+#include "conversation/ConversationSecurityProfile.h"
 #include "conversation/ConversationServiceHost.h"
 #include "runtime/ApplicationRuntime.h"
 #include "framework/ApplicationCommand.h"
@@ -49,6 +50,7 @@ StatusView::StatusView(
     runtime_tab_index(-1),
     active_conversation_request_id(0),
     streaming_message_index(-1),
+    conversation_security_text("unavailable"),
     message_composer(new_file_dialog) {
 
     header_title_label.set_text("SalixWeb32 Messenger");
@@ -570,6 +572,33 @@ void StatusView::update_dynamic_text() {
         conversation_service_host != 0 &&
         conversation_service_host->has_backend()
     ) {
+        ConversationSecurityProfile security_profile;
+
+        if (
+            conversation_service_host->get_security_profile(
+                security_profile
+            )
+        ) {
+            char security_text[256];
+            sprintf(
+                security_text,
+                "mode %s | transport %s | text %s | attachments %s | credentials %s | session %s",
+                get_conversation_dispatch_mode_name(
+                    security_profile.dispatch_mode
+                ),
+                get_conversation_transport_security_name(
+                    security_profile.transport_security
+                ),
+                status_flag(security_profile.text),
+                status_flag(security_profile.attachments),
+                status_flag(security_profile.credentials),
+                status_flag(security_profile.session_state)
+            );
+            conversation_security_text = security_text;
+        } else {
+            conversation_security_text = "unavailable";
+        }
+
         if (active_conversation_request_id != 0) {
             sprintf(
                 conversation_text,
@@ -586,6 +615,7 @@ void StatusView::update_dynamic_text() {
             );
         }
     } else {
+        conversation_security_text = "unavailable";
         sprintf(
             conversation_text,
             "Conversation backend: none | local presentation only"

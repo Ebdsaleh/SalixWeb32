@@ -112,6 +112,9 @@ class StatusView : public View {
                 report += "------------\r\n";
                 report += conversation_hint_label.get_text();
                 report += "\r\n";
+                report += "Conversation security: ";
+                report += conversation_security_text;
+                report += "\r\n";
                 report += "Message count: ";
 
                 char message_count_text[32];
@@ -230,6 +233,7 @@ class StatusView : public View {
         unsigned long active_conversation_request_id;
         int streaming_message_index;
         std::string streaming_message_text;
+        std::string conversation_security_text;
         std::string observed_file_dialog_directory;
 
         Panel root_panel;

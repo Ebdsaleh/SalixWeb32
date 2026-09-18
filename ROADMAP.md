@@ -451,8 +451,12 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] successful end-to-end `SALIX-CONVERSATION/1` target pass,
 - [x] explicit probe-only/plaintext security-policy negotiation and sensitive-data
   forwarding assertions implemented,
-- [ ] validate the probe-only security-policy gate on the real P4,
-- [ ] secure authenticated content/session boundary,
+- [x] validate the probe-only security-policy gate on the real P4,
+- [x] machine-readable `ConversationSecurityProfile` and separate probe/content dispatch
+  boundary implemented,
+- [ ] validate the host content-dispatch boundary on the real P4,
+- [ ] select/integrate a mature authenticated-encrypted transport provider,
+- [ ] secure authenticated content/session backend,
 - [ ] real provider response streaming.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
@@ -489,10 +493,12 @@ See `docs/FILE_LOCATIONS.md`.
    repaint naturally on Pentium 4 hardware,
 3. extend Browser Probe only where measurements help choose the next service/runtime
    boundary,
-4. validate the explicit probe-only/plaintext Conversation security gate on the P4,
-5. establish an approved secure content/session boundary without weakening probe mode,
-6. connect a real service/session backend without leaking provider objects into the app,
-7. stream real provider content into the existing native Conversation/Markdown presentation.
+4. validate the host-level probe/content dispatch boundary on the P4,
+5. select a mature cryptographic/transport provider capable of satisfying the
+   authenticated-encrypted profile on the legacy-to-companion path,
+6. establish the secure content/session backend without weakening probe mode,
+7. connect a real service/session adapter without leaking provider objects into the app,
+8. stream real provider content into the existing native Conversation/Markdown presentation.
 
 # Guiding priority
 
