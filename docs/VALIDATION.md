@@ -362,14 +362,19 @@ For subsequent tranches, the real Pentium 4 remains authoritative.
 
 ## Semantic conversation-service validation
 
-The provider-neutral Conversation service contract is implemented but requires target
-validation before it is marked green.
+The provider-neutral Conversation service contract has now been exercised on the real
+Windows Server 2003 / Pentium 4 target.
 
-The current proof uses `PlaceholderConversationBackend`, which performs no network
+The validated local proof uses `PlaceholderConversationBackend`, which performs no network
 access. It emits one semantic event at a time through the same host/backend boundary
 intended for future remote/API/web-session providers.
 
-Target checklist:
+Observed target evidence includes an operational Win32 host, initialized remote web
+backend, `Placeholder Conversation Backend | semantic contract ready`, repeated native
+Remote messages produced by semantic text-delta events, Markdown presentation, and a
+Conversation message count of 9 in the diagnostic report.
+
+Original target checklist:
 
 1. Clean/Rebuild `Debug | Win32` under Visual C++ 7.1.
 2. Confirm zero errors and zero warnings.
@@ -388,6 +393,36 @@ Target checklist:
 12. Confirm no credentials, session cookies, conversation content, or attachments are
    transmitted by this placeholder proof.
 
-A successful pass validates the application-facing semantic boundary only. It does not
+This target pass validates the application-facing semantic boundary only. It does not
 validate authenticated ChatGPT/service access or make the existing plaintext LAN bridge
 suitable for private conversation traffic.
+
+### Remote semantic conversation probe — pending target validation
+
+The next build selects `Remote Conversation Bridge Backend` whenever the existing
+bridge configuration selects remote mode. It uses its own background request
+executor/HTTP transport and calls:
+
+```text
+POST /v1/conversation/probe
+```
+
+Validation checklist:
+
+1. Pull the same commit on the P4 and Server 2022 companion.
+2. Restart `tools/salix_bridge.py --host 0.0.0.0 --port 8765`.
+3. Confirm the startup banner lists `SALIX-CONVERSATION/1`.
+4. Clean/Rebuild `Debug | Win32` on the P4 with the existing VC7.1 warning policy.
+5. Launch SalixWeb32 with the existing remote bridge configuration.
+6. Confirm the Conversation hint names `Remote Conversation Bridge Backend`.
+7. Type a clearly non-sensitive test string and press Send.
+8. Confirm the companion logs `POST /v1/conversation/probe`.
+9. Confirm one native Remote message appears progressively and begins
+   `Remote semantic bridge online.`
+10. Confirm the message states that typed text, attachment paths, credentials, cookies,
+    and session data were not transmitted.
+11. Confirm Browser Probe can still operate independently before/after the Conversation
+    probe.
+12. Capture a diagnostic report after completion.
+
+This proof intentionally does **not** send the typed test string to the companion.

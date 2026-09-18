@@ -12,8 +12,10 @@
 #include "runtime/Diagnostics.h"
 #include "app/ApplicationSettings.h"
 #include "app/StatusView.h"
+#include "conversation/ConversationServiceBackend.h"
 #include "conversation/ConversationServiceHost.h"
 #include "conversation/backends/PlaceholderConversationBackend.h"
+#include "conversation/backends/RemoteConversationBackend.h"
 #include "engine/application_hosts/Win32ApplicationHost.h"
 #include "engine/application_hosts/Win32MenuController.h"
 #include "engine/platform/win32/Win32DesktopServices.h"
@@ -40,13 +42,25 @@ int APIENTRY WinMain(
     PlaceholderConversationBackend placeholder_conversation_backend;
     ConversationServiceHost conversation_service_host;
     PlaceholderWebBackend placeholder_web_backend;
+
     Win32HttpTransport bridge_transport;
     Win32NetworkRequestExecutor bridge_request_executor(
         &bridge_transport
     );
 
+    Win32HttpTransport conversation_bridge_transport;
+    Win32NetworkRequestExecutor conversation_bridge_request_executor(
+        &conversation_bridge_transport
+    );
+
     RemoteBridgeWebBackend remote_bridge_web_backend(
         &bridge_request_executor,
+        settings.get_bridge_host(),
+        settings.get_bridge_port()
+    );
+
+    RemoteConversationBackend remote_conversation_backend(
+        &conversation_bridge_request_executor,
         settings.get_bridge_host(),
         settings.get_bridge_port()
     );
@@ -58,11 +72,17 @@ int APIENTRY WinMain(
     // that upstream fetch without making the normal placeholder path slower.
     if (use_remote_bridge) {
         bridge_transport.set_timeout_milliseconds(12000);
+        conversation_bridge_transport.set_timeout_milliseconds(5000);
     }
 
     WebPlatformBackend* selected_web_backend = use_remote_bridge
         ? (WebPlatformBackend*)&remote_bridge_web_backend
         : (WebPlatformBackend*)&placeholder_web_backend;
+
+    ConversationServiceBackend* selected_conversation_backend =
+        use_remote_bridge
+            ? (ConversationServiceBackend*)&remote_conversation_backend
+            : (ConversationServiceBackend*)&placeholder_conversation_backend;
 
     WebPlatformHost web_platform_host;
     Win32GraphicsRuntime graphics_runtime;
@@ -71,7 +91,7 @@ int APIENTRY WinMain(
 
     web_platform_host.set_backend(selected_web_backend);
     conversation_service_host.set_backend(
-        &placeholder_conversation_backend
+        selected_conversation_backend
     );
     application_runtime.set_web_platform_host(&web_platform_host);
     application_runtime.set_conversation_service_host(
@@ -98,7 +118,9 @@ int APIENTRY WinMain(
             : "Web backend selection: placeholder."
     );
     Diagnostics::write_line(
-        "Conversation backend selection: local semantic placeholder."
+        use_remote_bridge
+            ? "Conversation backend selection: remote semantic bridge probe."
+            : "Conversation backend selection: local semantic placeholder."
     );
 
     if (settings.get_source_path()[0] != '\0') {

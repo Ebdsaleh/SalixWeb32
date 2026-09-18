@@ -26,7 +26,7 @@ ConversationServiceHost
 ConversationServiceBackend
     |
     +-- PlaceholderConversationBackend
-    +-- future RemoteConversationBackend
+    +-- RemoteConversationBackend
     +-- future API/service backend
     +-- future web-session compatibility backend
     `-- future local-model backend
@@ -58,9 +58,9 @@ attachment paths
 This is deliberately small. Provider-specific request options should not be added to the
 generic request unless they represent a reusable Salix conversation concept.
 
-Attachment paths are semantic request input only. The current placeholder backend does
-not transmit them. A real backend must define upload/security behavior before attachments
-leave the legacy machine.
+Attachment paths are semantic request input only. Neither the local placeholder nor the
+initial remote probe transmits them. A real backend must define upload/security behavior
+before attachments leave the legacy machine.
 
 ## Event model
 
@@ -155,10 +155,45 @@ Its response explicitly states that no external conversation service was contact
 This is the conversation equivalent of the earlier placeholder Web backend: prove the
 contract before provider credentials, authentication, or protocol-specific code is added.
 
+## Remote semantic probe
+
+When normal bridge configuration selects the remote web backend, the composition root
+also selects `RemoteConversationBackend`.
+
+It uses a dedicated `Win32HttpTransport` + `Win32NetworkRequestExecutor` pair so a
+Browser Probe request and a Conversation probe do not share one single-flight worker.
+
+The probe request sent to:
+
+```text
+POST /v1/conversation/probe
+```
+
+contains only:
+
+```text
+SALIX-CONVERSATION/1
+mode=probe
+request_id=<Salix-generated ID>
+text_forwarded=0
+attachments_forwarded=0
+```
+
+The typed draft remains local. The companion returns a length-framed event sequence
+containing `request_started`, `message_started`, several `text_delta` events, and
+`message_completed`. The backend validates the request ID, event types, byte lengths,
+framing boundary, and terminal completion event before exposing them to the application.
+
+The current HTTP transport still receives the complete framed response before semantic
+events are released. `RemoteConversationBackend` then releases at most one event per
+application update so the existing native incremental-message path is exercised. This is
+a semantic streaming **contract proof**, not yet byte-streaming HTTP/SSE transport.
+
 ## Security boundary
 
-The current Browser Probe LAN transport remains plaintext and is **not** approved for
+The current companion LAN transport remains plaintext and is **not** approved for
 credentials, session cookies, private conversation traffic, or attachment uploads.
+The remote semantic probe is permitted only because it intentionally omits those data.
 
 Creating the semantic conversation contract does not change that rule.
 
@@ -207,6 +242,6 @@ On the real VC7.1 / Windows Server 2003 Pentium 4 target:
 11. Confirm attachments still render locally and do not leave the machine through this
     placeholder backend.
 
-The next tranche after this contract is target-green should introduce a remote
-conversation backend/protocol proof without weakening the existing plaintext-LAN
-credential restriction.
+The local placeholder contract is now target-green. The next target pass validates the
+remote `SALIX-CONVERSATION/1` probe between the P4 and companion while verifying that
+the companion log receives `POST /v1/conversation/probe` and no draft/attachment data.

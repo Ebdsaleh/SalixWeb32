@@ -113,7 +113,8 @@ ConversationServiceHost
 ConversationServiceBackend
     |
     +-- PlaceholderConversationBackend
-    `-- future remote/API/web-session/local backends
+    +-- RemoteConversationBackend
+    `-- future API/web-session/local backends
 
 semantic events
     |
@@ -138,9 +139,15 @@ The service backend returns semantic content rather than remote UI state. Provid
 objects, browser automation objects, Python implementation objects, and provider-specific
 response types do not cross this boundary.
 
-The first `PlaceholderConversationBackend` performs no network access. It validates the
-request/event lifecycle and native streaming presentation before authentication or a
-real service protocol is introduced.
+The first `PlaceholderConversationBackend` performs no network access and has validated
+the request/event lifecycle and native streaming presentation on the P4.
+
+`RemoteConversationBackend` reuses the existing backend-neutral network contracts but
+owns a **separate Win32 request executor/HTTP transport instance** from Browser Probe.
+This avoids Browser and Conversation single-flight/lifecycle contention while allowing
+both to reach the same companion host/port. The initial remote endpoint is probe-only:
+it transmits the Salix request ID plus fixed zero-forwarding flags, not the draft body or
+attachment paths.
 
 `ApplicationRuntime` explicitly initializes, updates, and shuts down the optional
 `ConversationServiceHost` alongside the optional `WebPlatformHost`. Event consumption

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Modern-side companion for SalixWeb32 bridge and Browser Probe development.
+"""Modern-side companion for SalixWeb32 compatibility and semantic probe work.
 
 The bridge keeps modern HTTPS/TLS work off the Windows Server 2003 target while
-SalixWeb32 learns what a modern URL actually returns. Browser Probe requests are
-intentionally unauthenticated and never forward cookies or credentials.
+SalixWeb32 learns what modern services require. Browser Probe remains
+unauthenticated, and the Conversation probe deliberately forwards neither draft
+content nor credentials/session material.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PROTOCOL = "SALIX-BRIDGE/1"
 PROBE_PROTOCOL = "SALIX-PROBE/1"
+CONVERSATION_PROTOCOL = "SALIX-CONVERSATION/1"
 MAX_REQUEST_BYTES = 1024 * 1024
 MAX_FETCH_BYTES = 512 * 1024
 MAX_EXTRACTED_BYTES = 64 * 1024
@@ -234,6 +236,100 @@ def _frame_probe_result(
     return header + b"".join(encoded_sections)
 
 
+def _parse_conversation_probe_request(raw_body: bytes) -> int:
+    if len(raw_body) > 1024:
+        raise ValueError("conversation probe request is too large")
+
+    text = raw_body.decode("utf-8", errors="strict")
+    lines = [line for line in text.splitlines() if line]
+
+    if not lines or lines[0] != CONVERSATION_PROTOCOL:
+        raise ValueError("conversation protocol header is missing")
+
+    values: dict[str, str] = {}
+    allowed_keys = {
+        "mode",
+        "request_id",
+        "text_forwarded",
+        "attachments_forwarded",
+    }
+
+    for line in lines[1:]:
+        if "=" not in line:
+            raise ValueError("conversation probe metadata is malformed")
+
+        key, value = line.split("=", 1)
+        if key not in allowed_keys:
+            raise ValueError("conversation probe contains an unexpected field")
+
+        values[key] = value
+
+    if values.get("mode") != "probe":
+        raise ValueError("conversation probe mode is required")
+
+    if values.get("text_forwarded") != "0":
+        raise ValueError("conversation probe must not forward message text")
+
+    if values.get("attachments_forwarded") != "0":
+        raise ValueError("conversation probe must not forward attachments")
+
+    try:
+        request_id = int(values.get("request_id", "0"))
+    except ValueError as error:
+        raise ValueError("conversation request ID is invalid") from error
+
+    if request_id < 1 or request_id > 0xFFFFFFFF:
+        raise ValueError("conversation request ID is out of range")
+
+    return request_id
+
+
+def _frame_conversation_probe(request_id: int) -> bytes:
+    events = [
+        ("request_started", ""),
+        ("message_started", ""),
+        ("text_delta", "**Remote semantic bridge online.**\n\n"),
+        (
+            "text_delta",
+            "This response came from the modern companion through "
+            "`SALIX-CONVERSATION/1` semantic events.\n\n",
+        ),
+        (
+            "text_delta",
+            "The probe did not transmit your message text, attachment paths, "
+            "credentials, cookies, or session data.",
+        ),
+        ("message_completed", ""),
+    ]
+
+    encoded_events = [
+        (event_type, event_text.encode("utf-8"))
+        for event_type, event_text in events
+    ]
+
+    lines = [
+        CONVERSATION_PROTOCOL,
+        "status=ok",
+        f"request_id={request_id}",
+        f"event_count={len(encoded_events)}",
+        "mode=probe",
+        "text_forwarded=0",
+        "attachments_forwarded=0",
+    ]
+
+    for index, (event_type, event_text) in enumerate(encoded_events):
+        lines.append(f"event_{index}_type={event_type}")
+        lines.append(f"event_{index}_len={len(event_text)}")
+
+    header = ("\n".join(lines) + "\n\n").encode("ascii")
+    return header + b"".join(event_text for _event_type, event_text in encoded_events)
+
+
+def _perform_conversation_probe(raw_body: bytes) -> bytes:
+    request_id = _parse_conversation_probe_request(raw_body)
+    return _frame_conversation_probe(request_id)
+
+
 def _perform_probe(target: str) -> bytes:
     parsed = urllib.parse.urlparse(target)
     if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
@@ -327,7 +423,7 @@ def _perform_probe(target: str) -> bytes:
 
 
 class SalixBridgeHandler(BaseHTTPRequestHandler):
-    server_version = "SalixBridge/0.2"
+    server_version = "SalixBridge/0.3"
     protocol_version = "HTTP/1.0"
 
     def _send_bytes(self, status: int, payload: bytes, content_type: str) -> None:
@@ -368,7 +464,11 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
         if self.path == "/v1/health":
             self._send_text(
                 200,
-                f"{PROTOCOL}\nstatus=ok\nservice=salix_bridge\nprobe=enabled\n",
+                f"{PROTOCOL}\n"
+                "status=ok\n"
+                "service=salix_bridge\n"
+                "probe=enabled\n"
+                "conversation_probe=enabled\n",
             )
             return
 
@@ -378,7 +478,11 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
         )
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler contract
-        if self.path not in ("/v1/navigate", "/v1/fetch"):
+        if self.path not in (
+            "/v1/navigate",
+            "/v1/fetch",
+            "/v1/conversation/probe",
+        ):
             self._send_text(
                 404,
                 f"{PROTOCOL}\nstatus=not_found\npath={self.path}\n",
@@ -387,6 +491,25 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
 
         raw_body = self._read_request_body()
         if raw_body is None:
+            return
+
+        if self.path == "/v1/conversation/probe":
+            try:
+                payload = _perform_conversation_probe(raw_body)
+            except (UnicodeDecodeError, ValueError) as error:
+                self._send_text(
+                    400,
+                    f"{CONVERSATION_PROTOCOL}\n"
+                    "status=invalid_probe\n"
+                    f"error={error}\n",
+                )
+                return
+
+            self._send_bytes(
+                200,
+                payload,
+                "application/x-salix-conversation",
+            )
             return
 
         target = raw_body.decode("utf-8", errors="replace").strip()
@@ -469,10 +592,12 @@ def main() -> int:
 
     print(f"Salix bridge protocol : {PROTOCOL}")
     print(f"Browser probe protocol: {PROBE_PROTOCOL}")
+    print(f"Conversation protocol : {CONVERSATION_PROTOCOL}")
     print(f"Listening             : http://{args.host}:{args.port}")
     print("Modern HTTPS probe    : enabled (unauthenticated GET only)")
     print("Probe address family  : IPv4")
-    print("Credentials/cookies   : never forwarded by Browser Probe")
+    print("Conversation probe    : semantic events; message text not forwarded")
+    print("Credentials/cookies   : never forwarded by probe paths")
     print("Press Ctrl+C to stop.")
 
     try:

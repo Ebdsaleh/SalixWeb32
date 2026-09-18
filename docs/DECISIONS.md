@@ -201,3 +201,22 @@ network stack, or another mechanism, but those details stop at the backend bound
 Presentation updates are consumed on the application thread.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
+
+
+---
+
+## ADR-016 — Plaintext Conversation bridge begins with a content-free probe
+
+**Status:** Accepted
+
+The first `RemoteConversationBackend` proof must not forward typed draft text,
+attachment paths, credentials, cookies, tokens, or session state over the current
+plaintext trusted-LAN bridge.
+
+It sends only a Salix request ID and fixed zero-forwarding flags to
+`/v1/conversation/probe`. The companion returns framed semantic events using
+`SALIX-CONVERSATION/1`.
+
+This validates the P4 -> companion -> semantic event -> native Conversation pipeline
+without quietly weakening the security boundary. Real conversation content requires a
+separately designed secure credential/session transport.

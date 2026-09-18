@@ -19,34 +19,45 @@ longer a prerequisite for progressing the application.
 ## Transport architecture
 
 ```text
-SalixWeb32 application / Browser Probe
-        |
-        v
-WebPlatformHost
-        |
-        v
-RemoteBridgeWebBackend
-        |
-        v
-NetworkRequestExecutor
-        |
-        v
-Win32NetworkRequestExecutor (background worker)
-        |
-        v
-NetworkTransport
-        |
-        v
-Win32HttpTransport (Winsock2, plain HTTP on trusted LAN)
-        |
-        v
-modern companion: tools/salix_bridge.py
+SalixWeb32
+   |
+   +-- Browser Probe
+   |      |
+   |      v
+   |   RemoteBridgeWebBackend
+   |      |
+   |      v
+   |   Win32NetworkRequestExecutor
+   |      |
+   |      v
+   |   Win32HttpTransport
+   |
+   `-- Conversation
+          |
+          v
+      RemoteConversationBackend
+          |
+          v
+      Win32NetworkRequestExecutor
+          |
+          v
+      Win32HttpTransport
+          |
+          +-------------------+
+                              |
+                              v
+                  trusted-LAN companion
+                  tools/salix_bridge.py
 ```
 
-The application still knows only `WebPlatformBackend`. The remote backend sees
-only the backend-neutral request-executor contract; Win32 thread ownership stays
-in the engine/platform adapter and Winsock details remain in the Win32 transport.
-Companion protocol details remain in the remote backend.
+The Browser and Conversation paths use separate executor/transport instances so their
+single-flight workers and lifecycle do not interfere with one another. Both depend on
+the same generic `NetworkRequestExecutor` / `NetworkTransport` contracts and may target
+the same configured companion host/port.
+
+Win32 thread ownership stays in the engine/platform adapters and Winsock details remain
+in `Win32HttpTransport`. Companion protocol details remain inside the selected remote
+backends.
 
 ## Current companion endpoints
 
@@ -56,6 +67,7 @@ The companion now supports:
 GET  /v1/health
 POST /v1/navigate
 POST /v1/fetch
+POST /v1/conversation/probe
 ```
 
 `/v1/navigate` remains the original transport-proof acknowledgement endpoint.
@@ -72,6 +84,11 @@ POST /v1/fetch
 - response headers,
 - raw textual response content,
 - lightweight extracted text/title.
+
+`/v1/conversation/probe` returns a framed `SALIX-CONVERSATION/1` semantic event
+sequence. Its request is intentionally content-free: Salix sends only a generated
+request ID plus fixed `text_forwarded=0` and `attachments_forwarded=0` flags. The
+companion rejects probe payloads that attempt to enable either field.
 
 The current companion does not execute target JavaScript and does not claim to provide
 a browser DOM. A future browser/runtime compatibility adapter would be a separate
@@ -119,7 +136,7 @@ python tools/salix_bridge.py --host 0.0.0.0 --port 8765
 
 Binding to `0.0.0.0` permits LAN access. Keep the host firewall rule narrowly scoped to the Pentium 4 source address.
 
-The current startup banner reports both bridge and Browser Probe protocol versions.
+The current startup banner reports the bridge, Browser Probe, and Conversation protocol versions.
 
 ## Starting SalixWeb32
 
@@ -139,13 +156,16 @@ Remote mode uses a longer bounded bridge receive timeout so the companion has en
 
 The P4-to-companion transport is still intentionally **plain HTTP**.
 
-Therefore Browser Probe v1 is deliberately unauthenticated:
+Therefore the Browser Probe and remote Conversation **probe** paths are deliberately
+non-sensitive:
 
 - no ChatGPT credentials,
 - no authorization headers,
 - no browser cookies,
 - no session tokens,
 - no private conversation payloads,
+- no draft message text on the Conversation probe,
+- no attachment paths/counts on the Conversation probe,
 - no file uploads.
 
 The companion also redacts sensitive response headers such as `Set-Cookie` before returning probe headers over the plaintext LAN link.
@@ -192,7 +212,8 @@ The bridge is intentionally simple:
 These limits keep the bridge understandable while SalixWeb32 learns which modern
 web/service capabilities are actually required.
 
-The next bridge-level expansion should be semantic service/session work, not an
-unbounded increase in Browser Probe payload size. Any credential-bearing path must first
+The bridge now has a semantic Conversation probe in addition to Browser Probe. The next
+bridge-level expansion should be the secure service/session boundary rather than
+forwarding real conversation content over this plaintext protocol. Any credential-bearing path must first
 define a secure boundary; the current plaintext LAN protocol is deliberately excluded
 from that role.

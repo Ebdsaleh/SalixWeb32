@@ -110,7 +110,7 @@ The native application/framework foundation is operational on the real Pentium 4
 - native tabs, scrollbars, menus, diagnostics, screenshots, and clipboard integration,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
 - the `ConversationServiceBackend` / `ConversationServiceHost` semantic chat abstraction,
-- a local placeholder conversation backend that emits request/message/text-delta/completion events,
+- local and remote-probe conversation backends that emit request/message/text-delta/completion events,
 - placeholder and remote bridge web backends,
 - backend-neutral network request/response contracts,
 - a background Win32 request executor so blocking network transport does not run on the UI thread,
@@ -128,10 +128,11 @@ substantial responsiveness improvement. Browser Probe still keeps its Raw presen
 bounded because rendering hundreds of kilobytes of minified HTML provides little UX
 value; complete Raw remains available through Copy and diagnostic export.
 
-The Conversation workspace now has its first provider-neutral semantic service contract.
-The local placeholder backend performs no network access; it proves request IDs, semantic
-stream events, in-place native response updates, and Markdown presentation before a real
-authenticated service backend is introduced.
+The Conversation workspace now has a provider-neutral semantic service contract. Its
+local placeholder path has been exercised on the real Pentium 4, and remote bridge mode
+now selects a separate `RemoteConversationBackend` proof that asks the modern companion
+for framed semantic events. This first remote proof deliberately sends **no typed message
+text, attachment paths, credentials, cookies, or session data** over the plaintext LAN.
 
 ## Documentation
 

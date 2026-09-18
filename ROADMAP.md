@@ -363,13 +363,13 @@ The current implementation direction keeps the P4 as the semantic/native applica
 client and uses the modern companion only for compatibility work that is unreasonable
 to execute locally. Pixel-streaming is not the preferred application architecture.
 
-- [~] conversation display (native shell proof advancing before network backend)
-- [~] text input (native shell proof advancing before network backend)
+- [x] conversation display with semantic local/remote message updates
+- [x] text input -> provider-neutral `ConversationRequest` handoff
 - [~] attachments (semantic local model + image presentation active; transfer backend pending)
 - [ ] file transfer
 - [x] copy/paste large diagnostic text through the native clipboard path
 - [ ] authenticated service/session backend
-- [ ] response streaming into `ConversationView`
+- [~] semantic response streaming into `ConversationView` (local + remote probe proof)
 - [ ] session persistence
 - [x] diagnostics panel and native screenshot/report capture
 - [~] privacy/network endpoint visibility foundation
@@ -444,8 +444,9 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] `ConversationServiceHost` lifecycle/selection boundary,
 - [x] local placeholder backend with no network access,
 - [x] in-place native Remote-message updates from `text_delta` events,
-- [ ] real P4/VC7.1 validation of the placeholder semantic stream,
-- [ ] remote conversation backend/protocol,
+- [x] real P4 runtime validation of the placeholder semantic stream,
+- [x] remote conversation backend + `SALIX-CONVERSATION/1` probe protocol implemented,
+- [ ] real P4 <-> companion validation of the remote semantic probe,
 - [ ] secure authenticated service/session boundary,
 - [ ] real provider response streaming.
 
@@ -458,12 +459,10 @@ See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
    repaint naturally on Pentium 4 hardware,
 3. extend Browser Probe only where measurements help choose the next service/runtime
    boundary,
-4. validate the new semantic conversation request/event contract on the real P4,
-5. add a remote conversation backend/protocol proof without sending credentials over
-   the current plaintext LAN protocol,
-6. establish the secure credential/session boundary,
-7. connect a real streamed service result to the existing native Conversation/Markdown
-   presentation.
+4. validate the remote `SALIX-CONVERSATION/1` probe on the real P4 and Server 2022 companion,
+5. establish the secure credential/session boundary,
+6. connect a real service/session backend without leaking provider objects into the app,
+7. stream real provider content into the existing native Conversation/Markdown presentation.
 
 # Guiding priority
 
