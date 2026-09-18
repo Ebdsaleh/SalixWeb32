@@ -498,6 +498,9 @@ def _chat_worker_health() -> tuple[bool, str]:
         if value.get("status") != "ok":
             return False, "worker_error"
         if value.get("session_ready") is not True:
+            session_status = value.get("session_status")
+            if isinstance(session_status, str) and session_status:
+                return False, session_status
             return False, "browser_login_or_thread_not_ready"
 
         return True, "ready"

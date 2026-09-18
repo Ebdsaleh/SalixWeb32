@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -84,6 +85,47 @@ def _find_librewolf(explicit: str | None) -> Path:
 
 def _json_bytes(value: dict[str, Any]) -> bytes:
     return json.dumps(value, ensure_ascii=False).encode("utf-8")
+
+
+def _prepare_login_profile(
+    browser_path: Path,
+    profile_directory: Path,
+    start_url: str,
+) -> int:
+    """Open the dedicated profile in ordinary LibreWolf without WebDriver.
+
+    Google may reject OAuth login from an automation-controlled browser. This
+    bootstrap mode lets the user authenticate normally once, then reuse the
+    resulting browser profile in the relay worker.
+    """
+
+    profile_directory.mkdir(parents=True, exist_ok=True)
+
+    command = [
+        str(browser_path),
+        "-no-remote",
+        "-profile",
+        str(profile_directory),
+        start_url,
+    ]
+
+    print("Opening ordinary LibreWolf for manual authentication.")
+    print(f"LibreWolf binary   : {browser_path}")
+    print(f"Persistent profile : {profile_directory}")
+    print(f"Start URL          : {start_url}")
+    print()
+    print("Log in to ChatGPT normally in this browser window.")
+    print("When ChatGPT is usable, CLOSE the LibreWolf window.")
+    print("The command will then return and the profile will be ready for the worker.")
+    print()
+
+    try:
+        process = subprocess.Popen(command)
+        return int(process.wait())
+    except OSError as error:
+        raise RuntimeError(
+            f"failed to launch ordinary LibreWolf: {error}"
+        ) from error
 
 
 class ChatBrowserSession:
@@ -242,16 +284,31 @@ return selectors.some((selector) =>
             try:
                 driver = self._require_driver()
                 composer_ready = self._find_composer() is not None
+                current_url = str(driver.current_url or "")
+
+                session_status = "ready" if composer_ready else "login_or_thread_not_ready"
+                lowered_url = current_url.lower()
+
+                if (
+                    "accounts.google.com" in lowered_url and
+                    (
+                        "/signin/rejected" in lowered_url or
+                        "rejected?" in lowered_url
+                    )
+                ):
+                    session_status = "google_oauth_rejected_use_prepare_login"
+
                 return {
                     "protocol": SESSION_PROTOCOL,
                     "status": "ok",
                     "browser": "LibreWolf",
                     "browser_binary": str(self.browser_path),
                     "profile": str(self.profile_directory),
-                    "current_url": str(driver.current_url or ""),
+                    "current_url": current_url,
                     "title": str(driver.title or ""),
                     "composer_ready": composer_ready,
                     "session_ready": composer_ready,
+                    "session_status": session_status,
                     "last_error": self.last_error,
                 }
             except Exception as error:
@@ -262,6 +319,7 @@ return selectors.some((selector) =>
                     "browser": "LibreWolf",
                     "composer_ready": False,
                     "session_ready": False,
+                    "session_status": "worker_error",
                     "last_error": self.last_error,
                 }
 
@@ -594,6 +652,14 @@ def main() -> int:
         default=DEFAULT_RESPONSE_TIMEOUT_SECONDS,
         help="maximum seconds to wait for one ChatGPT response",
     )
+    parser.add_argument(
+        "--prepare-login",
+        action="store_true",
+        help=(
+            "open the dedicated profile in ordinary LibreWolf without "
+            "WebDriver so manual ChatGPT/Google authentication can be completed"
+        ),
+    )
     args = parser.parse_args()
 
     if args.listen_host not in ("127.0.0.1", "localhost"):
@@ -607,6 +673,33 @@ def main() -> int:
 
     browser_path = _find_librewolf(args.browser)
     profile_directory = Path(args.profile).expanduser().resolve()
+
+    if args.prepare_login:
+        try:
+            exit_code = _prepare_login_profile(
+                browser_path=browser_path,
+                profile_directory=profile_directory,
+                start_url=args.url,
+            )
+        except Exception as error:
+            print(
+                f"ERROR: {type(error).__name__}: {error}",
+                file=sys.stderr,
+            )
+            return 1
+
+        if exit_code != 0:
+            print(
+                f"LibreWolf exited with code {exit_code}.",
+                file=sys.stderr,
+            )
+            return exit_code
+
+        print()
+        print("Manual-login profile preparation finished.")
+        print("Now start the relay worker with:")
+        print("  python tools\\salix_chat_session.py")
+        return 0
 
     session = ChatBrowserSession(
         browser_path=browser_path,

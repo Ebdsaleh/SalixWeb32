@@ -567,10 +567,14 @@ Modern companion preparation:
 
 1. Pull the same commit on the modern machine.
 2. Run `tools\setup_chat_session.bat` once to install/update Selenium.
-3. Start `python tools\salix_chat_session.py`.
-4. Confirm visible LibreWolf starts.
-5. Log in to ChatGPT manually inside that browser profile and open the desired thread.
-6. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+3. If authentication is not already present in the dedicated relay profile, run
+   `python tools\salix_chat_session.py --prepare-login`.
+4. Complete login in the ordinary LibreWolf window, verify ChatGPT is usable, then close
+   that window.
+5. Start `python tools\salix_chat_session.py` and confirm the visible automated
+   LibreWolf reuses the authenticated profile.
+6. Open the desired ChatGPT thread if needed.
+7. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 7. Confirm the bridge reports browser-relay text mode and the worker endpoint.
 8. Run `python tools\test_chat_relay.py` and require
    `conversation_browser_session=ready`.

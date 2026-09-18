@@ -99,13 +99,25 @@ The default persistent profile lives beneath:
 
 Do not open that same dedicated profile simultaneously in another LibreWolf process.
 
-Start the worker:
+If the ChatGPT account uses Google sign-in, prepare the dedicated profile in ordinary
+LibreWolf first:
+
+```bat
+python tools\salix_chat_session.py --prepare-login
+```
+
+This mode does **not** use WebDriver. Log in normally, confirm ChatGPT is usable, then
+close LibreWolf so the profile is released.
+
+Now start the automated worker using that already-authenticated profile:
 
 ```bat
 python tools\salix_chat_session.py
 ```
 
-Log in and open the desired ChatGPT conversation.
+Open the desired ChatGPT conversation if one is not already open. If Google redirects an
+automation-controlled login attempt to its rejected-browser page, the worker reports
+`google_oauth_rejected_use_prepare_login` through bridge health.
 
 Then start the existing bridge in another terminal:
 
