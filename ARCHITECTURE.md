@@ -92,6 +92,62 @@ This keeps the web platform optional. The native runtime remains capable of star
 
 Backend replacement is not allowed while the host is initialized in the first implementation. A future hot-swap feature must use an explicit stop/swap/start transaction rather than changing a live provider underneath `WebView`.
 
+## Conversation service boundary
+
+The native Conversation workspace is separated from provider/runtime implementation by a
+second explicit host/backend boundary:
+
+```text
+MessageComposer
+    |
+    v
+MessageDraft
+    |
+    v
+ConversationRequest
+    |
+    v
+ConversationServiceHost
+    |
+    v
+ConversationServiceBackend
+    |
+    +-- PlaceholderConversationBackend
+    `-- future remote/API/web-session/local backends
+
+semantic events
+    |
+    v
+StatusView / application thread
+    |
+    v
+ConversationView
+```
+
+The generic event vocabulary currently includes:
+
+```text
+request_started
+message_started
+text_delta
+message_completed
+request_failed
+```
+
+The service backend returns semantic content rather than remote UI state. Provider DOM
+objects, browser automation objects, Python implementation objects, and provider-specific
+response types do not cross this boundary.
+
+The first `PlaceholderConversationBackend` performs no network access. It validates the
+request/event lifecycle and native streaming presentation before authentication or a
+real service protocol is introduced.
+
+`ApplicationRuntime` explicitly initializes, updates, and shuts down the optional
+`ConversationServiceHost` alongside the optional `WebPlatformHost`. Event consumption
+and `ConversationView` mutation remain on the application thread.
+
+See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
+
 ## Navigation, surface, and input contracts
 
 The first Phase 3 contracts are intentionally small and backend-neutral.

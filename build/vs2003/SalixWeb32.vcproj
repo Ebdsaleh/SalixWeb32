@@ -110,6 +110,10 @@
 			<File RelativePath="..\..\src\app\MessageInputStrip.cpp"/>
 			<File RelativePath="..\..\src\app\MessageToolbar.cpp"/>
 			<File RelativePath="..\..\src\app\StatusView.cpp"/>
+			<File RelativePath="..\..\src\conversation\ConversationEvent.cpp"/>
+			<File RelativePath="..\..\src\conversation\ConversationRequest.cpp"/>
+			<File RelativePath="..\..\src\conversation\ConversationServiceHost.cpp"/>
+			<File RelativePath="..\..\src\conversation\backends\PlaceholderConversationBackend.cpp"/>
 			<File RelativePath="..\..\src\framework\Button.cpp"/>
 			<File RelativePath="..\..\src\framework\CodeLanguageRegistry.cpp"/>
 			<File RelativePath="..\..\src\framework\CodeSyntaxHighlighter.cpp"/>
@@ -179,6 +183,11 @@
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
 			<File RelativePath="..\..\src\app\MessageToolbar.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
+			<File RelativePath="..\..\src\conversation\ConversationEvent.h"/>
+			<File RelativePath="..\..\src\conversation\ConversationRequest.h"/>
+			<File RelativePath="..\..\src\conversation\ConversationServiceBackend.h"/>
+			<File RelativePath="..\..\src\conversation\ConversationServiceHost.h"/>
+			<File RelativePath="..\..\src\conversation\backends\PlaceholderConversationBackend.h"/>
 			<File RelativePath="..\..\src\framework\ApplicationCommand.h"/>
 			<File RelativePath="..\..\src\framework\Button.h"/>
 			<File RelativePath="..\..\src\framework\Clipboard.h"/>

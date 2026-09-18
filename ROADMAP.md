@@ -433,6 +433,24 @@ SalixWeb32 still works when the provider is absent.
 - [ ] performance profiling on actual P4
 - [ ] release/versioning policy
 
+## Semantic conversation-service foundation
+
+The first provider-neutral conversation-service contract is now implemented:
+
+- [x] `ConversationRequest` for text and attachment references,
+- [x] generated Salix request IDs,
+- [x] `ConversationEvent` semantic stream vocabulary,
+- [x] `ConversationServiceBackend` provider contract,
+- [x] `ConversationServiceHost` lifecycle/selection boundary,
+- [x] local placeholder backend with no network access,
+- [x] in-place native Remote-message updates from `text_delta` events,
+- [ ] real P4/VC7.1 validation of the placeholder semantic stream,
+- [ ] remote conversation backend/protocol,
+- [ ] secure authenticated service/session boundary,
+- [ ] real provider response streaming.
+
+See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
+
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,
@@ -440,9 +458,11 @@ SalixWeb32 still works when the provider is absent.
    repaint naturally on Pentium 4 hardware,
 3. extend Browser Probe only where measurements help choose the next service/runtime
    boundary,
-4. define the first semantic chat/service transport without sending credentials over
+4. validate the new semantic conversation request/event contract on the real P4,
+5. add a remote conversation backend/protocol proof without sending credentials over
    the current plaintext LAN protocol,
-5. connect streamed service results to the existing native Conversation/Markdown
+6. establish the secure credential/session boundary,
+7. connect a real streamed service result to the existing native Conversation/Markdown
    presentation.
 
 # Guiding priority

@@ -9,6 +9,9 @@
 #include <vector>
 
 #include "StatusView.h"
+#include "conversation/ConversationEvent.h"
+#include "conversation/ConversationRequest.h"
+#include "conversation/ConversationServiceHost.h"
 #include "runtime/ApplicationRuntime.h"
 #include "framework/ApplicationCommand.h"
 #include "framework/DesktopServices.h"
@@ -29,17 +32,21 @@ StatusView::StatusView(
     ApplicationRuntime* new_application_runtime,
     FileDialog* new_file_dialog,
     DesktopServices* new_desktop_services,
-    WebPlatformHost* new_web_platform_host
+    WebPlatformHost* new_web_platform_host,
+    ConversationServiceHost* new_conversation_service_host
 ) : application_runtime(new_application_runtime),
     file_dialog(new_file_dialog),
     desktop_services(new_desktop_services),
     web_platform_host(new_web_platform_host),
+    conversation_service_host(new_conversation_service_host),
     native_control_host(0),
     client_width(0),
     client_height(0),
     conversation_tab_index(-1),
     web_tab_index(-1),
     runtime_tab_index(-1),
+    active_conversation_request_id(0),
+    streaming_message_index(-1),
     message_composer(new_file_dialog) {
 
     header_title_label.set_text("SalixWeb32 Messenger");
@@ -47,7 +54,7 @@ StatusView::StatusView(
 
     conversation_title_label.set_text("Conversation");
     conversation_hint_label.set_text(
-        "Conversation transport not connected - local UI messages are shown below."
+        "Conversation service contract initializing."
     );
 
     sidebar_title_label.set_text("Runtime diagnostics");
@@ -369,6 +376,7 @@ bool StatusView::handle_event(const UIEvent& event) {
 
 void StatusView::render(ComponentRenderer& renderer) {
     browser_probe_view.update();
+    consume_conversation_events();
     update_dynamic_text();
     root_panel.render(renderer);
 }
@@ -383,6 +391,7 @@ void StatusView::on_message_submitted(
     StatusView* status_view = (StatusView*)context;
     if (status_view != 0) {
         status_view->show_submitted_message(draft);
+        status_view->submit_draft_to_service(draft);
     }
 }
 
@@ -444,6 +453,7 @@ void StatusView::update_dynamic_text() {
     char size_text[128];
     char backend_text[256];
     char capability_text[256];
+    char conversation_text[256];
 
     if (application_runtime != 0) {
         sprintf(
@@ -494,6 +504,32 @@ void StatusView::update_dynamic_text() {
         sprintf(capability_text, "Web capabilities: unavailable");
     }
 
+    if (
+        conversation_service_host != 0 &&
+        conversation_service_host->has_backend()
+    ) {
+        if (active_conversation_request_id != 0) {
+            sprintf(
+                conversation_text,
+                "Conversation backend: %s | request %lu streaming",
+                conversation_service_host->get_backend_name(),
+                active_conversation_request_id
+            );
+        } else {
+            sprintf(
+                conversation_text,
+                "Conversation backend: %s | semantic contract ready",
+                conversation_service_host->get_backend_name()
+            );
+        }
+    } else {
+        sprintf(
+            conversation_text,
+            "Conversation backend: none | local presentation only"
+        );
+    }
+
+    conversation_hint_label.set_text(conversation_text);
     web_backend_label.set_text(backend_text);
     web_capability_label.set_text(capability_text);
     runtime_status_label.set_text(service_text);
@@ -513,6 +549,138 @@ void StatusView::show_submitted_message(const MessageDraft& draft) {
         conversation_view.append_attachment(
             draft.get_attachment(index)
         );
+    }
+}
+
+void StatusView::submit_draft_to_service(
+    const MessageDraft& draft
+) {
+    if (
+        conversation_service_host == 0 ||
+        !conversation_service_host->has_backend() ||
+        !conversation_service_host->get_is_initialized()
+    ) {
+        conversation_view.append_system_message(
+            "Conversation service is not available."
+        );
+        return;
+    }
+
+    ConversationRequest request;
+    request.set_text(draft.get_body().get_text());
+
+    int attachment_count = draft.get_attachment_count();
+    for (int index = 0; index < attachment_count; ++index) {
+        request.add_attachment_path(
+            draft.get_attachment_path(index)
+        );
+    }
+
+    unsigned long request_id =
+        conversation_service_host->submit_request(request);
+
+    if (request_id == 0) {
+        conversation_view.append_system_message(
+            "Conversation backend did not accept the request."
+        );
+        return;
+    }
+
+    active_conversation_request_id = request_id;
+    streaming_message_index = -1;
+    streaming_message_text.clear();
+}
+
+void StatusView::consume_conversation_events() {
+    if (
+        conversation_service_host == 0 ||
+        !conversation_service_host->get_is_initialized()
+    ) {
+        return;
+    }
+
+    ConversationEvent event;
+
+    while (conversation_service_host->take_event(event)) {
+        unsigned long request_id = event.get_request_id();
+
+        switch (event.get_type()) {
+            case ConversationEvent::event_request_started:
+                active_conversation_request_id = request_id;
+                streaming_message_index = -1;
+                streaming_message_text.clear();
+                break;
+
+            case ConversationEvent::event_message_started:
+                if (
+                    active_conversation_request_id == 0 ||
+                    active_conversation_request_id == request_id
+                ) {
+                    active_conversation_request_id = request_id;
+                    streaming_message_index = -1;
+                    streaming_message_text.clear();
+                }
+                break;
+
+            case ConversationEvent::event_text_delta:
+                if (
+                    request_id == 0 ||
+                    request_id != active_conversation_request_id
+                ) {
+                    break;
+                }
+
+                streaming_message_text += event.get_text();
+
+                if (streaming_message_text.empty()) {
+                    break;
+                }
+
+                if (streaming_message_index < 0) {
+                    if (conversation_view.append_remote_message(
+                            streaming_message_text.c_str()
+                        )) {
+                        streaming_message_index =
+                            conversation_view.get_message_count() - 1;
+                    }
+                } else {
+                    conversation_view.update_message(
+                        streaming_message_index,
+                        streaming_message_text.c_str()
+                    );
+                }
+                break;
+
+            case ConversationEvent::event_message_completed:
+                if (request_id == active_conversation_request_id) {
+                    active_conversation_request_id = 0;
+                    streaming_message_index = -1;
+                    streaming_message_text.clear();
+                }
+                break;
+
+            case ConversationEvent::event_request_failed:
+                if (event.get_text()[0] != '\0') {
+                    conversation_view.append_system_message(
+                        event.get_text()
+                    );
+                } else {
+                    conversation_view.append_system_message(
+                        "Conversation request failed."
+                    );
+                }
+
+                if (request_id == active_conversation_request_id) {
+                    active_conversation_request_id = 0;
+                    streaming_message_index = -1;
+                    streaming_message_text.clear();
+                }
+                break;
+
+            case ConversationEvent::event_none:
+            default:
+                break;
+        }
     }
 }
 

@@ -12,6 +12,8 @@
 #include "runtime/Diagnostics.h"
 #include "app/ApplicationSettings.h"
 #include "app/StatusView.h"
+#include "conversation/ConversationServiceHost.h"
+#include "conversation/backends/PlaceholderConversationBackend.h"
 #include "engine/application_hosts/Win32ApplicationHost.h"
 #include "engine/application_hosts/Win32MenuController.h"
 #include "engine/platform/win32/Win32DesktopServices.h"
@@ -35,6 +37,8 @@ int APIENTRY WinMain(
     settings.load();
 
     ApplicationRuntime application_runtime;
+    PlaceholderConversationBackend placeholder_conversation_backend;
+    ConversationServiceHost conversation_service_host;
     PlaceholderWebBackend placeholder_web_backend;
     Win32HttpTransport bridge_transport;
     Win32NetworkRequestExecutor bridge_request_executor(
@@ -66,13 +70,20 @@ int APIENTRY WinMain(
     Win32DesktopServices desktop_services(instance_handle);
 
     web_platform_host.set_backend(selected_web_backend);
+    conversation_service_host.set_backend(
+        &placeholder_conversation_backend
+    );
     application_runtime.set_web_platform_host(&web_platform_host);
+    application_runtime.set_conversation_service_host(
+        &conversation_service_host
+    );
 
     StatusView status_view(
         &application_runtime,
         &file_dialog,
         &desktop_services,
-        &web_platform_host
+        &web_platform_host,
+        &conversation_service_host
     );
     Win32ApplicationHost application_host;
     Win32MenuController menu_controller;
@@ -85,6 +96,9 @@ int APIENTRY WinMain(
         use_remote_bridge
             ? "Web backend selection: remote Browser Probe bridge."
             : "Web backend selection: placeholder."
+    );
+    Diagnostics::write_line(
+        "Conversation backend selection: local semantic placeholder."
     );
 
     if (settings.get_source_path()[0] != '\0') {

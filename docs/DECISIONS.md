@@ -178,3 +178,26 @@ canonical data. Full-data actions should use canonical/cached state directly and
 not require rendering the full payload first.
 
 See `docs/PRESENTATION_INTERACTION_POLICY.md`.
+
+
+---
+
+## ADR-015 — Conversation services emit semantic events
+
+**Status:** Accepted
+
+Conversation providers are isolated behind `ConversationServiceHost` and
+`ConversationServiceBackend`.
+
+Application-facing communication uses provider-neutral requests and semantic events such
+as `request_started`, `message_started`, `text_delta`, `message_completed`, and
+`request_failed`.
+
+The native Conversation UI must not depend on provider DOM objects, browser automation
+objects, Python implementation objects, or provider-specific response structures.
+
+Backends may internally use an API, a browser/session runtime, a translator, a native
+network stack, or another mechanism, but those details stop at the backend boundary.
+Presentation updates are consumed on the application thread.
+
+See `docs/CONVERSATION_SERVICE_CONTRACT.md`.

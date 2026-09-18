@@ -41,6 +41,8 @@ class ConversationView : public Panel {
         bool append_local_message(const FormattedText& text);
         bool append_remote_message(const char* text);
         bool append_remote_message(const FormattedText& text);
+        bool update_message(int index, const char* text);
+        bool update_message(int index, const FormattedText& text);
         bool append_attachment(const Attachment& attachment);
 
         void clear_messages();

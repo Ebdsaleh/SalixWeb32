@@ -358,3 +358,36 @@ The following should **not** be inferred from the successful Browser Probe pass:
 - MiniXP coverage is not implied by Server 2003 validation unless explicitly recorded.
 
 For subsequent tranches, the real Pentium 4 remains authoritative.
+
+
+## Semantic conversation-service validation
+
+The provider-neutral Conversation service contract is implemented but requires target
+validation before it is marked green.
+
+The current proof uses `PlaceholderConversationBackend`, which performs no network
+access. It emits one semantic event at a time through the same host/backend boundary
+intended for future remote/API/web-session providers.
+
+Target checklist:
+
+1. Clean/Rebuild `Debug | Win32` under Visual C++ 7.1.
+2. Confirm zero errors and zero warnings.
+3. Launch SalixWeb32 and open the Conversation workspace.
+4. Confirm the hint reports `Placeholder Conversation Backend` and semantic contract
+   ready.
+5. Send `Hello from Pentium 4`.
+6. Confirm the local message remains in history.
+7. Confirm one Remote response appears and is updated from semantic text-delta events.
+8. Confirm the bold Markdown heading in the placeholder response renders through the
+   existing native Markdown path.
+9. Confirm the final response explicitly says that no external conversation service was
+   contacted.
+10. Send another message after completion and confirm a new request is accepted.
+11. Confirm Browser Probe and Runtime continue to work normally.
+12. Confirm no credentials, session cookies, conversation content, or attachments are
+   transmitted by this placeholder proof.
+
+A successful pass validates the application-facing semantic boundary only. It does not
+validate authenticated ChatGPT/service access or make the existing plaintext LAN bridge
+suitable for private conversation traffic.

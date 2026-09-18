@@ -38,6 +38,7 @@ SalixWeb32 separates:
 Application
     |
     +-- app/          native product views and message models
+    +-- conversation/ semantic service requests/events/backends
     +-- runtime/      lifecycle, services, diagnostics
     +-- framework/    semantic UI/components
     +-- engine/       Win32 host, rendering, platform adapters
@@ -108,7 +109,9 @@ The native application/framework foundation is operational on the real Pentium 4
 - attachments, image preview, and file actions,
 - native tabs, scrollbars, menus, diagnostics, screenshots, and clipboard integration,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
-- placeholder and remote bridge backends,
+- the `ConversationServiceBackend` / `ConversationServiceHost` semantic chat abstraction,
+- a local placeholder conversation backend that emits request/message/text-delta/completion events,
+- placeholder and remote bridge web backends,
 - backend-neutral network request/response contracts,
 - a background Win32 request executor so blocking network transport does not run on the UI thread,
 - persistent machine-local bridge configuration,
@@ -125,6 +128,11 @@ substantial responsiveness improvement. Browser Probe still keeps its Raw presen
 bounded because rendering hundreds of kilobytes of minified HTML provides little UX
 value; complete Raw remains available through Copy and diagnostic export.
 
+The Conversation workspace now has its first provider-neutral semantic service contract.
+The local placeholder backend performs no network access; it proves request IDs, semantic
+stream events, in-place native response updates, and Markdown presentation before a real
+authenticated service backend is introduced.
+
 ## Documentation
 
 Start with:
@@ -132,6 +140,7 @@ Start with:
 - `ROADMAP.md`
 - `ARCHITECTURE.md`
 - `docs/BROWSER_PROBE.md`
+- `docs/CONVERSATION_SERVICE_CONTRACT.md`
 - `docs/REMOTE_BRIDGE.md`
 - `docs/WEB_BACKEND_CONTRACT.md`
 - `docs/BUILD_ENVIRONMENT.md`

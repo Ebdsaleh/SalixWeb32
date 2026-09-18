@@ -18,6 +18,7 @@
 #include "BrowserProbeView.h"
 
 class ApplicationRuntime;
+class ConversationServiceHost;
 class DesktopServices;
 class FileDialog;
 class NativeControlHost;
@@ -30,7 +31,8 @@ class StatusView : public View {
             ApplicationRuntime* application_runtime,
             FileDialog* file_dialog,
             DesktopServices* desktop_services,
-            WebPlatformHost* web_platform_host
+            WebPlatformHost* web_platform_host,
+            ConversationServiceHost* conversation_service_host
         );
 
         virtual void attach_native_control_host(NativeControlHost* control_host);
@@ -106,6 +108,8 @@ class StatusView : public View {
             } else {
                 report += "Conversation\r\n";
                 report += "------------\r\n";
+                report += conversation_hint_label.get_text();
+                report += "\r\n";
                 report += "Message count: ";
 
                 char message_count_text[32];
@@ -190,18 +194,24 @@ class StatusView : public View {
         bool attach_files_from_dialog();
         void update_dynamic_text();
         void show_submitted_message(const MessageDraft& draft);
+        void submit_draft_to_service(const MessageDraft& draft);
+        void consume_conversation_events();
         void update_active_native_controls();
 
         ApplicationRuntime* application_runtime;
         FileDialog* file_dialog;
         DesktopServices* desktop_services;
         WebPlatformHost* web_platform_host;
+        ConversationServiceHost* conversation_service_host;
         NativeControlHost* native_control_host;
         int client_width;
         int client_height;
         int conversation_tab_index;
         int web_tab_index;
         int runtime_tab_index;
+        unsigned long active_conversation_request_id;
+        int streaming_message_index;
+        std::string streaming_message_text;
 
         Panel root_panel;
 

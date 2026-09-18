@@ -6,10 +6,12 @@
 
 #include "ApplicationRuntime.h"
 #include "Diagnostics.h"
+#include "conversation/ConversationServiceHost.h"
 #include "web/platform/WebPlatformHost.h"
 
 ApplicationRuntime::ApplicationRuntime()
     : web_platform_host(0),
+      conversation_service_host(0),
       core_services_registered(false),
       is_initialized(false) {
 }
@@ -31,6 +33,26 @@ const WebPlatformHost* ApplicationRuntime::get_web_platform_host() const {
     return web_platform_host;
 }
 
+bool ApplicationRuntime::set_conversation_service_host(
+    ConversationServiceHost* host
+) {
+    if (is_initialized) {
+        return false;
+    }
+
+    conversation_service_host = host;
+    return true;
+}
+
+ConversationServiceHost* ApplicationRuntime::get_conversation_service_host() {
+    return conversation_service_host;
+}
+
+const ConversationServiceHost*
+ApplicationRuntime::get_conversation_service_host() const {
+    return conversation_service_host;
+}
+
 bool ApplicationRuntime::initialize() {
     if (is_initialized) {
         return true;
@@ -49,8 +71,27 @@ bool ApplicationRuntime::initialize() {
         return false;
     }
 
+    if (
+        conversation_service_host != 0 &&
+        !conversation_service_host->initialize()
+    ) {
+        Diagnostics::write_line(
+            "ApplicationRuntime: conversation service startup failed."
+        );
+
+        if (web_platform_host != 0) {
+            web_platform_host->shutdown();
+        }
+
+        return false;
+    }
+
     if (!service_registry.start_all()) {
         Diagnostics::write_line("ApplicationRuntime: service startup failed.");
+
+        if (conversation_service_host != 0) {
+            conversation_service_host->shutdown();
+        }
 
         if (web_platform_host != 0) {
             web_platform_host->shutdown();
@@ -73,6 +114,10 @@ void ApplicationRuntime::update() {
         web_platform_host->update();
     }
 
+    if (conversation_service_host != 0) {
+        conversation_service_host->update();
+    }
+
     service_registry.update_all();
 }
 
@@ -82,6 +127,10 @@ void ApplicationRuntime::shutdown() {
     }
 
     service_registry.stop_all();
+
+    if (conversation_service_host != 0) {
+        conversation_service_host->shutdown();
+    }
 
     if (web_platform_host != 0) {
         web_platform_host->shutdown();

@@ -205,6 +205,59 @@ bool ConversationView::append_remote_message(
     return append_message(message_remote, text);
 }
 
+bool ConversationView::update_message(
+    int index,
+    const char* text
+) {
+    if (text == 0 || text[0] == '\0') {
+        return false;
+    }
+
+    FormattedText formatted_text;
+    formatted_text.set_plain_text(text, TextFormat());
+    return update_message(index, formatted_text);
+}
+
+bool ConversationView::update_message(
+    int index,
+    const FormattedText& text
+) {
+    if (
+        index < 0 ||
+        index >= (int)messages.size() ||
+        text.empty()
+    ) {
+        return false;
+    }
+
+    MessageEntry& entry = messages[index];
+    if (entry.view == 0 || entry.image_view != 0) {
+        return false;
+    }
+
+    if (!entry.view->set_message(
+            text,
+            get_role_label(entry.role),
+            get_role_prefix(entry.role),
+            get_role_color(entry.role)
+        )) {
+        return false;
+    }
+
+    entry.source_text = text;
+    entry.text_height = calculate_entry_height(
+        *entry.view,
+        last_message_width,
+        0
+    );
+    entry.row_height = entry.text_height;
+
+    layout_dirty = true;
+    relayout();
+    scroll_to_bottom();
+    return true;
+}
+
 bool ConversationView::append_attachment(const Attachment& attachment) {
     if (attachment.empty()) {
         return false;
