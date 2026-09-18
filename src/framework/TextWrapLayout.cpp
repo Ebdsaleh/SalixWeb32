@@ -94,6 +94,57 @@ namespace {
         return 1;
     }
 
+    int get_measurement_span_length(
+        const char* text,
+        int text_length,
+        const TextFormat* formats,
+        int format_count,
+        int position,
+        int logical_end
+    ) {
+        int token_length = get_token_length(
+            text,
+            text_length,
+            formats,
+            format_count,
+            position,
+            logical_end
+        );
+
+        if (
+            token_length > 1 ||
+            text[position] == ' ' ||
+            text[position] == '\t'
+        ) {
+            return token_length;
+        }
+
+        int end = position + 1;
+
+        while (end < logical_end) {
+            if (text[end] == ' ' || text[end] == '\t') {
+                break;
+            }
+
+            int next_token_length = get_token_length(
+                text,
+                text_length,
+                formats,
+                format_count,
+                end,
+                logical_end
+            );
+
+            if (next_token_length > 1) {
+                break;
+            }
+
+            ++end;
+        }
+
+        return end - position;
+    }
+
     int measure_range_width(
         const char* text,
         int text_length,
@@ -199,7 +250,7 @@ void TextWrapLayout::build_lines(
                 int last_break_end = -1;
 
                 while (position < logical_end) {
-                    int token_length = get_token_length(
+                    int span_length = get_measurement_span_length(
                         text,
                         text_length,
                         formats,
@@ -208,41 +259,96 @@ void TextWrapLayout::build_lines(
                         logical_end
                     );
 
-                    int token_end = position + token_length;
-                    int token_width = measure_range_width(
+                    int span_end = position + span_length;
+                    int span_width = measure_range_width(
                         text,
                         text_length,
                         formats,
                         format_count,
                         position,
-                        token_end,
+                        span_end,
                         text_metrics
                     );
 
-                    if (
-                        current_width + token_width > maximum_width &&
-                        position > visual_start
-                    ) {
+                    if (current_width + span_width <= maximum_width) {
+                        current_width += span_width;
+
+                        if (
+                            span_length == 1 &&
+                            (
+                                text[position] == ' ' ||
+                                text[position] == '\t'
+                            )
+                        ) {
+                            last_break_end = span_end;
+                        }
+
+                        position = span_end;
+                        continue;
+                    }
+
+                    if (last_break_end > visual_start) {
                         break;
                     }
 
-                    current_width += token_width;
+                    // The current word/run crosses the edge without a usable
+                    // whitespace break. Fall back to atomic tokens only for
+                    // this overflowing span so long identifiers/URLs still
+                    // wrap exactly as before.
+                    int token_position = position;
 
-                    if (
-                        token_length == 1 &&
-                        (text[position] == ' ' || text[position] == '\t')
-                    ) {
-                        last_break_end = token_end;
+                    while (token_position < span_end) {
+                        int token_length = get_token_length(
+                            text,
+                            text_length,
+                            formats,
+                            format_count,
+                            token_position,
+                            span_end
+                        );
+
+                        int token_end = token_position + token_length;
+                        int token_width = measure_range_width(
+                            text,
+                            text_length,
+                            formats,
+                            format_count,
+                            token_position,
+                            token_end,
+                            text_metrics
+                        );
+
+                        if (
+                            current_width + token_width > maximum_width &&
+                            token_position > visual_start
+                        ) {
+                            break;
+                        }
+
+                        current_width += token_width;
+
+                        if (
+                            token_length == 1 &&
+                            (
+                                text[token_position] == ' ' ||
+                                text[token_position] == '\t'
+                            )
+                        ) {
+                            last_break_end = token_end;
+                        }
+
+                        token_position = token_end;
+
+                        if (
+                            current_width > maximum_width &&
+                            token_position > visual_start
+                        ) {
+                            break;
+                        }
                     }
 
-                    position = token_end;
-
-                    if (
-                        current_width > maximum_width &&
-                        position > visual_start
-                    ) {
-                        break;
-                    }
+                    position = token_position;
+                    break;
                 }
 
                 int visual_end = position;

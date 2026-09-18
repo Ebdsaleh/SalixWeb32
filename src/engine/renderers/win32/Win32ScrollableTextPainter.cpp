@@ -44,15 +44,37 @@ namespace {
         DeleteObject(brush);
     }
 
-    int measure_character(
+    bool formats_equal(
+        const TextFormat& left,
+        const TextFormat& right
+    ) {
+        return
+            left.bold == right.bold &&
+            left.italic == right.italic &&
+            left.underline == right.underline &&
+            left.font_size == right.font_size &&
+            left.code_style == right.code_style &&
+            left.syntax_style == right.syntax_style;
+    }
+
+    int measure_span(
         HDC device_context,
         Win32TextFontCache& font_cache,
-        char character,
+        const char* text,
+        int text_length,
         const TextFormat& format,
-        int* character_height
+        int* text_height
     ) {
-        if (character_height != 0) {
-            *character_height = 0;
+        if (text_height != 0) {
+            *text_height = 0;
+        }
+
+        if (
+            device_context == NULL ||
+            text == 0 ||
+            text_length <= 0
+        ) {
+            return 0;
         }
 
         HFONT font = font_cache.get_font(format);
@@ -61,19 +83,86 @@ namespace {
         }
 
         HGDIOBJ previous_font = SelectObject(device_context, font);
+
         SIZE size;
         size.cx = 0;
         size.cy = 0;
-        GetTextExtentPoint32A(device_context, &character, 1, &size);
+        GetTextExtentPoint32A(
+            device_context,
+            text,
+            text_length,
+            &size
+        );
 
-        if (character_height != 0) {
-            *character_height = size.cy;
+        if (text_height != 0) {
+            *text_height = size.cy;
         }
 
         if (previous_font != NULL && previous_font != HGDI_ERROR) {
             SelectObject(device_context, previous_font);
         }
+
         return size.cx;
+    }
+
+    int measure_character(
+        HDC device_context,
+        Win32TextFontCache& font_cache,
+        char character,
+        const TextFormat& format,
+        int* character_height
+    ) {
+        return measure_span(
+            device_context,
+            font_cache,
+            &character,
+            1,
+            format,
+            character_height
+        );
+    }
+
+    int find_format_run_end(
+        const TextInput& text_input,
+        const char* text,
+        int text_length,
+        int start,
+        int line_end
+    ) {
+        TextFormat format = text_input.get_character_format(start);
+        int position = start + 1;
+
+        while (position < line_end) {
+            TextFormat next_format =
+                text_input.get_character_format(position);
+
+            if (!formats_equal(format, next_format)) {
+                break;
+            }
+
+            if (next_format.code_style == TextFormat::code_none) {
+                EmoticonRegistry::EmoticonId emoticon_id;
+                int alias_length = 0;
+
+                if (
+                    EmoticonRegistry::match_at(
+                        text,
+                        text_length,
+                        position,
+                        emoticon_id,
+                        alias_length
+                    ) &&
+                    alias_length > 0 &&
+                    position + alias_length <= line_end
+                ) {
+                    break;
+                }
+            }
+
+            ++position;
+        }
+
+        return position;
     }
 
     bool is_source_span_selected(
@@ -134,14 +223,23 @@ namespace {
                 continue;
             }
 
-            width += measure_character(
+            int run_end = find_format_run_end(
+                text_input,
+                text,
+                text_length,
+                position,
+                line_end
+            );
+
+            width += measure_span(
                 device_context,
                 font_cache,
-                text[position],
+                text + position,
+                run_end - position,
                 format,
                 0
             );
-            ++position;
+            position = run_end;
         }
 
         return width;
@@ -198,18 +296,28 @@ namespace {
                 continue;
             }
 
-            int character_height = 0;
-            measure_character(
+            int run_end = find_format_run_end(
+                text_input,
+                text,
+                text_length,
+                position,
+                line_end
+            );
+
+            int run_height = 0;
+            measure_span(
                 device_context,
                 font_cache,
-                text[position],
+                text + position,
+                run_end - position,
                 format,
-                &character_height
+                &run_height
             );
-            if (character_height > height) {
-                height = character_height;
+
+            if (run_height > height) {
+                height = run_height;
             }
-            ++position;
+            position = run_end;
         }
 
         return height;
@@ -338,34 +446,58 @@ namespace {
                 continue;
             }
 
+            bool selected =
+                text_input.get_is_focused() &&
+                text_input.is_character_selected(position);
+
+            int run_end = find_format_run_end(
+                text_input,
+                text,
+                text_length,
+                position,
+                line_end
+            );
+
+            if (text_input.get_is_focused()) {
+                for (
+                    int selection_index = position + 1;
+                    selection_index < run_end;
+                    ++selection_index
+                ) {
+                    if (
+                        text_input.is_character_selected(selection_index) !=
+                        selected
+                    ) {
+                        run_end = selection_index;
+                        break;
+                    }
+                }
+            }
+
             HFONT font = font_cache.get_font(format);
             HGDIOBJ previous_font = NULL;
             if (font != NULL) {
                 previous_font = SelectObject(device_context, font);
             }
 
-            SIZE character_size;
-            character_size.cx = 0;
-            character_size.cy = 0;
+            SIZE run_size;
+            run_size.cx = 0;
+            run_size.cy = 0;
             GetTextExtentPoint32A(
                 device_context,
                 text + position,
-                1,
-                &character_size
+                run_end - position,
+                &run_size
             );
 
             int text_y = line_rect.top +
-                ((line_rect.bottom - line_rect.top - character_size.cy) / 2);
-
-            bool selected =
-                text_input.get_is_focused() &&
-                text_input.is_character_selected(position);
+                ((line_rect.bottom - line_rect.top - run_size.cy) / 2);
 
             if (selected) {
                 RECT selection_rect;
                 selection_rect.left = x;
                 selection_rect.top = line_rect.top + 1;
-                selection_rect.right = x + character_size.cx;
+                selection_rect.right = x + run_size.cx;
                 selection_rect.bottom = line_rect.bottom - 1;
                 if (selection_rect.right <= selection_rect.left) {
                     selection_rect.right = selection_rect.left + 1;
@@ -388,9 +520,9 @@ namespace {
                 x,
                 text_y,
                 text + position,
-                1
+                run_end - position
             );
-            x += character_size.cx;
+            x += run_size.cx;
 
             if (
                 font != NULL &&
@@ -399,7 +531,7 @@ namespace {
             ) {
                 SelectObject(device_context, previous_font);
             }
-            ++position;
+            position = run_end;
         }
 
         int caret_position = text_input.get_cursor_position();

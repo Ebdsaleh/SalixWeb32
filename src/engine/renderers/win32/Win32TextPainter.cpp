@@ -49,15 +49,37 @@ namespace {
         DeleteObject(brush);
     }
 
-    int measure_character(
+    bool formats_equal(
+        const TextFormat& left,
+        const TextFormat& right
+    ) {
+        return
+            left.bold == right.bold &&
+            left.italic == right.italic &&
+            left.underline == right.underline &&
+            left.font_size == right.font_size &&
+            left.code_style == right.code_style &&
+            left.syntax_style == right.syntax_style;
+    }
+
+    int measure_span(
         HDC device_context,
         Win32TextFontCache& font_cache,
-        char character,
+        const char* text,
+        int text_length,
         const TextFormat& format,
-        int* character_height
+        int* text_height
     ) {
-        if (character_height != 0) {
-            *character_height = 0;
+        if (text_height != 0) {
+            *text_height = 0;
+        }
+
+        if (
+            device_context == NULL ||
+            text == 0 ||
+            text_length <= 0
+        ) {
+            return 0;
         }
 
         HFONT font = font_cache.get_font(format);
@@ -70,10 +92,15 @@ namespace {
         SIZE text_size;
         text_size.cx = 0;
         text_size.cy = 0;
-        GetTextExtentPoint32A(device_context, &character, 1, &text_size);
+        GetTextExtentPoint32A(
+            device_context,
+            text,
+            text_length,
+            &text_size
+        );
 
-        if (character_height != 0) {
-            *character_height = text_size.cy;
+        if (text_height != 0) {
+            *text_height = text_size.cy;
         }
 
         if (previous_font != NULL && previous_font != HGDI_ERROR) {
@@ -83,8 +110,68 @@ namespace {
         return text_size.cx;
     }
 
+    int measure_character(
+        HDC device_context,
+        Win32TextFontCache& font_cache,
+        char character,
+        const TextFormat& format,
+        int* character_height
+    ) {
+        return measure_span(
+            device_context,
+            font_cache,
+            &character,
+            1,
+            format,
+            character_height
+        );
+    }
+
     typedef TextFormat (*FormatGetter)(const void* context, int index);
     typedef bool (*SelectionGetter)(const void* context, int index);
+
+    int find_format_run_end(
+        const char* text,
+        int text_length,
+        const void* context,
+        FormatGetter format_getter,
+        int start,
+        int line_end
+    ) {
+        TextFormat format = format_getter(context, start);
+        int position = start + 1;
+
+        while (position < line_end) {
+            TextFormat next_format = format_getter(context, position);
+
+            if (!formats_equal(format, next_format)) {
+                break;
+            }
+
+            if (next_format.code_style == TextFormat::code_none) {
+                EmoticonRegistry::EmoticonId emoticon_id;
+                int alias_length = 0;
+
+                if (
+                    EmoticonRegistry::match_at(
+                        text,
+                        text_length,
+                        position,
+                        emoticon_id,
+                        alias_length
+                    ) &&
+                    alias_length > 0 &&
+                    position + alias_length <= line_end
+                ) {
+                    break;
+                }
+            }
+
+            ++position;
+        }
+
+        return position;
+    }
 
     TextFormat get_label_format(const void* context, int index) {
         const Label* label = (const Label*)context;
@@ -177,14 +264,24 @@ namespace {
                 continue;
             }
 
-            width += measure_character(
+            int run_end = find_format_run_end(
+                text,
+                text_length,
+                context,
+                format_getter,
+                position,
+                line_end
+            );
+
+            width += measure_span(
                 device_context,
                 font_cache,
-                text[position],
+                text + position,
+                run_end - position,
                 format,
                 0
             );
-            ++position;
+            position = run_end;
         }
 
         return width;
@@ -243,20 +340,30 @@ namespace {
                 continue;
             }
 
-            int character_height = 0;
-            measure_character(
-                device_context,
-                font_cache,
-                text[position],
-                format,
-                &character_height
+            int run_end = find_format_run_end(
+                text,
+                text_length,
+                context,
+                format_getter,
+                position,
+                line_end
             );
 
-            if (character_height > height) {
-                height = character_height;
+            int run_height = 0;
+            measure_span(
+                device_context,
+                font_cache,
+                text + position,
+                run_end - position,
+                format,
+                &run_height
+            );
+
+            if (run_height > height) {
+                height = run_height;
             }
 
-            ++position;
+            position = run_end;
         }
 
         return height;
@@ -470,6 +577,48 @@ namespace {
                 continue;
             }
 
+            bool selected = draw_selection &&
+                selection_getter != 0 &&
+                selection_getter(context, position);
+
+            int run_end = find_format_run_end(
+                text,
+                text_length,
+                context,
+                format_getter,
+                position,
+                line_end
+            );
+
+            if (draw_selection && selection_getter != 0) {
+                while (run_end > position + 1) {
+                    bool end_selected = selection_getter(
+                        context,
+                        run_end - 1
+                    );
+
+                    if (end_selected == selected) {
+                        break;
+                    }
+
+                    --run_end;
+                }
+
+                for (
+                    int selection_index = position + 1;
+                    selection_index < run_end;
+                    ++selection_index
+                ) {
+                    if (
+                        selection_getter(context, selection_index) !=
+                        selected
+                    ) {
+                        run_end = selection_index;
+                        break;
+                    }
+                }
+            }
+
             HFONT font = font_cache.get_font(format);
             HGDIOBJ previous_font = NULL;
 
@@ -477,28 +626,24 @@ namespace {
                 previous_font = SelectObject(device_context, font);
             }
 
-            SIZE character_size;
-            character_size.cx = 0;
-            character_size.cy = 0;
+            SIZE run_size;
+            run_size.cx = 0;
+            run_size.cy = 0;
             GetTextExtentPoint32A(
                 device_context,
                 text + position,
-                1,
-                &character_size
+                run_end - position,
+                &run_size
             );
 
             int text_y = line_rect.top +
-                ((line_rect.bottom - line_rect.top - character_size.cy) / 2);
-
-            bool selected = draw_selection &&
-                selection_getter != 0 &&
-                selection_getter(context, position);
+                ((line_rect.bottom - line_rect.top - run_size.cy) / 2);
 
             if (selected) {
                 RECT selection_rect;
                 selection_rect.left = x;
                 selection_rect.top = line_rect.top + 1;
-                selection_rect.right = x + character_size.cx;
+                selection_rect.right = x + run_size.cx;
                 selection_rect.bottom = line_rect.bottom - 1;
 
                 if (selection_rect.right <= selection_rect.left) {
@@ -523,7 +668,7 @@ namespace {
                     RECT code_rect;
                     code_rect.left = x;
                     code_rect.top = line_rect.top + 1;
-                    code_rect.right = x + character_size.cx;
+                    code_rect.right = x + run_size.cx;
                     code_rect.bottom = line_rect.bottom - 1;
                     fill_rect(device_context, code_rect, RGB(238, 238, 238));
                 }
@@ -536,10 +681,10 @@ namespace {
                 x,
                 text_y,
                 text + position,
-                1
+                run_end - position
             );
 
-            x += character_size.cx;
+            x += run_size.cx;
 
             if (
                 font != NULL &&
@@ -549,7 +694,7 @@ namespace {
                 SelectObject(device_context, previous_font);
             }
 
-            ++position;
+            position = run_end;
         }
 
         if (

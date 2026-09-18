@@ -21,16 +21,38 @@ namespace {
         return TextFormat();
     }
 
-    void measure_character(
+    bool formats_equal(
+        const TextFormat& left,
+        const TextFormat& right
+    ) {
+        return
+            left.bold == right.bold &&
+            left.italic == right.italic &&
+            left.underline == right.underline &&
+            left.font_size == right.font_size &&
+            left.code_style == right.code_style &&
+            left.syntax_style == right.syntax_style;
+    }
+
+    void measure_span(
         HDC device_context,
         Win32TextFontCache& font_cache,
-        const char* character,
+        const char* text,
+        int text_length,
         const TextFormat& format,
         int& width,
         int& height
     ) {
         width = 0;
         height = 0;
+
+        if (
+            device_context == NULL ||
+            text == 0 ||
+            text_length <= 0
+        ) {
+            return;
+        }
 
         HFONT font = font_cache.get_font(format);
         if (font == NULL) {
@@ -42,7 +64,12 @@ namespace {
         SIZE text_size;
         text_size.cx = 0;
         text_size.cy = 0;
-        GetTextExtentPoint32A(device_context, character, 1, &text_size);
+        GetTextExtentPoint32A(
+            device_context,
+            text,
+            text_length,
+            &text_size
+        );
 
         width = text_size.cx;
         height = text_size.cy;
@@ -50,7 +77,77 @@ namespace {
         if (previous_font != NULL && previous_font != HGDI_ERROR) {
             SelectObject(device_context, previous_font);
         }
+    }
 
+    void measure_character(
+        HDC device_context,
+        Win32TextFontCache& font_cache,
+        const char* character,
+        const TextFormat& format,
+        int& width,
+        int& height
+    ) {
+        measure_span(
+            device_context,
+            font_cache,
+            character,
+            1,
+            format,
+            width,
+            height
+        );
+    }
+
+    int find_format_run_end(
+        const char* text,
+        int text_length,
+        const TextFormat* formats,
+        int format_count,
+        int start,
+        int line_end
+    ) {
+        TextFormat format = get_format_at(
+            formats,
+            format_count,
+            start
+        );
+
+        int position = start + 1;
+
+        while (position < line_end && position < text_length) {
+            TextFormat next_format = get_format_at(
+                formats,
+                format_count,
+                position
+            );
+
+            if (!formats_equal(format, next_format)) {
+                break;
+            }
+
+            if (next_format.code_style == TextFormat::code_none) {
+                EmoticonRegistry::EmoticonId emoticon_id;
+                int alias_length = 0;
+
+                if (
+                    EmoticonRegistry::match_at(
+                        text,
+                        text_length,
+                        position,
+                        emoticon_id,
+                        alias_length
+                    ) &&
+                    alias_length > 0 &&
+                    position + alias_length <= line_end
+                ) {
+                    break;
+                }
+            }
+
+            ++position;
+        }
+
+        return position;
     }
 
     int get_default_line_height(
@@ -144,22 +241,32 @@ namespace {
                 continue;
             }
 
-            int character_width = 0;
-            int character_height = 0;
-            measure_character(
+            int run_end = find_format_run_end(
+                text,
+                text_length,
+                formats,
+                format_count,
+                position,
+                line_end
+            );
+
+            int run_width = 0;
+            int run_height = 0;
+            measure_span(
                 device_context,
                 font_cache,
                 text + position,
+                run_end - position,
                 format,
-                character_width,
-                character_height
+                run_width,
+                run_height
             );
 
-            if (character_height > height) {
-                height = character_height;
+            if (run_height > height) {
+                height = run_height;
             }
 
-            ++position;
+            position = run_end;
         }
 
         return height;
@@ -199,18 +306,29 @@ namespace {
                 continue;
             }
 
-            int character_width = 0;
-            int character_height = 0;
-            measure_character(
+            int run_end = find_format_run_end(
+                text,
+                text_length,
+                formats,
+                format_count,
+                position,
+                line_end
+            );
+
+            int run_width = 0;
+            int run_height = 0;
+            measure_span(
                 device_context,
                 font_cache,
                 text + position,
+                run_end - position,
                 format,
-                character_width,
-                character_height
+                run_width,
+                run_height
             );
-            width += character_width;
-            ++position;
+
+            width += run_width;
+            position = run_end;
         }
 
         return width;
@@ -267,24 +385,53 @@ namespace {
                 continue;
             }
 
-            int character_width = 0;
-            int character_height = 0;
-            measure_character(
+            int run_end = find_format_run_end(
+                text,
+                text_length,
+                formats,
+                format_count,
+                position,
+                line_end
+            );
+
+            int run_width = 0;
+            int run_height = 0;
+            measure_span(
                 device_context,
                 font_cache,
                 text + position,
+                run_end - position,
                 format,
-                character_width,
-                character_height
+                run_width,
+                run_height
             );
 
-            int midpoint = current_x + character_width / 2;
-            if (pixel_x < midpoint) {
-                return position;
+            if (pixel_x >= current_x + run_width) {
+                current_x += run_width;
+                position = run_end;
+                continue;
             }
 
-            current_x += character_width;
-            ++position;
+            while (position < run_end) {
+                int character_width = 0;
+                int character_height = 0;
+                measure_character(
+                    device_context,
+                    font_cache,
+                    text + position,
+                    format,
+                    character_width,
+                    character_height
+                );
+
+                int midpoint = current_x + character_width / 2;
+                if (pixel_x < midpoint) {
+                    return position;
+                }
+
+                current_x += character_width;
+                ++position;
+            }
         }
 
         return line_end;
