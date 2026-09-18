@@ -146,6 +146,13 @@ declaring content mode over either a local-process boundary or a future
 authenticated-encrypted transport. The current plaintext remote backend therefore cannot
 become content-capable accidentally.
 
+The next security boundary is also explicit. The VC7.1 executable can discover an
+optional `SalixSecureTransport.dll` only through a versioned flat C ABI and only from
+the executable directory. Missing, unloadable, ABI-mismatched, or capability-incomplete
+providers leave the application operational but keep real Conversation content blocked.
+Mbed TLS 3.6.x LTS is the first provider candidate for a separate newer-toolchain x86
+NT5 compatibility spike; it is not linked into the VC7.1 application.
+
 File storage now follows the same explicit-ownership philosophy. File dialogs no longer
 own process-wide path state: the attachment picker uses `OFN_NOCHANGEDIR`, diagnostics
 receive an explicit configured directory, and `Options -> Settings...` exposes only
@@ -163,6 +170,7 @@ Start with:
 - `docs/BROWSER_PROBE.md`
 - `docs/CONVERSATION_SERVICE_CONTRACT.md`
 - `docs/REMOTE_BRIDGE.md`
+- `docs/SECURE_TRANSPORT_PROVIDER.md`
 - `docs/WEB_BACKEND_CONTRACT.md`
 - `docs/BUILD_ENVIRONMENT.md`
 - `docs/DEPENDENCY_STRATEGY.md`

@@ -454,8 +454,12 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] validate the probe-only security-policy gate on the real P4,
 - [x] machine-readable `ConversationSecurityProfile` and separate probe/content dispatch
   boundary implemented,
-- [ ] validate the host content-dispatch boundary on the real P4,
-- [ ] select/integrate a mature authenticated-encrypted transport provider,
+- [x] validate the host content-dispatch boundary on the real P4,
+- [x] select a narrow secure-provider ABI and Mbed TLS 3.6.x LTS as the first compatibility
+  candidate,
+- [x] implement fail-closed `SalixSecureTransport.dll` discovery in the VC7.1 client,
+- [ ] validate provider-absent discovery behavior on the real P4,
+- [ ] build/validate the first x86 NT5 secure transport provider DLL,
 - [ ] secure authenticated content/session backend,
 - [ ] real provider response streaming.
 
@@ -493,12 +497,14 @@ See `docs/FILE_LOCATIONS.md`.
    repaint naturally on Pentium 4 hardware,
 3. extend Browser Probe only where measurements help choose the next service/runtime
    boundary,
-4. validate the host-level probe/content dispatch boundary on the P4,
-5. select a mature cryptographic/transport provider capable of satisfying the
-   authenticated-encrypted profile on the legacy-to-companion path,
-6. establish the secure content/session backend without weakening probe mode,
-7. connect a real service/session adapter without leaking provider objects into the app,
-8. stream real provider content into the existing native Conversation/Markdown presentation.
+4. validate fail-closed secure-provider discovery on the P4,
+5. build and target-test the first `SalixSecureTransport.dll` using the VS2017 XP
+   toolset and Mbed TLS 3.6.x LTS,
+6. extend the provider ABI with authenticated connection/request primitives only after
+   that target spike is green,
+7. establish the secure content/session backend without weakening probe mode,
+8. connect a real service/session adapter without leaking provider objects into the app,
+9. stream real provider content into the existing native Conversation/Markdown presentation.
 
 # Guiding priority
 

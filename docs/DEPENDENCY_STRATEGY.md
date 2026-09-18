@@ -156,41 +156,66 @@ Whatever provider wins the first implementation must sit behind a Salix JSON con
 
 ## TLS strategy
 
-OpenSSL is a first-class candidate precisely because we have the source code.
+TLS/cryptography remains an explicit exception to the normal pressure toward in-house
+implementation. Salix owns the policy, ABI, connection lifecycle, diagnostics, and
+Conversation integration; the cryptographic protocol machinery comes from a mature
+provider.
 
-If the desired maintained OpenSSL branch does not build unchanged for VC7.1 / NT 5.2, the next step is to determine **why**:
-
-- build-system assumptions,
-- compiler-language features,
-- CRT/runtime assumptions,
-- threading primitives,
-- entropy/platform code,
-- assembly configuration,
-- post-NT5 Win32 API imports,
-- certificate-store integration,
-- or another isolated compatibility layer.
-
-We then patch or fork the smallest justified surface rather than retreating to an obsolete TLS stack merely because it happens to compile unchanged.
-
-Other libraries such as wolfSSL remain useful comparison candidates, but the selection rule is not "which upstream still lists Server 2003". The selection rule is:
-
-> Which source base gives SalixWeb32 the safest, smallest, most maintainable path to modern TLS on the P4 after we account for the port we are willing to own?
-
-The winning provider must prove on the P4:
+The first implementation direction is a separate:
 
 ```text
-DNS/connect
-TLS 1.2 or newer as required by the target service
-SNI
-modern cipher negotiation
-certificate chain verification
-hostname verification
-CA trust loading
-clean failure diagnostics
-repeatable connection/shutdown
+SalixSecureTransport.dll
 ```
 
-Only after those pass should authentication tokens, cookies, or private service traffic be allowed through that path.
+loaded by the VC7.1 client through a versioned flat C ABI. This avoids forcing a maintained
+TLS codebase through VC7.1 itself and avoids leaking a newer C++ runtime ABI into the
+application.
+
+The first compatibility candidate is **Mbed TLS 3.6.x LTS**. The target spike should use
+the latest patched 3.6 release available at build time and compile it with a newer
+Microsoft toolchain capable of producing an x86 NT5-compatible binary. Visual Studio
+2017's XP platform toolset is the first build target to evaluate.
+
+This selection is intentionally a candidate until the resulting DLL passes the real
+Windows Server 2003 / Pentium 4 gate.
+
+Why this direction is preferred for the first spike:
+
+- maintained security-fix branch during the current development window,
+- TLS 1.2 and TLS 1.3 implementation,
+- Apache-2.0 licensing option,
+- C implementation with a narrow API surface suitable for a C ABI wrapper,
+- newer MSVC compatibility without requiring the SalixWeb32 executable to leave VC7.1,
+- easy provider replacement if later maintenance/toolchain requirements change.
+
+OpenSSL and other mature TLS implementations remain comparison/fallback candidates. The
+provider ABI exists specifically so the application does not become coupled to the first
+library that passes the target.
+
+The provider must prove on the P4:
+
+```text
+DLL load on NT 5.2
+no accidental post-NT5 imports
+entropy/RNG initialization
+TLS 1.2 or newer
+SNI where required
+peer certificate validation
+hostname verification
+certificate/public-key pinning
+clean handshake failure diagnostics
+repeatable connection/shutdown
+bounded memory use
+acceptable Pentium 4 CPU cost
+```
+
+Only after those pass should the provider ABI grow actual connection/request operations,
+and only after those operations are validated should
+`ConversationSecurityProfile::authenticated-encrypted` become eligible for real remote
+content.
+
+See `docs/SECURE_TRANSPORT_PROVIDER.md`.
+
 
 ## HTTP strategy
 

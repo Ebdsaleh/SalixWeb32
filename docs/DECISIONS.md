@@ -317,3 +317,37 @@ implementation rather than inventing cryptographic primitives in project code.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
+---
+
+## ADR-020 — Modern TLS lives behind a versioned provider DLL
+
+**Status:** Accepted
+
+SalixWeb32 remains a VC7.1 / NT 5.2 application. A maintained TLS implementation may use a
+newer compiler/toolset when necessary, but it must not leak that compiler's C++ ABI or CRT
+ownership into the main executable.
+
+The secure transport boundary is therefore:
+
+```text
+SalixWeb32.exe
+    -> flat versioned C ABI
+        -> SalixSecureTransport.dll
+            -> mature TLS provider
+```
+
+The Win32 client loads the DLL only from an absolute path beneath the SalixWeb32
+executable directory. Missing or incompatible providers are non-fatal but fail closed:
+real Conversation content remains blocked.
+
+The discovery ABI requires a matching ABI version plus TLS 1.2-or-newer capability, peer
+authentication, and certificate pinning before the provider can even be described as
+discovery-ready. Discovery readiness does not itself authorize content.
+
+Mbed TLS 3.6.x LTS is the first compatibility candidate for the provider DLL, using a
+newer NT5-capable Microsoft x86 toolchain. This remains subject to real Server 2003 /
+Pentium 4 build and runtime validation. The ABI is provider-neutral so another mature
+implementation can replace it without changing application architecture.
+
+See `docs/SECURE_TRANSPORT_PROVIDER.md`.
+

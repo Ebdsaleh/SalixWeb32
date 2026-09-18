@@ -163,6 +163,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32GraphicsRuntime.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32HttpTransport.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NetworkRequestExecutor.cpp"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32SecureTransportProvider.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHostTabs.cpp"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.cpp"/>
@@ -237,6 +238,8 @@
 			<File RelativePath="..\..\src\runtime\RuntimeStatusService.h"/>
 			<File RelativePath="..\..\src\runtime\Service.h"/>
 			<File RelativePath="..\..\src\runtime\ServiceRegistry.h"/>
+			<File RelativePath="..\..\src\security\SalixSecureTransportAbi.h"/>
+			<File RelativePath="..\..\src\security\SecureTransportProvider.h"/>
 			<File RelativePath="..\..\src\web\backends\PlaceholderWebBackend.h"/>
 			<File RelativePath="..\..\src\web\backends\RemoteBridgeWebBackend.h"/>
 			<File RelativePath="..\..\src\web\network\NetworkRequest.h"/>
@@ -260,6 +263,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32GraphicsRuntime.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32HttpTransport.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NetworkRequestExecutor.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32SecureTransportProvider.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextFontCache.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>

@@ -14,6 +14,7 @@
 #include "conversation/ConversationSecurityProfile.h"
 #include "conversation/ConversationServiceHost.h"
 #include "runtime/ApplicationRuntime.h"
+#include "security/SecureTransportProvider.h"
 #include "framework/ApplicationCommand.h"
 #include "framework/DesktopServices.h"
 #include "framework/FileDialog.h"
@@ -35,13 +36,15 @@ StatusView::StatusView(
     FileDialog* new_file_dialog,
     DesktopServices* new_desktop_services,
     WebPlatformHost* new_web_platform_host,
-    ConversationServiceHost* new_conversation_service_host
+    ConversationServiceHost* new_conversation_service_host,
+    SecureTransportProvider* new_secure_transport_provider
 ) : application_runtime(new_application_runtime),
     application_settings(new_application_settings),
     file_dialog(new_file_dialog),
     desktop_services(new_desktop_services),
     web_platform_host(new_web_platform_host),
     conversation_service_host(new_conversation_service_host),
+    secure_transport_provider(new_secure_transport_provider),
     native_control_host(0),
     client_width(0),
     client_height(0),

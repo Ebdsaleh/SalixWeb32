@@ -505,64 +505,54 @@ Observed evidence:
 
 The wire-level privacy gate is therefore target-green.
 
-### Host content-dispatch boundary — pending target validation
+### Host content-dispatch boundary — validated
 
-The next tranche adds a second independent enforcement layer inside the native
-Conversation service contract.
+The September 19, 2026 follow-up pass also validated the native host-level
+`ConversationSecurityProfile` gate on the real P4.
 
-`ConversationSecurityProfile` declares dispatch mode, transport security, and allowed
-data classes. `ConversationServiceHost` now follows these rules:
+Observed evidence:
 
-```text
-probe-only backend
-    -> submit_probe(request_id)
-    -> ConversationRequest is never handed to backend
+- the companion still logged only content-free probes with
+  `text=0 attachments=0 credentials=0 session=0`,
+- both Conversation probe requests returned HTTP 200,
+- the P4 diagnostic reported
+  `Conversation security: mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`,
+- Browser Probe remained operational and returned a real ChatGPT HTTP 200 response.
 
-content backend
-    -> allowed only for local-process or authenticated-encrypted transport
-    -> requested data classes must be explicitly permitted
+This closes the host dispatch-boundary milestone. The current remote backend remains
+unable to receive the `ConversationRequest` object through probe dispatch, and its real
+content method remains a hard refusal.
 
-plaintext + content
-    -> rejected by host
-```
+### Secure transport provider ABI — pending target validation
 
-Current profiles:
+The next tranche introduces optional discovery for a future
+`SalixSecureTransport.dll`.
 
-```text
-PlaceholderConversationBackend
-    mode: content
-    transport: local-process
-    text: yes
-    attachments: yes
-    credentials/session: no
-
-RemoteConversationBackend
-    mode: probe-only
-    transport: plaintext
-    text/attachments/credentials/session: no
-```
+No DLL is expected for this validation pass. SalixWeb32 must construct an absolute path
+from its executable directory, attempt discovery without treating absence as a startup
+failure, and keep real Conversation content blocked.
 
 Validation checklist:
 
 1. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
-2. Launch with the existing remote bridge configuration.
-3. Confirm the Conversation header still reaches
+2. Confirm no `SalixSecureTransport.dll` exists beside the executable.
+3. Launch SalixWeb32 normally.
+4. Confirm the application starts and the current Conversation probe still reaches
    `SALIX-CONVERSATION/1 ready | probe-only | plaintext LAN`.
-4. Send a non-sensitive probe message and confirm the companion still logs only
+5. Send a harmless probe and confirm the companion still logs only
    `text=0 attachments=0 credentials=0 session=0`.
-5. Confirm the native Remote semantic response completes normally.
 6. Capture a diagnostic report.
 7. Confirm it contains:
-   `Conversation security: mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`.
-8. Confirm Browser Probe still returns successfully.
-9. Optionally launch without remote configuration and confirm the local placeholder path
-   still accepts ordinary text; its profile is content/local-process.
-10. Keep real message forwarding prohibited. Passing this tranche does not authorize
-    content on the plaintext bridge.
+   `Secure transport: Salix Secure Transport Provider | not installed | real content remains blocked`.
+8. Confirm the existing Conversation security line still reports
+   `mode probe-only | transport plaintext | text no | attachments no | credentials no | session no`.
+9. Confirm Browser Probe still returns successfully.
+10. Do not add or rename any arbitrary DLL in PATH to satisfy provider discovery; the
+    provider loader is intentionally rooted at the SalixWeb32 executable directory.
 
-The next implementation step after this target gate is to choose and implement the
-mature cryptographic/transport provider that can satisfy
-`authenticated-encrypted`; SalixWeb32 will not implement cryptography from scratch.
+After this passes, the next spike is a separate x86 `SalixSecureTransport.dll` build
+using a newer NT5-capable toolset and a maintained TLS provider. The initial candidate is
+Mbed TLS 3.6.x LTS. Discovery success by itself will still not authorize real content.
 
 
 ## Persistent file-location regression — pending target validation

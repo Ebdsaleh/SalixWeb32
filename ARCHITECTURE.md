@@ -331,6 +331,32 @@ content class disabled. The local placeholder is content/local-process. A future
 remote provider must satisfy the authenticated-encrypted profile rather than mutating
 probe mode into a content transport.
 
+Modern TLS is isolated behind a second ABI boundary rather than being linked directly
+into the VC7.1 application:
+
+```text
+SalixWeb32.exe (VC7.1)
+        |
+        | flat C ABI
+        v
+SalixSecureTransport.dll
+        |
+        | newer NT5-capable toolset
+        v
+maintained TLS provider
+```
+
+The client loads only `<executable_directory>\SalixSecureTransport.dll` by absolute
+path. Provider absence, load failure, ABI mismatch, or missing mandatory
+TLS/authentication/pinning capabilities is non-fatal to the application but leaves real
+Conversation content blocked.
+
+The first provider compatibility candidate is Mbed TLS 3.6.x LTS built as a separate x86
+DLL with a newer NT5-capable Microsoft toolset. The provider boundary remains replaceable
+if that target spike fails.
+
+See `docs/SECURE_TRANSPORT_PROVIDER.md`.
+
 ## Capability discovery
 
 Backends report supported features instead of pretending all features exist.

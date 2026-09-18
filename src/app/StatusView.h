@@ -17,6 +17,7 @@
 #include "MessageComposer.h"
 #include "ConversationView.h"
 #include "BrowserProbeView.h"
+#include "security/SecureTransportProvider.h"
 
 class ApplicationRuntime;
 class ConversationServiceHost;
@@ -34,7 +35,8 @@ class StatusView : public View {
             FileDialog* file_dialog,
             DesktopServices* desktop_services,
             WebPlatformHost* web_platform_host,
-            ConversationServiceHost* conversation_service_host
+            ConversationServiceHost* conversation_service_host,
+            SecureTransportProvider* secure_transport_provider
         );
 
         virtual void attach_native_control_host(NativeControlHost* control_host);
@@ -70,6 +72,15 @@ class StatusView : public View {
             report += web_capability_label.get_text();
             report += "\r\n";
             report += runtime_status_label.get_text();
+            report += "\r\n";
+            report += "Secure transport: ";
+            if (secure_transport_provider == 0) {
+                report += "none | real content remains blocked";
+            } else {
+                report += secure_transport_provider->get_name();
+                report += " | ";
+                report += secure_transport_provider->get_status_text();
+            }
             report += "\r\n\r\n";
 
             if (active_index == web_tab_index) {
@@ -224,6 +235,7 @@ class StatusView : public View {
         DesktopServices* desktop_services;
         WebPlatformHost* web_platform_host;
         ConversationServiceHost* conversation_service_host;
+        SecureTransportProvider* secure_transport_provider;
         NativeControlHost* native_control_host;
         int client_width;
         int client_height;

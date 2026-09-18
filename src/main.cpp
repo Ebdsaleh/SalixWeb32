@@ -26,6 +26,7 @@
 #include "engine/platform/win32/Win32GraphicsRuntime.h"
 #include "engine/platform/win32/Win32HttpTransport.h"
 #include "engine/platform/win32/Win32NetworkRequestExecutor.h"
+#include "engine/platform/win32/Win32SecureTransportProvider.h"
 #include "web/backends/PlaceholderWebBackend.h"
 #include "web/backends/RemoteBridgeWebBackend.h"
 #include "web/platform/WebNavigationRequest.h"
@@ -244,6 +245,11 @@ int APIENTRY WinMain(
 
     Win32DesktopServices desktop_services(instance_handle);
 
+    Win32SecureTransportProvider secure_transport_provider;
+    secure_transport_provider.initialize(
+        executable_directory.c_str()
+    );
+
     web_platform_host.set_backend(selected_web_backend);
     conversation_service_host.set_backend(
         selected_conversation_backend
@@ -259,7 +265,8 @@ int APIENTRY WinMain(
         &file_dialog,
         &desktop_services,
         &web_platform_host,
-        &conversation_service_host
+        &conversation_service_host,
+        &secure_transport_provider
     );
     Win32ApplicationHost application_host;
     Win32MenuController menu_controller;
@@ -302,6 +309,18 @@ int APIENTRY WinMain(
         use_remote_bridge
             ? "Conversation backend selection: remote semantic bridge probe."
             : "Conversation backend selection: local semantic placeholder."
+    );
+
+    std::string secure_transport_message(
+        "Secure transport provider: "
+    );
+    secure_transport_message +=
+        secure_transport_provider.get_name();
+    secure_transport_message += " | ";
+    secure_transport_message +=
+        secure_transport_provider.get_status_text();
+    Diagnostics::write_line(
+        secure_transport_message.c_str()
     );
 
     if (settings.get_source_path()[0] != '\0') {
@@ -394,6 +413,7 @@ int APIENTRY WinMain(
     application_host.shutdown();
     application_runtime.shutdown();
     graphics_runtime.shutdown();
+    secure_transport_provider.shutdown();
 
     Diagnostics::write_line("SalixWeb32 stopped.");
     return exit_code;
