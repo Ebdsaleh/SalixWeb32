@@ -165,16 +165,20 @@ the companion/WebExtension path, and the real assistant response returned throug
 `SALIX-CONVERSATION/1` semantic events into the native Conversation view. The target
 VC7.1 build remained clean at zero errors and zero warnings.
 
-The first validated implementation intentionally favors architectural clarity over
-latency: the extension waits for the rendered assistant response to stabilize before the
-broker returns the completed response to Salix. Noticeable response delay is therefore a
-known optimization target rather than a release-blocking architecture failure.
+The relay still waits for the rendered assistant response to stabilize before the broker
+returns the completed response to Salix, so browser-side generation/stabilization remains
+a latency target. Native post-response drip-feeding is no longer part of that delay:
+Salix drains all semantic events already available from a completed response and
+coalesces them into one Conversation presentation update.
 
 End-to-end relay timing is now instrumented and validated on the real P4. The first
 captured target baseline measured about 19.4 seconds on the modern relay versus
-57.5 seconds to native `message_completed`, identifying roughly 38.1 seconds outside
-the modern relay window for subsequent native-side profiling. The corresponding VC7.1
-build completed with zero errors and zero warnings.
+57.5 seconds to native `message_completed`, exposing roughly 38.1 seconds of artificial
+native-side post-response pacing. The corrected batching path is now target-validated:
+a completed response carrying 27 semantic deltas drained into one native presentation
+update, measured presentation was 0 ms, and P4 completion followed bridge completion by
+only about 184 ms. The corresponding VC7.1 build completed with zero errors and zero
+warnings.
 
 The text path now keeps framework/wire content as UTF-8, makes
 wrapping/navigation code-point aware, and converts to UTF-16 only at the native Win32
