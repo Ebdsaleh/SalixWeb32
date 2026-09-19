@@ -788,6 +788,39 @@ For the current completed-response relay, the expected result is `M = 1` while
 The optimization is successful only if the native response remains semantically and
 visually correct while the measured P4-side post-response penalty drops substantially.
 
+### First batching attempt — rejected
+
+The first real-P4 pass rebuilt cleanly under VC7.1 with zero errors and zero warnings,
+but the runtime diagnostic reported:
+
+```text
+P4 total 71531 ms
+bridge 27891 ms
+native batch 28 deltas -> 28 updates
+present 48 ms
+```
+
+This proved that the StatusView batching layer itself was correct but could not coalesce
+events because `RemoteConversationBackend::take_event()` intentionally exposed only one
+event per runtime update through `event_taken_this_update`.
+
+That throttle stretched an already-complete response across 28 native update cycles.
+The measured presentation work itself was only 48 ms, so the large user-visible delay
+was dominated by artificial semantic-event pacing rather than renderer CPU cost.
+
+The corrected candidate removes the one-event-per-update gate. The backend now drains
+every semantic event already queued by the completed response in one native pass. Future
+true streaming remains incremental because only events actually available in a given
+backend update can be drained.
+
+The corrected retest must show:
+
+```text
+native batch <N> deltas -> 1 updates
+```
+
+for the current completed-response relay.
+
 ## UTF-8 / Win32 Unicode boundary — validated on real P4
 
 This tranche keeps framework/wire text in UTF-8 byte strings while making byte boundaries
