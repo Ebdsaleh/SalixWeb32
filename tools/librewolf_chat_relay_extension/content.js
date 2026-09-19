@@ -3,6 +3,9 @@
 const RESPONSE_TIMEOUT_MS = 180000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
+const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
+const MAX_ATTACHMENT_COUNT = 8;
+const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 
 function visible(element) {
   if (!element) {
@@ -49,28 +52,25 @@ function cleanNodeText(node) {
   return (clone.innerText || clone.textContent || "").trim();
 }
 
-function assistantSnapshots() {
+function assistantNodes() {
   const roleNodes = Array.from(
     document.querySelectorAll("[data-message-author-role='assistant']")
   ).filter(visible);
 
   if (roleNodes.length) {
-    return roleNodes
-      .map((node) => {
-        const markdown = node.querySelector(".markdown");
-        return cleanNodeText(markdown || node);
-      })
-      .filter(Boolean);
+    return roleNodes;
   }
 
-  const turns = Array.from(
+  return Array.from(
     document.querySelectorAll("article[data-testid^='conversation-turn-']")
-  );
+  ).filter((turn) => !!turn.querySelector(".markdown"));
+}
 
-  return turns
-    .map((turn) => {
-      const markdown = turn.querySelector(".markdown");
-      return markdown ? cleanNodeText(markdown) : "";
+function assistantSnapshots() {
+  return assistantNodes()
+    .map((node) => {
+      const markdown = node.querySelector(".markdown");
+      return cleanNodeText(markdown || node);
     })
     .filter(Boolean);
 }
@@ -176,11 +176,372 @@ function findSendButton() {
   return null;
 }
 
+function findFileInput() {
+  const inputs = Array.from(
+    document.querySelectorAll("input[type='file']")
+  );
+
+  return inputs.find((input) => !input.disabled) || null;
+}
+
+function decodeBase64(value) {
+  const binary = atob(value || "");
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; ++index) {
+    bytes[index] = binary.charCodeAt(index) & 0xFF;
+  }
+
+  return bytes;
+}
+
+function encodeBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(
+      offset,
+      Math.min(offset + chunkSize, bytes.length)
+    );
+
+    let part = "";
+    for (let index = 0; index < chunk.length; ++index) {
+      part += String.fromCharCode(chunk[index]);
+    }
+    binary += part;
+  }
+
+  return btoa(binary);
+}
+
+function buildFiles(attachments) {
+  if (!Array.isArray(attachments)) {
+    return [];
+  }
+
+  if (attachments.length > MAX_ATTACHMENT_COUNT) {
+    throw new Error("Too many Salix attachments.");
+  }
+
+  return attachments.map((attachment) => {
+    if (
+      !attachment ||
+      typeof attachment.name !== "string" ||
+      !attachment.name ||
+      typeof attachment.data_base64 !== "string"
+    ) {
+      throw new Error("Salix attachment descriptor is invalid.");
+    }
+
+    const bytes = decodeBase64(attachment.data_base64);
+    if (bytes.length > MAX_ATTACHMENT_BYTES) {
+      throw new Error("Salix attachment exceeds 2 MB relay limit.");
+    }
+
+    return new File(
+      [bytes],
+      attachment.name,
+      {
+        type: (
+          typeof attachment.mime_type === "string" &&
+          attachment.mime_type
+        ) ? attachment.mime_type : "application/octet-stream"
+      }
+    );
+  });
+}
+
+function dispatchDrop(target, dataTransfer) {
+  const eventNames = ["dragenter", "dragover", "drop"];
+
+  for (const eventName of eventNames) {
+    let event;
+
+    try {
+      event = new DragEvent(eventName, {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: dataTransfer
+      });
+    } catch (_exception) {
+      event = new Event(eventName, {
+        bubbles: true,
+        cancelable: true
+      });
+
+      try {
+        Object.defineProperty(event, "dataTransfer", {
+          value: dataTransfer
+        });
+      } catch (_propertyException) {
+        return false;
+      }
+    }
+
+    target.dispatchEvent(event);
+  }
+
+  return true;
+}
+
+async function injectAttachments(composer, attachments) {
+  const files = buildFiles(attachments);
+  if (!files.length) {
+    return;
+  }
+
+  let dataTransfer;
+  try {
+    dataTransfer = new DataTransfer();
+  } catch (_exception) {
+    throw new Error("This LibreWolf build cannot construct file transfer data.");
+  }
+
+  for (const file of files) {
+    dataTransfer.items.add(file);
+  }
+
+  let installed = false;
+  const input = findFileInput();
+
+  if (input) {
+    try {
+      input.files = dataTransfer.files;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      installed = true;
+    } catch (_exception) {
+      installed = false;
+    }
+  }
+
+  if (!installed) {
+    const dropTarget =
+      composer.closest("form") ||
+      composer.parentElement ||
+      composer;
+
+    installed = dispatchDrop(dropTarget, dataTransfer);
+  }
+
+  if (!installed) {
+    throw new Error(
+      "ChatGPT file-upload control is not available in the current page."
+    );
+  }
+
+  const started = Date.now();
+
+  while (Date.now() - started < ATTACHMENT_UPLOAD_TIMEOUT_MS) {
+    const sendButton = findSendButton();
+    const pageText = document.body
+      ? (document.body.innerText || "")
+      : "";
+    const namesVisible = files.every((file) =>
+      pageText.indexOf(file.name) >= 0
+    );
+
+    if (
+      sendButton &&
+      (namesVisible || Date.now() - started >= 2500)
+    ) {
+      return;
+    }
+
+    await sleep(RESPONSE_POLL_MS);
+  }
+
+  throw new Error("Timed out waiting for ChatGPT file upload to become ready.");
+}
+
+function looksLikeAttachmentName(value) {
+  return /\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip)$/i.test(
+    value || ""
+  );
+}
+
+function sanitizeAttachmentName(value) {
+  const cleaned = String(value || "")
+    .replace(/[\\/]+/g, "/")
+    .split("/")
+    .pop()
+    .replace(/[\r\n]/g, "_")
+    .trim();
+
+  return cleaned || "attachment.bin";
+}
+
+function contentDispositionFileName(value) {
+  if (!value) {
+    return "";
+  }
+
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(value);
+  if (utfMatch) {
+    try {
+      return decodeURIComponent(utfMatch[1]);
+    } catch (_exception) {
+      return utfMatch[1];
+    }
+  }
+
+  const plainMatch = /filename="?([^";]+)"?/i.exec(value);
+  return plainMatch ? plainMatch[1] : "";
+}
+
+function attachmentCandidateUrls(anchor) {
+  const values = [
+    anchor.getAttribute("href"),
+    anchor.href,
+    anchor.getAttribute("data-href"),
+    anchor.getAttribute("data-url"),
+    anchor.getAttribute("data-download-url")
+  ];
+
+  const urls = [];
+
+  for (const value of values) {
+    if (!value || urls.includes(value)) {
+      continue;
+    }
+
+    if (value.startsWith("sandbox:")) {
+      continue;
+    }
+
+    try {
+      urls.push(new URL(value, location.href).href);
+    } catch (_exception) {
+      if (value.startsWith("blob:") || value.startsWith("data:")) {
+        urls.push(value);
+      }
+    }
+  }
+
+  return urls;
+}
+
+function looksLikeAttachmentAnchor(anchor) {
+  const href = anchor.getAttribute("href") || "";
+  const label = (anchor.textContent || "").trim();
+
+  return (
+    anchor.hasAttribute("download") ||
+    href.startsWith("sandbox:") ||
+    href.indexOf("/interpreter/download") >= 0 ||
+    href.indexOf("/backend-api/files/") >= 0 ||
+    href.indexOf("/files/") >= 0 ||
+    looksLikeAttachmentName(label) ||
+    looksLikeAttachmentName(href)
+  );
+}
+
+async function downloadAssistantAttachment(anchor) {
+  const urls = attachmentCandidateUrls(anchor);
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        credentials: "include",
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const lengthHeader = response.headers.get("content-length");
+      if (
+        lengthHeader &&
+        Number(lengthHeader) > MAX_ATTACHMENT_BYTES
+      ) {
+        continue;
+      }
+
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.length > MAX_ATTACHMENT_BYTES) {
+        continue;
+      }
+
+      const disposition = response.headers.get("content-disposition");
+      const dispositionName = contentDispositionFileName(disposition);
+      const downloadName = anchor.getAttribute("download") || "";
+      const label = (anchor.textContent || "").trim();
+
+      let urlName = "";
+      try {
+        const parsed = new URL(url);
+        urlName = decodeURIComponent(
+          parsed.pathname.split("/").pop() || ""
+        );
+      } catch (_exception) {
+        urlName = "";
+      }
+
+      const name = sanitizeAttachmentName(
+        dispositionName ||
+        downloadName ||
+        (looksLikeAttachmentName(label) ? label : "") ||
+        urlName
+      );
+
+      return {
+        name: name,
+        mime_type:
+          response.headers.get("content-type") ||
+          "application/octet-stream",
+        data_base64: encodeBase64(bytes)
+      };
+    } catch (_exception) {
+      // Try the next candidate URL.
+    }
+  }
+
+  return null;
+}
+
+async function collectAssistantAttachments() {
+  const nodes = assistantNodes();
+  if (!nodes.length) {
+    return [];
+  }
+
+  const node = nodes[nodes.length - 1];
+  const anchors = Array.from(node.querySelectorAll("a[href]"))
+    .filter(looksLikeAttachmentAnchor);
+
+  const attachments = [];
+  const seen = new Set();
+
+  for (const anchor of anchors) {
+    if (attachments.length >= MAX_ATTACHMENT_COUNT) {
+      break;
+    }
+
+    const key =
+      anchor.getAttribute("href") + "|" +
+      (anchor.textContent || "");
+
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const attachment = await downloadAssistantAttachment(anchor);
+    if (attachment) {
+      attachments.push(attachment);
+    }
+  }
+
+  return attachments;
+}
+
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function submitMessage(text) {
+async function submitMessage(text, attachments) {
   const commandStartedAt = performance.now();
   const composer = findComposer();
 
@@ -194,7 +555,14 @@ async function submitMessage(text) {
   const beforeCount = before.length;
   const beforeLast = before.length ? before[before.length - 1] : "";
 
-  setComposerText(composer, text);
+  if (text) {
+    setComposerText(composer, text);
+  }
+
+  if (Array.isArray(attachments) && attachments.length) {
+    await injectAttachments(composer, attachments);
+  }
+
   await sleep(100);
 
   const sendButton = findSendButton();
@@ -283,8 +651,11 @@ async function submitMessage(text) {
           )
         : 0;
 
+      const responseAttachments = await collectAssistantAttachments();
+
       return {
         text: responseText,
+        attachments: responseAttachments,
         timing: {
           browser_submit_ms: submitMs,
           browser_first_response_ms: firstResponseMs,
@@ -304,8 +675,11 @@ async function submitMessage(text) {
       ? Math.max(0, Math.round(firstResponseAt - submittedAt))
       : 0;
 
+    const responseAttachments = await collectAssistantAttachments();
+
     return {
       text: responseText,
+      attachments: responseAttachments,
       timing: {
         browser_submit_ms: Math.max(
           0,
@@ -343,17 +717,25 @@ browser.runtime.onMessage.addListener((message) => {
   }
 
   if (message.type === "salix_send_message") {
-    if (typeof message.text !== "string" || !message.text) {
+    const attachments = Array.isArray(message.attachments)
+      ? message.attachments
+      : [];
+
+    if (
+      typeof message.text !== "string" ||
+      (!message.text && !attachments.length)
+    ) {
       return Promise.resolve({
         ok: false,
-        error: "Relay message text is empty."
+        error: "Relay message text or attachment is required."
       });
     }
 
-    return submitMessage(message.text)
+    return submitMessage(message.text, attachments)
       .then((result) => ({
         ok: true,
         text: result.text,
+        attachments: result.attachments || [],
         timing: result.timing
       }))
       .catch((exception) => ({
