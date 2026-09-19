@@ -33,6 +33,7 @@ class ApplicationSettings {
         const char* get_user_preferences_path() const;
         const char* get_diagnostics_directory() const;
         const char* get_attachment_directory() const;
+        std::string get_received_files_directory() const;
         bool is_portable_mode() const;
         const char* get_application_mode_name() const;
 

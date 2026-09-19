@@ -14,6 +14,7 @@ class ConversationEvent {
             event_request_started,
             event_message_started,
             event_text_delta,
+            event_attachment,
             event_message_completed,
             event_request_failed
         };

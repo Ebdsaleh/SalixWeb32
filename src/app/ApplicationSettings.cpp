@@ -359,6 +359,17 @@ const char* ApplicationSettings::get_attachment_directory() const {
     return attachment_directory.c_str();
 }
 
+std::string ApplicationSettings::get_received_files_directory() const {
+    std::string result(user_data_directory);
+
+    if (!result.empty() && result[result.size() - 1] != '\\') {
+        result += "\\";
+    }
+
+    result += "Received";
+    return result;
+}
+
 bool ApplicationSettings::is_portable_mode() const {
     return portable_mode;
 }

@@ -981,11 +981,24 @@ bool ConversationView::is_attachment_point(
         return false;
     }
 
-    const ImageView* image_view = messages[message_index].image_view;
+    const MessageEntry& entry = messages[message_index];
+
+    if (entry.attachment.empty()) {
+        return false;
+    }
+
+    if (
+        entry.image_view != 0 &&
+        entry.image_view->get_is_visible() &&
+        entry.image_view->contains_point(x, y)
+    ) {
+        return true;
+    }
+
     return
-        image_view != 0 &&
-        image_view->get_is_visible() &&
-        image_view->contains_point(x, y);
+        entry.view != 0 &&
+        entry.view->get_is_visible() &&
+        entry.view->contains_point(x, y);
 }
 
 void ConversationView::clear_conversation_selection() {
