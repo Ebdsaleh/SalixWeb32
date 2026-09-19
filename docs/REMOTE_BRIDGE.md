@@ -255,10 +255,10 @@ path:
 The semantic probe is therefore validated end-to-end on the real Server 2003/Pentium 4
 target.
 
-The current pending gate is the text-only LibreWolf browser relay. That path deliberately
-permits draft/response text on the trusted development LAN while continuing to keep
-attachments, credentials, cookies, and browser session material out of the Salix
-protocol.
+The text-only LibreWolf browser relay is now validated end-to-end on the real
+Server 2003/Pentium 4 target. That path deliberately permits draft/response text on the
+trusted development LAN while continuing to keep attachments, credentials, cookies, and
+browser session material out of the Salix protocol.
 
 ## Current limits
 
@@ -275,10 +275,12 @@ The bridge is intentionally simple:
 These limits keep the bridge understandable while SalixWeb32 learns which modern
 web/service capabilities are actually required.
 
-The bridge now has both the content-free semantic Conversation probe and the
+The bridge now has both the content-free semantic Conversation probe and the validated
 text-only browser-relay path. The browser relay currently waits for a completed rendered
 assistant response before returning it to the P4; true generation-time streaming is a
-later tranche.
+later tranche. On the native side, completed response events are drained as one available
+batch and coalesced into one Conversation presentation update, avoiding artificial
+per-delta pacing on the P4.
 
 Credentials and browser session state remain outside the bridge contract. Normal
 LibreWolf owns those details on the modern machine.
