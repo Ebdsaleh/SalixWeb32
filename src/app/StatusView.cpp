@@ -51,6 +51,9 @@ StatusView::StatusView(
     runtime_tab_index(-1),
     active_conversation_request_id(0),
     conversation_request_start_tick(0),
+    conversation_delta_event_count(0),
+    conversation_presentation_update_count(0),
+    conversation_presentation_milliseconds(0),
     streaming_message_index(-1),
     conversation_security_text("unavailable"),
     conversation_timing_text("not measured"),
@@ -700,9 +703,45 @@ void StatusView::submit_draft_to_service(
 
     active_conversation_request_id = request_id;
     conversation_request_start_tick = GetTickCount();
+    conversation_delta_event_count = 0;
+    conversation_presentation_update_count = 0;
+    conversation_presentation_milliseconds = 0;
     conversation_timing_text = "request in flight";
     streaming_message_index = -1;
     streaming_message_text.clear();
+}
+
+bool StatusView::flush_streaming_message_presentation() {
+    if (streaming_message_text.empty()) {
+        return false;
+    }
+
+    unsigned long presentation_started = GetTickCount();
+    bool updated = false;
+
+    if (streaming_message_index < 0) {
+        if (conversation_view.append_remote_message(
+                streaming_message_text.c_str()
+            )) {
+            streaming_message_index =
+                conversation_view.get_message_count() - 1;
+            updated = true;
+        }
+    } else {
+        updated = conversation_view.update_message(
+            streaming_message_index,
+            streaming_message_text.c_str()
+        );
+    }
+
+    if (updated) {
+        unsigned long presentation_completed = GetTickCount();
+        conversation_presentation_milliseconds +=
+            presentation_completed - presentation_started;
+        ++conversation_presentation_update_count;
+    }
+
+    return updated;
 }
 
 void StatusView::consume_conversation_events() {
