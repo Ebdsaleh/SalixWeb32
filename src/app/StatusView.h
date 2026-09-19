@@ -19,6 +19,7 @@
 #include "BrowserProbeView.h"
 
 class ApplicationRuntime;
+class ConversationEvent;
 class ConversationServiceHost;
 class DesktopServices;
 class FileDialog;
@@ -228,7 +229,7 @@ class StatusView : public View {
         void submit_draft_to_service(const MessageDraft& draft);
         bool flush_streaming_message_presentation();
         bool save_received_attachment(
-            const char* payload,
+            const ConversationEvent& event,
             Attachment& attachment
         );
         void consume_conversation_events();

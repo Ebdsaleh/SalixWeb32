@@ -26,114 +26,11 @@
 #include "web/platform/WebPlatformHost.h"
 
 namespace {
-    const char* attachment_protocol = "SALIX-ATTACHMENT/1";
     const unsigned long maximum_received_attachment_bytes =
         2UL * 1024UL * 1024UL;
 
     const char* status_flag(bool value) {
         return value ? "yes" : "no";
-    }
-
-    std::string get_attachment_metadata_value(
-        const std::string& payload,
-        const char* key
-    ) {
-        if (key == 0 || key[0] == '\0') {
-            return "";
-        }
-
-        std::string prefix(key);
-        prefix += "=";
-
-        std::string::size_type position = payload.find(prefix);
-
-        while (position != std::string::npos) {
-            if (position == 0 || payload[position - 1] == '\n') {
-                std::string::size_type start =
-                    position + prefix.size();
-                std::string::size_type end =
-                    payload.find('\n', start);
-
-                if (end == std::string::npos) {
-                    end = payload.size();
-                }
-
-                return payload.substr(start, end - start);
-            }
-
-            position = payload.find(prefix, position + 1);
-        }
-
-        return "";
-    }
-
-    int base64_value(char value) {
-        if (value >= 'A' && value <= 'Z') {
-            return value - 'A';
-        }
-        if (value >= 'a' && value <= 'z') {
-            return value - 'a' + 26;
-        }
-        if (value >= '0' && value <= '9') {
-            return value - '0' + 52;
-        }
-        if (value == '+') {
-            return 62;
-        }
-        if (value == '/') {
-            return 63;
-        }
-        return -1;
-    }
-
-    bool decode_base64(
-        const std::string& encoded,
-        std::string& decoded
-    ) {
-        decoded.clear();
-
-        unsigned long accumulator = 0;
-        int bit_count = 0;
-
-        for (
-            std::string::size_type index = 0;
-            index < encoded.size();
-            ++index
-        ) {
-            char character = encoded[index];
-
-            if (character == '=') {
-                break;
-            }
-
-            int value = base64_value(character);
-            if (value < 0) {
-                decoded.clear();
-                return false;
-            }
-
-            accumulator =
-                (accumulator << 6) |
-                (unsigned long)value;
-            bit_count += 6;
-
-            if (bit_count >= 8) {
-                bit_count -= 8;
-                char byte_value = (char)(
-                    (accumulator >> bit_count) & 0xFF
-                );
-                decoded.append(1, byte_value);
-
-                if (bit_count == 0) {
-                    accumulator = 0;
-                } else {
-                    accumulator &=
-                        (1UL << bit_count) - 1UL;
-                }
-            }
-        }
-
-        return true;
     }
 
     std::string sanitize_received_file_name(
@@ -986,84 +883,33 @@ bool StatusView::flush_streaming_message_presentation() {
 }
 
 bool StatusView::save_received_attachment(
-    const char* payload_text,
+    const ConversationEvent& event,
     Attachment& attachment
 ) {
     attachment = Attachment();
 
-    if (
-        application_settings == 0 ||
-        payload_text == 0 ||
-        payload_text[0] == '\0'
-    ) {
+    if (application_settings == 0) {
         return false;
     }
 
-    std::string payload(payload_text);
-    std::string::size_type first_line_end =
-        payload.find('\n');
-
-    std::string first_line =
-        first_line_end == std::string::npos
-            ? payload
-            : payload.substr(0, first_line_end);
-
-    if (first_line != attachment_protocol) {
-        return false;
-    }
-
-    std::string encoded_name =
-        get_attachment_metadata_value(
-            payload,
-            "name_base64"
-        );
-    std::string encoded_data =
-        get_attachment_metadata_value(
-            payload,
-            "data_base64"
-        );
-    std::string size_text =
-        get_attachment_metadata_value(
-            payload,
-            "size"
-        );
+    const char* attachment_name =
+        event.get_attachment_name();
+    const std::string& attachment_data =
+        event.get_attachment_data();
 
     if (
-        encoded_name.empty() ||
-        encoded_data.empty() ||
-        size_text.empty()
-    ) {
-        return false;
-    }
-
-    std::string decoded_name;
-    std::string decoded_data;
-
-    if (
-        !decode_base64(encoded_name, decoded_name) ||
-        !decode_base64(encoded_data, decoded_data)
-    ) {
-        return false;
-    }
-
-    char* size_end = 0;
-    unsigned long expected_size =
-        strtoul(size_text.c_str(), &size_end, 10);
-
-    if (
-        size_end == size_text.c_str() ||
-        size_end == 0 ||
-        *size_end != '\0' ||
-        expected_size !=
-            (unsigned long)decoded_data.size() ||
-        expected_size >
+        attachment_name == 0 ||
+        attachment_name[0] == '\0' ||
+        (unsigned long)attachment_data.size() >
             maximum_received_attachment_bytes
     ) {
         return false;
     }
 
     std::string file_name =
-        sanitize_received_file_name(decoded_name);
+        sanitize_received_file_name(
+            attachment_name
+        );
     std::string received_directory =
         application_settings->
             get_received_files_directory();
@@ -1089,14 +935,14 @@ bool StatusView::save_received_attachment(
 
     bool written = true;
 
-    if (!decoded_data.empty()) {
+    if (!attachment_data.empty()) {
         written =
             fwrite(
-                decoded_data.data(),
+                attachment_data.data(),
                 1,
-                decoded_data.size(),
+                attachment_data.size(),
                 file
-            ) == decoded_data.size();
+            ) == attachment_data.size();
     }
 
     if (fclose(file) != 0) {
@@ -1182,7 +1028,7 @@ void StatusView::consume_conversation_events() {
                 {
                     Attachment attachment;
                     if (save_received_attachment(
-                            event.get_text(),
+                            event,
                             attachment
                         )) {
                         conversation_view.append_attachment(

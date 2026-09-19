@@ -17,6 +17,7 @@
 namespace {
     const char* bridge_protocol = "SALIX-BRIDGE/1";
     const char* conversation_protocol = "SALIX-CONVERSATION/1";
+    const char* attachment_protocol = "SALIX-ATTACHMENT/1";
     const unsigned long maximum_attachment_count = 8;
     const unsigned long maximum_attachment_bytes = 2UL * 1024UL * 1024UL;
     const unsigned long maximum_total_attachment_bytes = 4UL * 1024UL * 1024UL;
@@ -260,6 +261,139 @@ namespace {
                 : text.substr(0, first_line_end);
 
         return first_line == protocol;
+    }
+
+    int base64_value(char value) {
+        if (value >= 'A' && value <= 'Z') {
+            return value - 'A';
+        }
+        if (value >= 'a' && value <= 'z') {
+            return value - 'a' + 26;
+        }
+        if (value >= '0' && value <= '9') {
+            return value - '0' + 52;
+        }
+        if (value == '+') {
+            return 62;
+        }
+        if (value == '/') {
+            return 63;
+        }
+        return -1;
+    }
+
+    bool decode_base64(
+        const std::string& encoded,
+        std::string& decoded
+    ) {
+        decoded.clear();
+
+        unsigned long accumulator = 0;
+        int bit_count = 0;
+
+        for (
+            std::string::size_type index = 0;
+            index < encoded.size();
+            ++index
+        ) {
+            char character = encoded[index];
+
+            if (character == '=') {
+                break;
+            }
+
+            int value = base64_value(character);
+            if (value < 0) {
+                decoded.clear();
+                return false;
+            }
+
+            accumulator =
+                (accumulator << 6) |
+                (unsigned long)value;
+            bit_count += 6;
+
+            if (bit_count >= 8) {
+                bit_count -= 8;
+                char byte_value = (char)(
+                    (accumulator >> bit_count) & 0xFF
+                );
+                decoded.append(1, byte_value);
+
+                if (bit_count == 0) {
+                    accumulator = 0;
+                } else {
+                    accumulator &=
+                        (1UL << bit_count) - 1UL;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool apply_attachment_payload(
+        const std::string& payload,
+        ConversationEvent& event
+    ) {
+        if (
+            !has_exact_protocol_line(
+                payload,
+                attachment_protocol
+            )
+        ) {
+            return false;
+        }
+
+        std::string encoded_name =
+            get_protocol_value(payload, "name_base64");
+        std::string mime_type =
+            get_protocol_value(payload, "mime_type");
+        std::string encoded_data =
+            get_protocol_value(payload, "data_base64");
+        std::string size_text =
+            get_protocol_value(payload, "size");
+
+        if (
+            encoded_name.empty() ||
+            encoded_data.empty() ||
+            size_text.empty()
+        ) {
+            return false;
+        }
+
+        std::string name;
+        std::string data;
+
+        if (
+            !decode_base64(encoded_name, name) ||
+            !decode_base64(encoded_data, data)
+        ) {
+            return false;
+        }
+
+        char* size_end = 0;
+        unsigned long expected_size =
+            strtoul(size_text.c_str(), &size_end, 10);
+
+        if (
+            size_end == size_text.c_str() ||
+            size_end == 0 ||
+            *size_end != '\0' ||
+            expected_size != (unsigned long)data.size() ||
+            expected_size > maximum_attachment_bytes
+        ) {
+            return false;
+        }
+
+        event.set_attachment(
+            name.c_str(),
+            mime_type.empty()
+                ? "application/octet-stream"
+                : mime_type.c_str(),
+            data
+        );
+        return true;
     }
 
     void append_timing_part(
@@ -507,7 +641,18 @@ namespace {
             ConversationEvent event;
             event.set_type(type);
             event.set_request_id(request_id);
-            event.set_text(event_text.c_str());
+
+            if (type == ConversationEvent::event_attachment) {
+                if (!apply_attachment_payload(
+                        event_text,
+                        event
+                    )) {
+                    return false;
+                }
+            } else {
+                event.set_text(event_text.c_str());
+            }
+
             output.push_back(event);
         }
 

@@ -32,8 +32,20 @@ class ConversationEvent {
         void set_text(const char* new_text);
         const char* get_text() const;
 
+        void set_attachment(
+            const char* name,
+            const char* mime_type,
+            const std::string& data
+        );
+        const char* get_attachment_name() const;
+        const char* get_attachment_mime_type() const;
+        const std::string& get_attachment_data() const;
+
     private:
         Type type;
         unsigned long request_id;
         std::string text;
+        std::string attachment_name;
+        std::string attachment_mime_type;
+        std::string attachment_data;
 };
