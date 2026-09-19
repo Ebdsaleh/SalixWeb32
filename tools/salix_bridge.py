@@ -11,6 +11,7 @@ cross the trusted development LAN.
 from __future__ import annotations
 
 import argparse
+import base64
 import http.client
 import json
 import re
@@ -25,7 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PROTOCOL = "SALIX-BRIDGE/1"
 PROBE_PROTOCOL = "SALIX-PROBE/1"
 CONVERSATION_PROTOCOL = "SALIX-CONVERSATION/1"
-MAX_REQUEST_BYTES = 1024 * 1024
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
 MAX_FETCH_BYTES = 512 * 1024
 MAX_EXTRACTED_BYTES = 64 * 1024
 FETCH_TIMEOUT_SECONDS = 10
@@ -35,6 +36,10 @@ CHAT_WORKER_PORT = 8766
 CHAT_WORKER_TIMEOUT_SECONDS = 210
 MAX_CONVERSATION_TEXT_BYTES = 128 * 1024
 MAX_CONVERSATION_DELTA_EVENTS = 28
+MAX_CONVERSATION_ATTACHMENTS = 8
+MAX_CONVERSATION_ATTACHMENT_BYTES = 2 * 1024 * 1024
+MAX_CONVERSATION_TOTAL_ATTACHMENT_BYTES = 4 * 1024 * 1024
+MAX_CONVERSATION_ATTACHMENT_NAME_BYTES = 255
 
 
 CONVERSATION_TIMING_KEYS = (
@@ -403,7 +408,84 @@ def _parse_protocol_metadata(metadata: str) -> dict[str, str]:
     return values
 
 
-def _parse_conversation_message_request(raw_body: bytes) -> tuple[int, str]:
+def _safe_attachment_name(value: str) -> str:
+    value = value.replace("\\", "/").split("/")[-1].strip()
+    value = value.replace("\r", "_").replace("\n", "_")
+    if not value or value in (".", ".."):
+        return "attachment.bin"
+    return value[:255]
+
+
+def _decode_worker_attachments(value: object) -> list[dict[str, object]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise RuntimeError("chat worker attachments must be an array")
+    if len(value) > MAX_CONVERSATION_ATTACHMENTS:
+        raise RuntimeError("chat worker returned too many attachments")
+
+    attachments: list[dict[str, object]] = []
+    total_bytes = 0
+
+    for item in value:
+        if not isinstance(item, dict):
+            raise RuntimeError("chat worker attachment is invalid")
+
+        name = item.get("name")
+        mime_type = item.get("mime_type", "application/octet-stream")
+        encoded = item.get("data_base64")
+
+        if not isinstance(name, str) or not name:
+            raise RuntimeError("chat worker attachment name is invalid")
+        if not isinstance(mime_type, str) or not mime_type:
+            mime_type = "application/octet-stream"
+        if not isinstance(encoded, str):
+            raise RuntimeError("chat worker attachment data is missing")
+
+        try:
+            data = base64.b64decode(encoded.encode("ascii"), validate=True)
+        except Exception as error:
+            raise RuntimeError("chat worker attachment base64 is invalid") from error
+
+        if len(data) > MAX_CONVERSATION_ATTACHMENT_BYTES:
+            raise RuntimeError("chat worker attachment exceeds 2 MB limit")
+
+        total_bytes += len(data)
+        if total_bytes > MAX_CONVERSATION_TOTAL_ATTACHMENT_BYTES:
+            raise RuntimeError("chat worker attachments exceed 4 MB total limit")
+
+        attachments.append(
+            {
+                "name": _safe_attachment_name(name),
+                "mime_type": mime_type[:128],
+                "data": data,
+            }
+        )
+
+    return attachments
+
+
+def _attachment_event_payload(attachment: dict[str, object]) -> str:
+    name = str(attachment["name"])
+    mime_type = str(attachment.get("mime_type") or "application/octet-stream")
+    data = attachment["data"]
+    if not isinstance(data, (bytes, bytearray)):
+        raise RuntimeError("attachment event data is invalid")
+
+    name_base64 = base64.b64encode(name.encode("utf-8")).decode("ascii")
+    data_base64 = base64.b64encode(bytes(data)).decode("ascii")
+    return (
+        "SALIX-ATTACHMENT/1\n"
+        f"name_base64={name_base64}\n"
+        f"mime_type={mime_type}\n"
+        f"size={len(data)}\n"
+        f"data_base64={data_base64}"
+    )
+
+
+def _parse_conversation_message_request(
+    raw_body: bytes,
+) -> tuple[int, str, list[dict[str, object]]]:
     header_end = raw_body.find(b"\n\n")
     if header_end < 0:
         raise ValueError("conversation message framing is missing")
@@ -413,10 +495,6 @@ def _parse_conversation_message_request(raw_body: bytes) -> tuple[int, str]:
 
     if values.get("mode") != "browser_relay":
         raise ValueError("browser relay mode is required")
-    if values.get("text_forwarded") != "1":
-        raise ValueError("browser relay requires message text")
-    if values.get("attachments_forwarded") != "0":
-        raise ValueError("attachments are not enabled for the first relay pass")
     if values.get("credentials_forwarded") != "0":
         raise ValueError("credentials must not cross the Salix relay")
     if values.get("session_forwarded") != "0":
@@ -425,29 +503,107 @@ def _parse_conversation_message_request(raw_body: bytes) -> tuple[int, str]:
     try:
         request_id = int(values.get("request_id", "0"))
         text_length = int(values.get("text_len", "-1"))
+        attachment_count = int(values.get("attachment_count", "-1"))
     except ValueError as error:
         raise ValueError("conversation numeric metadata is invalid") from error
 
     if request_id < 1 or request_id > 0xFFFFFFFF:
         raise ValueError("conversation request ID is out of range")
-    if text_length < 1 or text_length > MAX_CONVERSATION_TEXT_BYTES:
+    if text_length < 0 or text_length > MAX_CONVERSATION_TEXT_BYTES:
         raise ValueError("conversation text length is invalid")
+    if attachment_count < 0 or attachment_count > MAX_CONVERSATION_ATTACHMENTS:
+        raise ValueError("conversation attachment count is invalid")
 
-    text_bytes = raw_body[header_end + 2 :]
-    if len(text_bytes) != text_length:
-        raise ValueError("conversation text length does not match framing")
+    expected_text_flag = "1" if text_length else "0"
+    expected_attachment_flag = "1" if attachment_count else "0"
+    if values.get("text_forwarded") != expected_text_flag:
+        raise ValueError("conversation text forwarding flag does not match framing")
+    if values.get("attachments_forwarded") != expected_attachment_flag:
+        raise ValueError("conversation attachment forwarding flag does not match framing")
+    if text_length == 0 and attachment_count == 0:
+        raise ValueError("conversation request is empty")
 
-    return request_id, text_bytes.decode("utf-8", errors="strict")
+    cursor = header_end + 2
+    text_end = cursor + text_length
+    if text_end > len(raw_body):
+        raise ValueError("conversation text exceeds request body")
+
+    text_bytes = raw_body[cursor:text_end]
+    cursor = text_end
+    text = text_bytes.decode("utf-8", errors="strict") if text_bytes else ""
+
+    attachments: list[dict[str, object]] = []
+    total_attachment_bytes = 0
+
+    for index in range(attachment_count):
+        try:
+            name_length = int(values[f"attachment_{index}_name_len"])
+            mime_length = int(values[f"attachment_{index}_mime_len"])
+            data_length = int(values[f"attachment_{index}_data_len"])
+        except (KeyError, ValueError) as error:
+            raise ValueError("conversation attachment metadata is invalid") from error
+
+        if name_length < 1 or name_length > MAX_CONVERSATION_ATTACHMENT_NAME_BYTES:
+            raise ValueError("conversation attachment name length is invalid")
+        if mime_length < 1 or mime_length > 128:
+            raise ValueError("conversation attachment MIME length is invalid")
+        if data_length < 0 or data_length > MAX_CONVERSATION_ATTACHMENT_BYTES:
+            raise ValueError("conversation attachment exceeds 2 MB limit")
+
+        total_attachment_bytes += data_length
+        if total_attachment_bytes > MAX_CONVERSATION_TOTAL_ATTACHMENT_BYTES:
+            raise ValueError("conversation attachments exceed 4 MB total limit")
+
+        end_name = cursor + name_length
+        end_mime = end_name + mime_length
+        end_data = end_mime + data_length
+        if end_data > len(raw_body):
+            raise ValueError("conversation attachment framing exceeds request body")
+
+        name = raw_body[cursor:end_name].decode("utf-8", errors="replace")
+        mime_type = raw_body[end_name:end_mime].decode("ascii", errors="replace")
+        data = raw_body[end_mime:end_data]
+        cursor = end_data
+
+        attachments.append(
+            {
+                "name": _safe_attachment_name(name),
+                "mime_type": mime_type or "application/octet-stream",
+                "data": data,
+            }
+        )
+
+    if cursor != len(raw_body):
+        raise ValueError("conversation request contains trailing bytes")
+
+    return request_id, text, attachments
 
 
 def _call_chat_worker(
     request_id: int,
     text: str,
-) -> tuple[str, dict[str, int]]:
+    attachments: list[dict[str, object]],
+) -> tuple[str, list[dict[str, object]], dict[str, int]]:
+    worker_attachments = []
+    for attachment in attachments:
+        data = attachment["data"]
+        if not isinstance(data, (bytes, bytearray)):
+            raise RuntimeError("conversation attachment data is invalid")
+        worker_attachments.append(
+            {
+                "name": str(attachment["name"]),
+                "mime_type": str(
+                    attachment.get("mime_type") or "application/octet-stream"
+                ),
+                "data_base64": base64.b64encode(bytes(data)).decode("ascii"),
+            }
+        )
+
     payload = json.dumps(
         {
             "request_id": request_id,
             "text": text,
+            "attachments": worker_attachments,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -496,8 +652,14 @@ def _call_chat_worker(
         if value.get("request_id") != request_id:
             raise RuntimeError("chat worker request ID mismatch")
 
-        response_text = value.get("text")
-        if not isinstance(response_text, str) or not response_text:
+        response_text = value.get("text", "")
+        if not isinstance(response_text, str):
+            raise RuntimeError("chat worker response text is invalid")
+
+        response_attachments = _decode_worker_attachments(
+            value.get("attachments")
+        )
+        if not response_text and not response_attachments:
             raise RuntimeError("chat worker returned an empty response")
 
         timing = _sanitize_relay_timing(value.get("timing"))
@@ -506,7 +668,7 @@ def _call_chat_worker(
             int(round((time.monotonic() - worker_started_at) * 1000.0)),
         )
 
-        return response_text, timing
+        return response_text, response_attachments, timing
     except (OSError, http.client.HTTPException) as error:
         raise RuntimeError(f"chat worker unavailable: {error}") from error
     finally:
@@ -569,6 +731,7 @@ def _split_response_deltas(text: str) -> list[str]:
 def _frame_conversation_relay(
     request_id: int,
     response_text: str,
+    response_attachments: list[dict[str, object]],
     timing: dict[str, int],
 ) -> bytes:
     events: list[tuple[str, str]] = [
@@ -578,6 +741,10 @@ def _frame_conversation_relay(
     events.extend(
         ("text_delta", delta)
         for delta in _split_response_deltas(response_text)
+    )
+    events.extend(
+        ("attachment", _attachment_event_payload(attachment))
+        for attachment in response_attachments
     )
     events.append(("message_completed", ""))
 
@@ -592,8 +759,8 @@ def _frame_conversation_relay(
         f"request_id={request_id}",
         f"event_count={len(encoded_events)}",
         "mode=browser_relay",
-        "text_forwarded=1",
-        "attachments_forwarded=0",
+        f"text_forwarded={1 if response_text else 0}",
+        f"attachments_forwarded={1 if response_attachments else 0}",
         "credentials_forwarded=0",
         "session_forwarded=0",
         "transport_security=trusted_lan",
@@ -627,17 +794,21 @@ def _frame_conversation_relay(
 
 
 def _perform_conversation_relay(raw_body: bytes) -> bytes:
-    request_id, text = _parse_conversation_message_request(raw_body)
+    request_id, text, attachments = _parse_conversation_message_request(raw_body)
     relay_started_at = time.monotonic()
 
     print(
         "[conversation] browser relay request "
         f"id={request_id} "
         f"text_bytes={len(text.encode('utf-8'))} "
-        "attachments=0 credentials=0 session=0"
+        f"attachments={len(attachments)} credentials=0 session=0"
     )
 
-    response_text, timing = _call_chat_worker(request_id, text)
+    response_text, response_attachments, timing = _call_chat_worker(
+        request_id,
+        text,
+        attachments,
+    )
     timing["bridge_total_ms"] = max(
         0,
         int(round((time.monotonic() - relay_started_at) * 1000.0)),
@@ -646,7 +817,8 @@ def _perform_conversation_relay(raw_body: bytes) -> bytes:
     print(
         "[conversation] browser relay response "
         f"id={request_id} "
-        f"text_bytes={len(response_text.encode('utf-8'))}"
+        f"text_bytes={len(response_text.encode('utf-8'))} "
+        f"attachments={len(response_attachments)}"
     )
     print(
         "[conversation] timing "
@@ -659,6 +831,7 @@ def _perform_conversation_relay(raw_body: bytes) -> bytes:
     return _frame_conversation_relay(
         request_id,
         response_text,
+        response_attachments,
         timing,
     )
 
@@ -808,7 +981,7 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
                 f"conversation_protocol={CONVERSATION_PROTOCOL}\n"
                 "conversation_mode=browser_relay\n"
                 "conversation_text_forwarding=enabled\n"
-                "conversation_attachment_forwarding=disabled\n"
+                "conversation_attachment_forwarding=enabled\n"
                 "conversation_credential_forwarding=disabled\n"
                 "conversation_session_forwarding=disabled\n"
                 "conversation_transport_security=trusted_lan\n"
@@ -993,8 +1166,9 @@ def main() -> int:
         "Chat session broker   : "
         f"http://{CHAT_WORKER_HOST}:{CHAT_WORKER_PORT}"
     )
-    print("Message forwarding    : text enabled on trusted development LAN")
-    print("Sensitive forwarding  : attachments/credentials/session disabled")
+    print("Message forwarding    : text + bounded files enabled on trusted development LAN")
+    print("Attachment forwarding : enabled, bounded (8 files, 2 MB each, 4 MB total)")
+    print("Sensitive forwarding  : credentials/session disabled")
     print("Browser auth/session  : remains inside normal LibreWolf")
     print("Response path         : rendered assistant text -> semantic events")
     print("Press Ctrl+C to stop.")
