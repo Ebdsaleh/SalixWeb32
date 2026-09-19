@@ -243,9 +243,25 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
     def state(self) -> RelayState:
         return self.server.state  # type: ignore[attr-defined]
 
+    def _send_cors_headers(self) -> None:
+        # The broker is bound to loopback only and never uses browser credentials.
+        # Allow the local WebExtension origin to make JSON requests through the
+        # normal browser CORS preflight path.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, OPTIONS",
+        )
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type",
+        )
+        self.send_header("Access-Control-Max-Age", "600")
+
     def _send_json(self, status: int, value: dict[str, Any]) -> None:
         payload = _json_bytes(value)
         self.send_response(status)
+        self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Connection", "close")
@@ -254,6 +270,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
 
     def _send_empty(self, status: int) -> None:
         self.send_response(status)
+        self._send_cors_headers()
         self.send_header("Content-Length", "0")
         self.send_header("Connection", "close")
         self.end_headers()
@@ -314,6 +331,20 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _validate_extension_protocol(value: dict[str, Any]) -> bool:
         return value.get("protocol") == EXTENSION_PROTOCOL
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        if self.path not in (
+            "/v1/health",
+            "/v1/command",
+            "/v1/heartbeat",
+            "/v1/result",
+            "/v1/failure",
+            "/v1/message",
+        ):
+            self._send_empty(404)
+            return
+
+        self._send_empty(204)
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/v1/health":
@@ -524,7 +555,30 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
         )
 
     def log_message(self, format: str, *args: object) -> None:
-        print(f"[chat-session:{self.client_address[0]}] {format % args}")
+        rendered = format % args
+
+        # Heartbeats and empty command polls are expected high-frequency traffic.
+        # Keep the console useful by hiding their successful noise while still
+        # printing requests that carry work or report errors.
+        if (
+            '"GET /v1/command HTTP/' in rendered and
+            " 204 " in rendered
+        ):
+            return
+
+        if (
+            '"OPTIONS /v1/heartbeat HTTP/' in rendered and
+            " 204 " in rendered
+        ):
+            return
+
+        if (
+            '"POST /v1/heartbeat HTTP/' in rendered and
+            " 200 " in rendered
+        ):
+            return
+
+        print(f"[chat-session:{self.client_address[0]}] {rendered}")
 
 
 class ChatSessionServer(ThreadingHTTPServer):
