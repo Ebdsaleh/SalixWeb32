@@ -82,9 +82,11 @@ Not enabled yet:
 - credentials/session transfer,
 - generation-time byte streaming.
 
-The first pass waits for the rendered assistant response to stabilize. The bridge then
-divides the completed response into bounded `text_delta` events so the existing native
-incremental presentation path is exercised.
+The current browser relay waits for the rendered assistant response to stabilize. The
+bridge then divides the completed response into bounded `text_delta` events. Salix keeps
+those semantic deltas intact but drains every event already available from that completed
+response in one native pass and coalesces presentation to one Conversation update. Future
+true streaming can still present once per newly arrived batch.
 
 ## Modern-machine setup
 
@@ -317,8 +319,18 @@ stabilize 2134 ms
 ```
 
 The same P4 candidate rebuilt cleanly under VC7.1 with zero errors and zero warnings.
-The approximately 38.1-second gap between the modern bridge total and native
-`message_completed` is retained as a measured native-side profiling target.
+That first measurement exposed an artificial one-event-per-update throttle in the native
+remote Conversation backend. The corrected target retest measured:
+
+```text
+P4 total 7406 ms
+bridge 7222 ms
+native batch 27 deltas -> 1 updates
+present 0 ms
+```
+
+The corrected path therefore reduced the bridge-to-native completion gap to about
+184 ms and removed the visible post-response drip feed.
 
 ## Target validation
 
@@ -331,12 +343,12 @@ assistant response returned through `SALIX-CONVERSATION/1` semantic events and r
 inside the native Conversation view. The VC7.1 target build was clean with zero errors
 and zero warnings.
 
-The current path is intentionally text-only and completed-response-oriented. The observed
-latency is accepted for this architecture baseline; optimization and true
-generation-time streaming are separate follow-up work.
+The current path is intentionally text-only and completed-response-oriented. Browser-side
+generation/stabilization latency remains a follow-up optimization target, while native
+completed-response batching is now validated on the real P4. True generation-time
+streaming remains a separate later tranche.
 
-Known presentation issue: some non-ASCII symbols currently render as mojibake in the
-legacy native text path. That is an encoding/presentation issue rather than a relay
-correctness failure.
+The UTF-8 framework / UTF-16 Win32 boundary and glyph-aware fallback are also validated
+on the real P4, including Unicode clipboard and relay round-trip coverage.
 
 See `docs/VALIDATION.md` for the full evidence and regression checklist.
