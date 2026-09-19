@@ -15,6 +15,7 @@ import http.client
 import json
 import re
 import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -34,6 +35,39 @@ CHAT_WORKER_PORT = 8766
 CHAT_WORKER_TIMEOUT_SECONDS = 210
 MAX_CONVERSATION_TEXT_BYTES = 128 * 1024
 MAX_CONVERSATION_DELTA_EVENTS = 28
+
+
+CONVERSATION_TIMING_KEYS = (
+    "browser_submit_ms",
+    "browser_first_response_ms",
+    "browser_generation_ms",
+    "browser_stabilization_ms",
+    "browser_total_ms",
+    "background_total_ms",
+    "broker_queue_ms",
+    "broker_extension_ms",
+    "broker_total_ms",
+)
+
+
+def _sanitize_relay_timing(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+
+    timing: dict[str, int] = {}
+
+    for key in CONVERSATION_TIMING_KEYS:
+        raw = value.get(key)
+
+        if isinstance(raw, bool):
+            continue
+
+        if isinstance(raw, (int, float)):
+            milliseconds = int(round(raw))
+            if 0 <= milliseconds <= 24 * 60 * 60 * 1000:
+                timing[key] = milliseconds
+
+    return timing
 
 
 class ProbeHtmlParser(HTMLParser):
@@ -409,7 +443,7 @@ def _parse_conversation_message_request(raw_body: bytes) -> tuple[int, str]:
 def _call_chat_worker(
     request_id: int,
     text: str,
-) -> str:
+) -> tuple[str, dict[str, int]]:
     payload = json.dumps(
         {
             "request_id": request_id,
@@ -423,6 +457,7 @@ def _call_chat_worker(
         CHAT_WORKER_PORT,
         timeout=CHAT_WORKER_TIMEOUT_SECONDS,
     )
+    worker_started_at = time.monotonic()
 
     try:
         connection.request(
@@ -465,7 +500,13 @@ def _call_chat_worker(
         if not isinstance(response_text, str) or not response_text:
             raise RuntimeError("chat worker returned an empty response")
 
-        return response_text
+        timing = _sanitize_relay_timing(value.get("timing"))
+        timing["bridge_worker_ms"] = max(
+            0,
+            int(round((time.monotonic() - worker_started_at) * 1000.0)),
+        )
+
+        return response_text, timing
     except (OSError, http.client.HTTPException) as error:
         raise RuntimeError(f"chat worker unavailable: {error}") from error
     finally:
@@ -528,6 +569,7 @@ def _split_response_deltas(text: str) -> list[str]:
 def _frame_conversation_relay(
     request_id: int,
     response_text: str,
+    timing: dict[str, int],
 ) -> bytes:
     events: list[tuple[str, str]] = [
         ("request_started", ""),
@@ -557,6 +599,22 @@ def _frame_conversation_relay(
         "transport_security=trusted_lan",
     ]
 
+    for key in (
+        "bridge_total_ms",
+        "bridge_worker_ms",
+        "broker_total_ms",
+        "broker_queue_ms",
+        "broker_extension_ms",
+        "background_total_ms",
+        "browser_total_ms",
+        "browser_submit_ms",
+        "browser_first_response_ms",
+        "browser_generation_ms",
+        "browser_stabilization_ms",
+    ):
+        if key in timing:
+            lines.append(f"timing_{key}={timing[key]}")
+
     for index, (event_type, event_text) in enumerate(encoded_events):
         lines.append(f"event_{index}_type={event_type}")
         lines.append(f"event_{index}_len={len(event_text)}")
@@ -570,6 +628,7 @@ def _frame_conversation_relay(
 
 def _perform_conversation_relay(raw_body: bytes) -> bytes:
     request_id, text = _parse_conversation_message_request(raw_body)
+    relay_started_at = time.monotonic()
 
     print(
         "[conversation] browser relay request "
@@ -578,17 +637,29 @@ def _perform_conversation_relay(raw_body: bytes) -> bytes:
         "attachments=0 credentials=0 session=0"
     )
 
-    response_text = _call_chat_worker(request_id, text)
+    response_text, timing = _call_chat_worker(request_id, text)
+    timing["bridge_total_ms"] = max(
+        0,
+        int(round((time.monotonic() - relay_started_at) * 1000.0)),
+    )
 
     print(
         "[conversation] browser relay response "
         f"id={request_id} "
         f"text_bytes={len(response_text.encode('utf-8'))}"
     )
+    print(
+        "[conversation] timing "
+        + " ".join(
+            f"{key}={timing[key]}ms"
+            for key in sorted(timing)
+        )
+    )
 
     return _frame_conversation_relay(
         request_id,
         response_text,
+        timing,
     )
 
 

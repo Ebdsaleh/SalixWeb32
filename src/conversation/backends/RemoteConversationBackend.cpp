@@ -84,6 +84,98 @@ namespace {
         return first_line == protocol;
     }
 
+    void append_timing_part(
+        std::string& output,
+        const std::string& metadata,
+        const char* key,
+        const char* label
+    ) {
+        std::string value = get_protocol_value(metadata, key);
+
+        if (value.empty()) {
+            return;
+        }
+
+        unsigned long milliseconds =
+            strtoul(value.c_str(), 0, 10);
+
+        char part[96];
+        sprintf(
+            part,
+            "%s%s %lu ms",
+            output.empty() ? "" : " | ",
+            label,
+            milliseconds
+        );
+        output += part;
+    }
+
+    void build_relay_timing_text(
+        const std::string& metadata,
+        std::string& output
+    ) {
+        output.clear();
+
+        append_timing_part(
+            output,
+            metadata,
+            "timing_bridge_total_ms",
+            "bridge"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_broker_total_ms",
+            "broker"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_broker_queue_ms",
+            "queue"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_background_total_ms",
+            "extension"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_browser_total_ms",
+            "browser"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_browser_submit_ms",
+            "submit"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_browser_first_response_ms",
+            "first response"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_browser_generation_ms",
+            "generation"
+        );
+        append_timing_part(
+            output,
+            metadata,
+            "timing_browser_stabilization_ms",
+            "stabilize"
+        );
+
+        if (!output.empty()) {
+            output.insert(0, "Relay timing: ");
+        }
+    }
+
     ConversationEvent::Type get_event_type(
         const std::string& name
     ) {
@@ -108,9 +200,11 @@ namespace {
     bool parse_conversation_payload(
         const std::string& payload,
         unsigned long expected_request_id,
-        std::vector<ConversationEvent>& output
+        std::vector<ConversationEvent>& output,
+        std::string& timing_text
     ) {
         output.clear();
+        timing_text.clear();
 
         std::string::size_type header_end = payload.find("\n\n");
         if (header_end == std::string::npos) {
@@ -151,6 +245,13 @@ namespace {
             }
         } else {
             return false;
+        }
+
+        if (mode == "browser_relay") {
+            build_relay_timing_text(
+                metadata,
+                timing_text
+            );
         }
 
         unsigned long request_id =
@@ -261,6 +362,10 @@ const char* RemoteConversationBackend::get_status_text() const {
     return status_text.c_str();
 }
 
+const char* RemoteConversationBackend::get_diagnostic_text() const {
+    return diagnostic_text.c_str();
+}
+
 void RemoteConversationBackend::get_security_profile(
     ConversationSecurityProfile& profile
 ) const {
@@ -298,6 +403,7 @@ bool RemoteConversationBackend::initialize() {
     pending_operation = operation_none;
     capability_state = capability_unknown;
     active_request_id = 0;
+    diagnostic_text.clear();
     events.clear();
     is_initialized = true;
 
@@ -399,6 +505,7 @@ void RemoteConversationBackend::shutdown() {
     capability_state = capability_unknown;
     active_request_id = 0;
     status_text = "stopped";
+    diagnostic_text.clear();
     events.clear();
 }
 
@@ -758,11 +865,13 @@ bool RemoteConversationBackend::parse_response(
     }
 
     std::vector<ConversationEvent> parsed_events;
+    std::string parsed_timing_text;
 
     if (!parse_conversation_payload(
             response.get_body(),
             expected_request_id,
-            parsed_events
+            parsed_events,
+            parsed_timing_text
         )) {
         queue_failure(
             expected_request_id,
@@ -776,6 +885,7 @@ bool RemoteConversationBackend::parse_response(
         parsed_events.begin(),
         parsed_events.end()
     );
+    diagnostic_text = parsed_timing_text;
     status_text = "SALIX-CONVERSATION/1 events received";
     return true;
 }

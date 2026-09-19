@@ -24,6 +24,7 @@ class RemoteConversationBackend : public ConversationServiceBackend {
 
         virtual const char* get_name() const;
         virtual const char* get_status_text() const;
+        virtual const char* get_diagnostic_text() const;
         virtual void get_security_profile(
             ConversationSecurityProfile& profile
         ) const;
@@ -86,5 +87,6 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         CapabilityState capability_state;
         unsigned long active_request_id;
         std::string status_text;
+        std::string diagnostic_text;
         std::vector<ConversationEvent> events;
 };

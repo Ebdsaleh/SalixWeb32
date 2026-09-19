@@ -15,6 +15,13 @@ class ConversationServiceBackend {
 
         virtual const char* get_name() const = 0;
         virtual const char* get_status_text() const = 0;
+
+        // Optional backend-specific diagnostic detail. This is deliberately
+        // separate from status text so stable UI status remains concise.
+        virtual const char* get_diagnostic_text() const {
+            return "";
+        }
+
         virtual void get_security_profile(
             ConversationSecurityProfile& profile
         ) const = 0;

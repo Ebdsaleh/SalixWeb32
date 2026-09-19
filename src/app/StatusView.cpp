@@ -4,6 +4,7 @@
 // Description: Implements the backend-neutral SalixWeb32 messenger-style shell view.
 // =================================================================================
 
+#include <windows.h>
 #include <stdio.h>
 #include <string>
 #include <vector>
@@ -49,8 +50,10 @@ StatusView::StatusView(
     web_tab_index(-1),
     runtime_tab_index(-1),
     active_conversation_request_id(0),
+    conversation_request_start_tick(0),
     streaming_message_index(-1),
     conversation_security_text("unavailable"),
+    conversation_timing_text("not measured"),
     message_composer(new_file_dialog) {
 
     header_title_label.set_text("SalixWeb32 Messenger");
@@ -696,6 +699,8 @@ void StatusView::submit_draft_to_service(
     }
 
     active_conversation_request_id = request_id;
+    conversation_request_start_tick = GetTickCount();
+    conversation_timing_text = "request in flight";
     streaming_message_index = -1;
     streaming_message_text.clear();
 }
@@ -762,7 +767,32 @@ void StatusView::consume_conversation_events() {
 
             case ConversationEvent::event_message_completed:
                 if (request_id == active_conversation_request_id) {
+                    unsigned long completed_tick = GetTickCount();
+                    unsigned long total_milliseconds =
+                        completed_tick - conversation_request_start_tick;
+
+                    char timing_prefix[96];
+                    sprintf(
+                        timing_prefix,
+                        "P4 total %lu ms",
+                        total_milliseconds
+                    );
+                    conversation_timing_text = timing_prefix;
+
+                    const char* backend_timing =
+                        conversation_service_host->
+                            get_backend_diagnostic_text();
+
+                    if (
+                        backend_timing != 0 &&
+                        backend_timing[0] != '\0'
+                    ) {
+                        conversation_timing_text += " | ";
+                        conversation_timing_text += backend_timing;
+                    }
+
                     active_conversation_request_id = 0;
+                    conversation_request_start_tick = 0;
                     streaming_message_index = -1;
                     streaming_message_text.clear();
                 }
@@ -780,7 +810,20 @@ void StatusView::consume_conversation_events() {
                 }
 
                 if (request_id == active_conversation_request_id) {
+                    unsigned long failed_tick = GetTickCount();
+                    unsigned long total_milliseconds =
+                        failed_tick - conversation_request_start_tick;
+
+                    char timing_prefix[96];
+                    sprintf(
+                        timing_prefix,
+                        "P4 failed after %lu ms",
+                        total_milliseconds
+                    );
+                    conversation_timing_text = timing_prefix;
+
                     active_conversation_request_id = 0;
+                    conversation_request_start_tick = 0;
                     streaming_message_index = -1;
                     streaming_message_text.clear();
                 }

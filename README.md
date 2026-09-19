@@ -125,7 +125,13 @@ The native application/framework foundation is operational on the real Pentium 4
   normal-LibreWolf relay WebExtension,
 - and Browser Probe diagnostics for inspecting real modern HTTPS responses.
 
-Browser Probe has been exercised against `https://www.chatgpt.com/` from the real Server 2003/Pentium 4 target through the companion. The current path can retrieve a real HTTP 200 HTML response, report redirects/headers/document signals, expose lightweight extracted text, and copy the complete captured raw response while keeping the on-screen Raw preview deliberately bounded for the legacy renderer.
+Browser Probe has been exercised against `https://www.chatgpt.com/` from the real
+Server 2003/Pentium 4 target through the companion. The current path retrieves and
+reports the real HTTP response, including redirects/headers/document signals, and can
+copy the complete captured raw response while keeping the on-screen Raw preview
+deliberately bounded for the legacy renderer. Target status is external-service
+dependent; a later validation run correctly captured a Cloudflare challenge response
+as HTTP 403 rather than treating it as a transport failure.
 
 The current bridge is **unauthenticated** and the P4-to-companion hop is plain HTTP on a trusted, narrowly firewalled LAN. Credentials, cookies, session tokens, private conversations, and uploads must not be carried through this Browser Probe transport yet.
 
@@ -161,6 +167,12 @@ The first validated implementation intentionally favors architectural clarity ov
 latency: the extension waits for the rendered assistant response to stabilize before the
 broker returns the completed response to Salix. Noticeable response delay is therefore a
 known optimization target rather than a release-blocking architecture failure.
+
+End-to-end relay timing is now instrumented and validated on the real P4. The first
+captured target baseline measured about 19.4 seconds on the modern relay versus
+57.5 seconds to native `message_completed`, identifying roughly 38.1 seconds outside
+the modern relay window for subsequent native-side profiling. The corresponding VC7.1
+build completed with zero errors and zero warnings.
 
 The modern companion is development scaffolding and a behavioral reference, not the
 authoritative SalixWeb32 build environment. The product executable and required native

@@ -181,6 +181,7 @@ function sleep(milliseconds) {
 }
 
 async function submitMessage(text) {
+  const commandStartedAt = performance.now();
   const composer = findComposer();
 
   if (!composer) {
@@ -221,10 +222,12 @@ async function submitMessage(text) {
     );
   }
 
+  const submittedAt = performance.now();
   const deadline = Date.now() + RESPONSE_TIMEOUT_MS;
   let responseText = "";
   let lastChange = Date.now();
   let observedResponse = false;
+  let firstResponseAt = 0;
 
   while (Date.now() < deadline) {
     const snapshots = assistantSnapshots();
@@ -241,6 +244,10 @@ async function submitMessage(text) {
     }
 
     if (candidate) {
+      if (!observedResponse) {
+        firstResponseAt = performance.now();
+      }
+
       observedResponse = true;
 
       if (candidate !== responseText) {
@@ -255,14 +262,66 @@ async function submitMessage(text) {
       !generationActive() &&
       Date.now() - lastChange >= RESPONSE_STABLE_MS
     ) {
-      return responseText;
+      const completedAt = performance.now();
+      const lastChangeAge = Date.now() - lastChange;
+      const stabilizationMs = Math.max(0, Math.round(lastChangeAge));
+      const firstResponseMs = firstResponseAt > 0
+        ? Math.max(0, Math.round(firstResponseAt - submittedAt))
+        : 0;
+      const totalMs = Math.max(
+        0,
+        Math.round(completedAt - commandStartedAt)
+      );
+      const submitMs = Math.max(
+        0,
+        Math.round(submittedAt - commandStartedAt)
+      );
+      const generationMs = firstResponseAt > 0
+        ? Math.max(
+            0,
+            totalMs - submitMs - firstResponseMs - stabilizationMs
+          )
+        : 0;
+
+      return {
+        text: responseText,
+        timing: {
+          browser_submit_ms: submitMs,
+          browser_first_response_ms: firstResponseMs,
+          browser_generation_ms: generationMs,
+          browser_stabilization_ms: stabilizationMs,
+          browser_total_ms: totalMs
+        }
+      };
     }
 
     await sleep(RESPONSE_POLL_MS);
   }
 
   if (responseText) {
-    return responseText;
+    const completedAt = performance.now();
+    const firstResponseMs = firstResponseAt > 0
+      ? Math.max(0, Math.round(firstResponseAt - submittedAt))
+      : 0;
+
+    return {
+      text: responseText,
+      timing: {
+        browser_submit_ms: Math.max(
+          0,
+          Math.round(submittedAt - commandStartedAt)
+        ),
+        browser_first_response_ms: firstResponseMs,
+        browser_generation_ms: firstResponseAt > 0
+          ? Math.max(0, Math.round(completedAt - firstResponseAt))
+          : 0,
+        browser_stabilization_ms: 0,
+        browser_total_ms: Math.max(
+          0,
+          Math.round(completedAt - commandStartedAt)
+        )
+      }
+    };
   }
 
   throw new Error(
@@ -292,9 +351,10 @@ browser.runtime.onMessage.addListener((message) => {
     }
 
     return submitMessage(message.text)
-      .then((text) => ({
+      .then((result) => ({
         ok: true,
-        text: text
+        text: result.text,
+        timing: result.timing
       }))
       .catch((exception) => ({
         ok: false,

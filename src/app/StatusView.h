@@ -127,6 +127,13 @@ class StatusView : public View {
                 report += message_count_text;
             }
 
+            report += "\r\nConversation Relay Timing\r\n";
+            report += "-------------------------\r\n";
+            report += conversation_timing_text.empty()
+                ? "not measured"
+                : conversation_timing_text;
+            report += "\r\n";
+
             if (application_settings != 0) {
                 report += "\r\nFile Locations\r\n";
                 report += "--------------\r\n";
@@ -232,9 +239,11 @@ class StatusView : public View {
         int web_tab_index;
         int runtime_tab_index;
         unsigned long active_conversation_request_id;
+        unsigned long conversation_request_start_tick;
         int streaming_message_index;
         std::string streaming_message_text;
         std::string conversation_security_text;
+        std::string conversation_timing_text;
         std::string observed_file_dialog_directory;
 
         Panel root_panel;

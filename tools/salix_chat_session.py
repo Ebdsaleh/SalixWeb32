@@ -32,14 +32,48 @@ def _json_bytes(value: dict[str, Any]) -> bytes:
     return json.dumps(value, ensure_ascii=False).encode("utf-8")
 
 
+TIMING_KEYS = (
+    "browser_submit_ms",
+    "browser_first_response_ms",
+    "browser_generation_ms",
+    "browser_stabilization_ms",
+    "browser_total_ms",
+    "background_total_ms",
+)
+
+
+def _sanitize_timing(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+
+    timing: dict[str, int] = {}
+
+    for key in TIMING_KEYS:
+        raw = value.get(key)
+
+        if isinstance(raw, bool):
+            continue
+
+        if isinstance(raw, (int, float)):
+            milliseconds = int(round(raw))
+            if 0 <= milliseconds <= 24 * 60 * 60 * 1000:
+                timing[key] = milliseconds
+
+    return timing
+
+
 @dataclass
 class PendingRequest:
     request_id: int
     text: str
+    created_at: float
+    delivered_at: float = 0.0
+    completed_at: float = 0.0
     delivered: bool = False
     completed: bool = False
     response_text: str = ""
     error_text: str = ""
+    extension_timing: dict[str, int] | None = None
 
 
 class RelayState:
@@ -122,6 +156,7 @@ class RelayState:
                 return None
 
             request.delivered = True
+            request.delivered_at = time.monotonic()
 
             return {
                 "protocol": EXTENSION_PROTOCOL,
@@ -135,6 +170,7 @@ class RelayState:
         request_id: int,
         response_text: str,
         error_text: str,
+        extension_timing: dict[str, int] | None = None,
     ) -> bool:
         with self.condition:
             request = self.pending
@@ -147,13 +183,19 @@ class RelayState:
                 return False
 
             request.completed = True
+            request.completed_at = time.monotonic()
             request.response_text = response_text
             request.error_text = error_text
+            request.extension_timing = extension_timing or {}
             self.last_error = error_text
             self.condition.notify_all()
             return True
 
-    def submit_message(self, request_id: int, text: str) -> str:
+    def submit_message(
+        self,
+        request_id: int,
+        text: str,
+    ) -> tuple[str, dict[str, int]]:
         if request_id < 1:
             raise ValueError("request_id must be positive")
 
@@ -178,6 +220,7 @@ class RelayState:
             request = PendingRequest(
                 request_id=request_id,
                 text=text,
+                created_at=time.monotonic(),
             )
             self.pending = request
             self.condition.notify_all()
@@ -205,7 +248,32 @@ class RelayState:
                     "LibreWolf extension returned an empty assistant response"
                 )
 
-            return request.response_text
+            delivered_at = (
+                request.delivered_at
+                if request.delivered_at > 0
+                else request.created_at
+            )
+            completed_at = (
+                request.completed_at
+                if request.completed_at > 0
+                else time.monotonic()
+            )
+
+            timing = dict(request.extension_timing or {})
+            timing["broker_queue_ms"] = max(
+                0,
+                int(round((delivered_at - request.created_at) * 1000.0)),
+            )
+            timing["broker_extension_ms"] = max(
+                0,
+                int(round((completed_at - delivered_at) * 1000.0)),
+            )
+            timing["broker_total_ms"] = max(
+                0,
+                int(round((completed_at - request.created_at) * 1000.0)),
+            )
+
+            return request.response_text, timing
 
     def get_status_locked(self) -> dict[str, Any]:
         age = (
@@ -451,10 +519,17 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                     value = "LibreWolf extension reported an unspecified failure"
                 error_text = value
 
+            extension_timing = (
+                _sanitize_timing(request.get("timing"))
+                if self.path == "/v1/result"
+                else {}
+            )
+
             if not self.state.complete_request(
                 request_id,
                 response_text,
                 error_text,
+                extension_timing,
             ):
                 self._send_json(
                     409,
@@ -510,7 +585,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
             )
 
             try:
-                response_text = self.state.submit_message(
+                response_text, relay_timing = self.state.submit_message(
                     request_id,
                     text,
                 )
@@ -535,6 +610,13 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 f"[chat-session] request id={request_id} "
                 f"response_bytes={len(response_text.encode('utf-8'))}"
             )
+            print(
+                "[chat-session] timing "
+                + " ".join(
+                    f"{key}={relay_timing[key]}ms"
+                    for key in sorted(relay_timing)
+                )
+            )
             self._send_json(
                 200,
                 {
@@ -542,6 +624,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                     "status": "ok",
                     "request_id": request_id,
                     "text": response_text,
+                    "timing": relay_timing,
                 },
             )
             return

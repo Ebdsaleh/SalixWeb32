@@ -26,6 +26,7 @@ class ConversationServiceHost {
         bool has_backend() const;
         const char* get_backend_name() const;
         const char* get_backend_status_text() const;
+        const char* get_backend_diagnostic_text() const;
         bool get_security_profile(
             ConversationSecurityProfile& profile
         ) const;

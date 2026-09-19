@@ -471,6 +471,8 @@ The first provider-neutral conversation-service contract is now implemented:
   message and returned semantic events,
 - [x] validate the LibreWolf browser relay end-to-end on the real P4,
 - [ ] add conversation-thread selection/new-thread control,
+- [x] instrument end-to-end browser-relay latency and validate it on the modern
+  companion plus the real P4 with a clean VC7.1 build,
 - [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
 - [ ] add attachment relay after the text baseline is green,
@@ -488,6 +490,12 @@ The current release candidate is **v0.0.4**, following the existing v0.0.3 nativ
 conversation/rich-composer milestone. v0.0.4 is intended to freeze this first-contact
 architecture before latency, true streaming, thread selection, attachments, and Unicode
 presentation work continue.
+
+The first real timing pass on `dev/test` measured about 19.4 s for the modern relay but
+57.5 s to native `message_completed` on the P4, leaving roughly 38.1 s outside the
+modern relay window. That makes native post-response event replay/presentation the next
+measured performance investigation target. The instrumentation feature itself is now
+clean-build validated and ready for promotion.
 
 ## Persistent file-location foundation
 
@@ -517,15 +525,16 @@ See `docs/FILE_LOCATIONS.md`.
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,
-2. freeze/tag the validated text-only P4 <-> ChatGPT relay baseline,
-3. harden response extraction and failure diagnostics against ordinary page changes,
-4. optimize relay latency without weakening the current boundaries,
-5. add explicit conversation-thread selection after one-current-thread relay is green,
-6. move from completed-response framing to true incremental response transport,
-7. add attachment transfer only after the text path is stable,
-8. continue using the companion as a reference/scaffold while replacing its capabilities
+2. establish/fix the native UTF-8/Unicode presentation boundary,
+3. profile the measured P4 post-response replay/presentation gap,
+4. harden response extraction and failure diagnostics against ordinary page changes,
+5. optimize relay latency without weakening the current boundaries,
+6. add explicit conversation-thread selection after one-current-thread relay is green,
+7. move from completed-response framing to true incremental response transport,
+8. add attachment transfer only after the text path is stable,
+9. continue using the companion as a reference/scaffold while replacing its capabilities
    with NT5-native implementations where practical,
-9. keep Browser Probe and the content-free Conversation probe as regression tools.
+10. keep Browser Probe and the content-free Conversation probe as regression tools.
 
 # Guiding priority
 

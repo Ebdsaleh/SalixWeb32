@@ -86,6 +86,12 @@ const char* ConversationServiceHost::get_backend_status_text() const {
         : backend->get_status_text();
 }
 
+const char* ConversationServiceHost::get_backend_diagnostic_text() const {
+    return backend == 0
+        ? ""
+        : backend->get_diagnostic_text();
+}
+
 bool ConversationServiceHost::get_security_profile(
     ConversationSecurityProfile& profile
 ) const {

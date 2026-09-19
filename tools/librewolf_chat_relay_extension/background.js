@@ -127,6 +127,7 @@ async function processCommand() {
       return;
     }
 
+    const commandStartedAt = performance.now();
     const tab = await findChatTab();
 
     if (!tab) {
@@ -164,10 +165,22 @@ async function processCommand() {
     }
 
     try {
+      const backgroundTotalMs = Math.max(
+        0,
+        Math.round(performance.now() - commandStartedAt)
+      );
+      const timing = (
+        result.timing &&
+        typeof result.timing === "object"
+      ) ? result.timing : {};
+
+      timing.background_total_ms = backgroundTotalMs;
+
       await postJson("/v1/result", {
         protocol: EXTENSION_PROTOCOL,
         request_id: command.request_id,
-        text: result.text
+        text: result.text,
+        timing: timing
       });
     } catch (exception) {
       await postFailure(

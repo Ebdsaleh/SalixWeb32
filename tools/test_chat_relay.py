@@ -50,6 +50,18 @@ def _parse_events(payload: bytes) -> str:
     if values.get("status") != "ok":
         raise ValueError("conversation payload did not report status=ok")
 
+    timing_entries = [
+        (key[len("timing_") :], value)
+        for key, value in values.items()
+        if key.startswith("timing_")
+    ]
+
+    if timing_entries:
+        print("relay timing:")
+        for key, value in sorted(timing_entries):
+            print(f"  {key}={value} ms")
+        print()
+
     try:
         event_count = int(values.get("event_count", "0"))
     except ValueError as error:
@@ -84,7 +96,7 @@ def _parse_events(payload: bytes) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Check salix_bridge.py + LibreWolf worker before the P4 test."
+        description="Check the bridge + LibreWolf extension broker before the P4 test."
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)

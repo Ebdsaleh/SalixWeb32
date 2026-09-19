@@ -246,6 +246,80 @@ Conversation failure event path.
 The ordinary LibreWolf window remains visible throughout, so browser-side failures can be
 inspected directly.
 
+## Relay timing instrumentation
+
+The validated relay now carries diagnostic-only timing metadata through the existing
+path without changing dispatch/security behavior.
+
+The WebExtension measures:
+
+```text
+browser_submit_ms
+browser_first_response_ms
+browser_generation_ms
+browser_stabilization_ms
+browser_total_ms
+background_total_ms
+```
+
+The localhost broker adds:
+
+```text
+broker_queue_ms
+broker_extension_ms
+broker_total_ms
+```
+
+The bridge adds:
+
+```text
+bridge_worker_ms
+bridge_total_ms
+```
+
+These values are returned as `timing_...` metadata in the existing
+`SALIX-CONVERSATION/1` response header. They are diagnostic metadata only; the
+semantic event sequence and message body framing are unchanged.
+
+On the P4, SalixWeb32 adds a local `P4 total` measured with `GetTickCount()` from
+accepted native submission until `message_completed` is consumed. This is deliberately
+a user-visible total and therefore includes LAN/HTTP receive, semantic event draining,
+and native presentation overhead after the modern-side relay completes.
+
+`Options -> Debug -> Copy Diagnostic Report` exposes the combined result under:
+
+```text
+Conversation Relay Timing
+-------------------------
+P4 total ... ms | Relay timing: bridge ... | broker ... | ...
+```
+
+The modern smoke helper also prints every timing field before the semantic events:
+
+```bat
+python tools\test_chat_relay.py --message "Salix timing smoke test"
+```
+
+Timing instrumentation completed modern-side and real-P4 validation on
+September 19, 2026. The real target measurement was:
+
+```text
+P4 total 57484 ms
+bridge 19394 ms
+broker 19386 ms
+queue 16 ms
+extension 19362 ms
+browser 19367 ms
+submit 117 ms
+first response 350 ms
+generation 16766 ms
+stabilize 2134 ms
+```
+
+The same P4 candidate rebuilt cleanly under VC7.1 with zero errors and zero warnings.
+The approximately 38.1-second gap between the modern bridge total and native
+`message_completed` is retained as a measured native-side profiling target.
+
 ## Target validation
 
 The baseline was validated end-to-end on the real Pentium 4 / Windows Server 2003 target

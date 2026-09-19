@@ -636,6 +636,99 @@ Regression checklist for the frozen baseline:
     independent diagnostics.
 
 
+## Relay timing instrumentation — validated on real P4
+
+This tranche must not change the already validated text-only browser-relay behavior. It
+adds diagnostic timing metadata only.
+
+### Modern companion validation
+
+1. Check out/pull `dev` on Aurora8.
+2. Keep normal LibreWolf + the relay WebExtension running.
+3. Restart:
+   `python tools\salix_chat_session.py`.
+4. Restart:
+   `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+5. Run:
+   `python tools\test_chat_relay.py --message "Salix timing smoke test"`.
+6. Require HTTP 200 and the existing semantic events.
+7. Require a `relay timing:` block containing at least:
+   - `bridge_total_ms`,
+   - `broker_total_ms`,
+   - `broker_queue_ms`,
+   - `browser_total_ms`,
+   - `browser_first_response_ms`,
+   - `browser_generation_ms`,
+   - `browser_stabilization_ms`.
+8. Confirm the assistant text still reconstructs exactly as before.
+
+### Real P4 validation
+
+1. Pull `dev` on the P4.
+2. Clean/Rebuild `Debug | Win32` in VC7.1 with zero errors/warnings.
+3. Send one short real message from native SalixWeb32.
+4. Confirm the normal real ChatGPT round-trip still succeeds.
+5. Use `Options -> Debug -> Copy Diagnostic Report`.
+6. Require:
+
+```text
+Conversation Relay Timing
+-------------------------
+P4 total <N> ms | Relay timing: bridge <N> ms | broker <N> ms | ...
+```
+
+7. Record the exact timing line before any optimization work.
+8. Confirm the Conversation security profile remains:
+   `mode content | transport trusted-lan | text yes | attachments no |
+   credentials no | session no`.
+
+Interpretation:
+
+- `browser_first_response_ms` approximates model/service time to first visible assistant
+  content after submission,
+- `browser_generation_ms` approximates visible response growth after first content,
+- `browser_stabilization_ms` measures the deliberate post-change stability wait,
+- `broker_queue_ms` measures extension command-poll pickup latency,
+- `bridge_total_ms` measures modern-side bridge-visible relay duration,
+- `P4 total` measures native user-visible completion and includes P4 event-drain/render
+  overhead.
+
+Do not optimize anything in this tranche. First collect a trustworthy baseline.
+
+Observed real-P4 timing baseline on September 19, 2026:
+
+```text
+P4 total 57484 ms
+bridge 19394 ms
+broker 19386 ms
+queue 16 ms
+extension 19362 ms
+browser 19367 ms
+submit 117 ms
+first response 350 ms
+generation 16766 ms
+stabilize 2134 ms
+```
+
+The Conversation backend remained
+`SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only`, and the
+security profile remained text-only with attachments/credentials/session disabled.
+
+This run proves the timing metadata survives the complete real target path. The observed
+difference between `P4 total` and `bridge` is 38,090 ms. That delta is outside the
+modern relay timing window and strongly points at native-side post-response event
+draining/presentation as a major latency contributor in the current completed-response
+replay design. Treat that as a measured optimization target, not as proof of one specific
+renderer function until profiling narrows it further.
+
+The corresponding full VC7.1 `Debug | Win32` rebuild completed with zero errors and
+zero warnings. The timing feature is therefore target-green and eligible for promotion
+to `main`.
+
+A same-session diagnostic capture also remained healthy: runtime and remote web backend
+state were operational, the configured Diagnostics directory was used, and the timing
+report remained present in the capture.
+
 ## Persistent file-location regression — pending target validation
 
 A September 19, 2026 Server 2003 diagnostic capture exposed a concrete path-ownership
