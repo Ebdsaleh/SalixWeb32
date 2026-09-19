@@ -729,6 +729,65 @@ A same-session diagnostic capture also remained healthy: runtime and remote web 
 state were operational, the configured Diagnostics directory was used, and the timing
 report remained present in the capture.
 
+## Native Conversation presentation batching — dev branch pending validation
+
+The measured timing baseline showed approximately 38–47 seconds outside the modern
+relay window on the P4. Source inspection found that the completed browser response was
+already available in full, but Salix consumed its synthetic `text_delta` events by
+rebuilding Markdown/layout presentation after every delta.
+
+The `dev` candidate now preserves every semantic event while coalescing presentation
+work to at most one update per native event-drain pass.
+
+Current completed-response behavior should therefore be:
+
+```text
+request_started
+message_started
+text_delta x N
+message_completed
+        |
+        v
+append all delta text
+        |
+        v
+one native ConversationView presentation update
+```
+
+This does not change the bridge protocol and does not remove incremental semantics.
+When true streaming later supplies partial event batches over time, Salix can still
+present once per newly arrived batch.
+
+### Real P4 validation
+
+1. Pull the staged `test` candidate on the P4.
+2. Clean/Rebuild `Debug | Win32` in VC7.1 and require zero errors/warnings.
+3. Keep the already validated Aurora8 relay stack running.
+4. Send one ordinary multi-sentence prompt from native SalixWeb32.
+5. Confirm the assistant response appears as one completed native update rather than
+   visibly crawling into place one tiny fragment at a time.
+6. Confirm Unicode, Markdown, selection, scrolling, and security state remain intact.
+7. Use `Options -> Debug -> Copy Diagnostic Report`.
+8. Require the timing line to include:
+
+```text
+native batch <N> deltas -> <M> updates | present <P> ms
+```
+
+For the current completed-response relay, the expected result is `M = 1` while
+`N` remains greater than one for a normal response.
+
+9. Compare:
+   - `P4 total`,
+   - `bridge`,
+   - `present`,
+   - delta count,
+   - native presentation update count.
+10. Preserve the existing text-only security profile and relay timing fields.
+
+The optimization is successful only if the native response remains semantically and
+visually correct while the measured P4-side post-response penalty drops substantially.
+
 ## UTF-8 / Win32 Unicode boundary — validated on real P4
 
 This tranche keeps framework/wire text in UTF-8 byte strings while making byte boundaries
