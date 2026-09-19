@@ -613,8 +613,9 @@ Known observations accepted for this baseline:
 - true generation-time streaming is not implemented yet,
 - text only is enabled; attachments remain deliberately blocked,
 - conversation selection is still the currently open ChatGPT thread,
-- some non-ASCII punctuation/symbols can display as mojibake in the legacy native text
-  path and require a later encoding/presentation pass,
+- the original legacy text path exposed mojibake/glyph failures, but the later
+  UTF-8 framework / UTF-16 Win32 boundary and glyph-fallback tranche resolved and
+  target-validated those issues,
 - the relay extension is still loaded as a temporary development extension and must be
   reloaded after LibreWolf restarts.
 
