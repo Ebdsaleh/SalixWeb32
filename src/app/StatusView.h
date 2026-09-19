@@ -224,6 +224,7 @@ class StatusView : public View {
         void update_dynamic_text();
         void show_submitted_message(const MessageDraft& draft);
         void submit_draft_to_service(const MessageDraft& draft);
+        bool flush_streaming_message_presentation();
         void consume_conversation_events();
         void update_active_native_controls();
 
@@ -241,6 +242,9 @@ class StatusView : public View {
         int runtime_tab_index;
         unsigned long active_conversation_request_id;
         unsigned long conversation_request_start_tick;
+        unsigned long conversation_delta_event_count;
+        unsigned long conversation_presentation_update_count;
+        unsigned long conversation_presentation_milliseconds;
         int streaming_message_index;
         std::string streaming_message_text;
         std::string conversation_security_text;
