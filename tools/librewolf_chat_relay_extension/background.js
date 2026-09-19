@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.1.0";
+const EXTENSION_VERSION = "0.2.0";
 
 let commandBusy = false;
 
@@ -116,13 +116,18 @@ async function processCommand() {
 
     const command = await response.json();
 
+    const commandAttachments = (
+      command &&
+      Array.isArray(command.attachments)
+    ) ? command.attachments : [];
+
     if (
       !command ||
       command.protocol !== EXTENSION_PROTOCOL ||
       command.command !== "send_message" ||
       !Number.isInteger(command.request_id) ||
       typeof command.text !== "string" ||
-      !command.text
+      (!command.text && !commandAttachments.length)
     ) {
       return;
     }
@@ -144,7 +149,8 @@ async function processCommand() {
       result = await browser.tabs.sendMessage(tab.id, {
         type: "salix_send_message",
         request_id: command.request_id,
-        text: command.text
+        text: command.text,
+        attachments: commandAttachments
       });
     } catch (exception) {
       await postFailure(
@@ -154,7 +160,12 @@ async function processCommand() {
       return;
     }
 
-    if (!result || result.ok !== true || typeof result.text !== "string") {
+    if (
+      !result ||
+      result.ok !== true ||
+      typeof result.text !== "string" ||
+      !Array.isArray(result.attachments || [])
+    ) {
       await postFailure(
         command.request_id,
         result && result.error
@@ -180,6 +191,7 @@ async function processCommand() {
         protocol: EXTENSION_PROTOCOL,
         request_id: command.request_id,
         text: result.text,
+        attachments: result.attachments || [],
         timing: timing
       });
     } catch (exception) {
