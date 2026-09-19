@@ -519,8 +519,9 @@ The first explicit file-location policy is now implemented:
 - [x] use `%USERPROFILE%` as the first-use attachment picker location,
 - [x] persist the last successful attachment directory automatically,
 - [x] pass the diagnostics directory explicitly to screenshot/report exporters,
-- [ ] validate Standard and Portable storage behavior on Server 2003,
-- [ ] repeat the file-location smoke pass on MiniXP.
+- [~] validate Standard and Portable storage behavior on Server 2003 R2 / Pentium 4,
+- [ ] defer MiniXP compatibility validation until the Server 2003 feature set is complete
+  and the MiniXP environment is repaired/stabilized.
 
 Future Downloads, Cache, Session Export, and Conversation Export categories should extend
 the same explicit `user_data_root` model rather than reusing the process current
@@ -530,17 +531,19 @@ See `docs/FILE_LOCATIONS.md`.
 
 ## Current near-term priority
 
-1. keep the real P4 build clean under VC7.1,
-2. validate the persistent file-location foundation on Server 2003,
-3. repeat the file-location smoke pass on MiniXP,
-4. harden response extraction and failure diagnostics against ordinary page changes,
-5. optimize relay latency without weakening the current boundaries,
-6. add explicit conversation-thread selection after one-current-thread relay is green,
-7. move from completed-response framing to true incremental response transport,
-8. add attachment transfer only after the text path is stable,
-9. continue using the companion as a reference/scaffold while replacing its capabilities
+1. keep the real P4 / Server 2003 R2 build clean under VC7.1,
+2. complete the active Server 2003 R2 validation of Standard and Portable persistent
+   file locations,
+3. harden response extraction and failure diagnostics against ordinary page changes,
+4. optimize relay latency without weakening the current boundaries,
+5. add explicit conversation-thread selection after one-current-thread relay is green,
+6. move from completed-response framing to true incremental response transport,
+7. add attachment transfer only after the text path is stable,
+8. continue using the companion as a reference/scaffold while replacing its capabilities
    with NT5-native implementations where practical,
-10. keep Browser Probe and the content-free Conversation probe as regression tools.
+9. keep Browser Probe and the content-free Conversation probe as regression tools,
+10. defer MiniXP compatibility work until the Server 2003 feature set is complete and
+    the MiniXP environment is usable again.
 
 # Guiding priority
 
