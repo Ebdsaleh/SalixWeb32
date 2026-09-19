@@ -729,7 +729,7 @@ A same-session diagnostic capture also remained healthy: runtime and remote web 
 state were operational, the configured Diagnostics directory was used, and the timing
 report remained present in the capture.
 
-## Native Conversation presentation batching — dev branch pending validation
+## Native Conversation presentation batching — validated on real P4
 
 The measured timing baseline showed approximately 38–47 seconds outside the modern
 relay window on the P4. Source inspection found that the completed browser response was
@@ -813,13 +813,40 @@ every semantic event already queued by the completed response in one native pass
 true streaming remains incremental because only events actually available in a given
 backend update can be drained.
 
-The corrected retest must show:
+### Corrected batching retest — validated
+
+The corrected real-P4 retest rebuilt under Visual C++ 7.1 with zero errors and zero
+warnings. The user-visible result was immediate: the completed assistant response appeared
+as one native update instead of being drip-fed across synthetic deltas.
+
+The captured diagnostic reported:
 
 ```text
-native batch <N> deltas -> 1 updates
+P4 total 7406 ms
+bridge 7222 ms
+broker 7206 ms
+queue 415 ms
+extension 6785 ms
+browser 6767 ms
+submit 117 ms
+first response 250 ms
+generation 4367 ms
+stabilize 2033 ms
+native batch 27 deltas -> 1 updates
+present 0 ms
 ```
 
-for the current completed-response relay.
+The P4 total now exceeds the bridge total by only 184 ms, compared with the rejected
+first pass where the already-complete response was stretched across 28 native update
+cycles. The semantic delta count remains greater than one, but all currently available
+events are drained and coalesced into one presentation update as intended.
+
+The diagnostic also preserved the validated UTF-8 framework / UTF-16 Win32 presentation
+boundary and the existing text-only trusted-LAN Conversation security profile.
+
+This tranche is target-green. Future true streaming remains compatible with the design:
+newly arriving event batches can still be presented incrementally, while an already
+complete batch is no longer artificially paced across native update cycles.
 
 ## UTF-8 / Win32 Unicode boundary — validated on real P4
 
