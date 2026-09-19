@@ -144,6 +144,8 @@ class StatusView : public View {
                 report += application_settings->get_diagnostics_directory();
                 report += "\r\nAttachment recent folder: ";
                 report += application_settings->get_attachment_directory();
+                report += "\r\nReceived files folder: ";
+                report += application_settings->get_received_files_directory();
                 report += "\r\nSettings file: ";
                 report += application_settings->get_user_preferences_path();
                 report += "\r\n";
@@ -225,6 +227,10 @@ class StatusView : public View {
         void show_submitted_message(const MessageDraft& draft);
         void submit_draft_to_service(const MessageDraft& draft);
         bool flush_streaming_message_presentation();
+        bool save_received_attachment(
+            const char* payload,
+            Attachment& attachment
+        );
         void consume_conversation_events();
         void update_active_native_controls();
 
@@ -243,6 +249,7 @@ class StatusView : public View {
         unsigned long active_conversation_request_id;
         unsigned long conversation_request_start_tick;
         unsigned long conversation_delta_event_count;
+        unsigned long conversation_attachment_event_count;
         unsigned long conversation_presentation_update_count;
         unsigned long conversation_presentation_milliseconds;
         int streaming_message_index;

@@ -6,6 +6,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <vector>
 
@@ -25,8 +26,246 @@
 #include "web/platform/WebPlatformHost.h"
 
 namespace {
+    const char* attachment_protocol = "SALIX-ATTACHMENT/1";
+    const unsigned long maximum_received_attachment_bytes =
+        2UL * 1024UL * 1024UL;
+
     const char* status_flag(bool value) {
         return value ? "yes" : "no";
+    }
+
+    std::string get_attachment_metadata_value(
+        const std::string& payload,
+        const char* key
+    ) {
+        if (key == 0 || key[0] == '\0') {
+            return "";
+        }
+
+        std::string prefix(key);
+        prefix += "=";
+
+        std::string::size_type position = payload.find(prefix);
+
+        while (position != std::string::npos) {
+            if (position == 0 || payload[position - 1] == '\n') {
+                std::string::size_type start =
+                    position + prefix.size();
+                std::string::size_type end =
+                    payload.find('\n', start);
+
+                if (end == std::string::npos) {
+                    end = payload.size();
+                }
+
+                return payload.substr(start, end - start);
+            }
+
+            position = payload.find(prefix, position + 1);
+        }
+
+        return "";
+    }
+
+    int base64_value(char value) {
+        if (value >= 'A' && value <= 'Z') {
+            return value - 'A';
+        }
+        if (value >= 'a' && value <= 'z') {
+            return value - 'a' + 26;
+        }
+        if (value >= '0' && value <= '9') {
+            return value - '0' + 52;
+        }
+        if (value == '+') {
+            return 62;
+        }
+        if (value == '/') {
+            return 63;
+        }
+        return -1;
+    }
+
+    bool decode_base64(
+        const std::string& encoded,
+        std::string& decoded
+    ) {
+        decoded.clear();
+
+        unsigned long accumulator = 0;
+        int bit_count = 0;
+
+        for (
+            std::string::size_type index = 0;
+            index < encoded.size();
+            ++index
+        ) {
+            char character = encoded[index];
+
+            if (character == '=') {
+                break;
+            }
+
+            int value = base64_value(character);
+            if (value < 0) {
+                decoded.clear();
+                return false;
+            }
+
+            accumulator =
+                (accumulator << 6) |
+                (unsigned long)value;
+            bit_count += 6;
+
+            if (bit_count >= 8) {
+                bit_count -= 8;
+                char byte_value = (char)(
+                    (accumulator >> bit_count) & 0xFF
+                );
+                decoded.append(1, byte_value);
+
+                if (bit_count == 0) {
+                    accumulator = 0;
+                } else {
+                    accumulator &=
+                        (1UL << bit_count) - 1UL;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    std::string sanitize_received_file_name(
+        const std::string& source
+    ) {
+        std::string::size_type separator =
+            source.find_last_of("\\/");
+        std::string name =
+            separator == std::string::npos
+                ? source
+                : source.substr(separator + 1);
+
+        for (
+            std::string::size_type index = 0;
+            index < name.size();
+            ++index
+        ) {
+            unsigned char value =
+                (unsigned char)name[index];
+
+            if (
+                value < 32 ||
+                value >= 127 ||
+                name[index] == '<' ||
+                name[index] == '>' ||
+                name[index] == ':' ||
+                name[index] == '"' ||
+                name[index] == '/' ||
+                name[index] == '\\' ||
+                name[index] == '|' ||
+                name[index] == '?' ||
+                name[index] == '*'
+            ) {
+                name[index] = '_';
+            }
+        }
+
+        while (
+            !name.empty() &&
+            (name[name.size() - 1] == '.' ||
+             name[name.size() - 1] == ' ')
+        ) {
+            name.erase(name.size() - 1);
+        }
+
+        if (
+            name.empty() ||
+            name == "." ||
+            name == ".."
+        ) {
+            name = "attachment.bin";
+        }
+
+        if (name.size() > 180) {
+            name.erase(180);
+        }
+
+        return name;
+    }
+
+    bool ensure_received_directory(
+        const std::string& directory
+    ) {
+        if (directory.empty()) {
+            return false;
+        }
+
+        DWORD attributes =
+            GetFileAttributesA(directory.c_str());
+
+        if (
+            attributes != INVALID_FILE_ATTRIBUTES &&
+            (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+        ) {
+            return true;
+        }
+
+        if (CreateDirectoryA(directory.c_str(), NULL)) {
+            return true;
+        }
+
+        return
+            GetLastError() == ERROR_ALREADY_EXISTS &&
+            (
+                GetFileAttributesA(directory.c_str()) &
+                FILE_ATTRIBUTE_DIRECTORY
+            ) != 0;
+    }
+
+    std::string make_unique_received_path(
+        const std::string& directory,
+        const std::string& file_name
+    ) {
+        std::string prefix(directory);
+        if (!prefix.empty() && prefix[prefix.size() - 1] != '\\') {
+            prefix += "\\";
+        }
+
+        std::string candidate = prefix + file_name;
+        if (GetFileAttributesA(candidate.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            return candidate;
+        }
+
+        std::string::size_type dot = file_name.find_last_of('.');
+        std::string stem =
+            dot == std::string::npos
+                ? file_name
+                : file_name.substr(0, dot);
+        std::string extension =
+            dot == std::string::npos
+                ? ""
+                : file_name.substr(dot);
+
+        for (int index = 1; index <= 999; ++index) {
+            char suffix[32];
+            sprintf(suffix, " (%d)", index);
+
+            candidate =
+                prefix +
+                stem +
+                suffix +
+                extension;
+
+            if (
+                GetFileAttributesA(candidate.c_str()) ==
+                INVALID_FILE_ATTRIBUTES
+            ) {
+                return candidate;
+            }
+        }
+
+        return "";
     }
 }
 
@@ -52,6 +291,7 @@ StatusView::StatusView(
     active_conversation_request_id(0),
     conversation_request_start_tick(0),
     conversation_delta_event_count(0),
+    conversation_attachment_event_count(0),
     conversation_presentation_update_count(0),
     conversation_presentation_milliseconds(0),
     streaming_message_index(-1),
@@ -704,6 +944,7 @@ void StatusView::submit_draft_to_service(
     active_conversation_request_id = request_id;
     conversation_request_start_tick = GetTickCount();
     conversation_delta_event_count = 0;
+    conversation_attachment_event_count = 0;
     conversation_presentation_update_count = 0;
     conversation_presentation_milliseconds = 0;
     conversation_timing_text = "request in flight";
@@ -744,6 +985,133 @@ bool StatusView::flush_streaming_message_presentation() {
     return updated;
 }
 
+bool StatusView::save_received_attachment(
+    const char* payload_text,
+    Attachment& attachment
+) {
+    attachment = Attachment();
+
+    if (
+        application_settings == 0 ||
+        payload_text == 0 ||
+        payload_text[0] == '\0'
+    ) {
+        return false;
+    }
+
+    std::string payload(payload_text);
+    std::string::size_type first_line_end =
+        payload.find('\n');
+
+    std::string first_line =
+        first_line_end == std::string::npos
+            ? payload
+            : payload.substr(0, first_line_end);
+
+    if (first_line != attachment_protocol) {
+        return false;
+    }
+
+    std::string encoded_name =
+        get_attachment_metadata_value(
+            payload,
+            "name_base64"
+        );
+    std::string encoded_data =
+        get_attachment_metadata_value(
+            payload,
+            "data_base64"
+        );
+    std::string size_text =
+        get_attachment_metadata_value(
+            payload,
+            "size"
+        );
+
+    if (
+        encoded_name.empty() ||
+        encoded_data.empty() ||
+        size_text.empty()
+    ) {
+        return false;
+    }
+
+    std::string decoded_name;
+    std::string decoded_data;
+
+    if (
+        !decode_base64(encoded_name, decoded_name) ||
+        !decode_base64(encoded_data, decoded_data)
+    ) {
+        return false;
+    }
+
+    char* size_end = 0;
+    unsigned long expected_size =
+        strtoul(size_text.c_str(), &size_end, 10);
+
+    if (
+        size_end == size_text.c_str() ||
+        size_end == 0 ||
+        *size_end != '\0' ||
+        expected_size !=
+            (unsigned long)decoded_data.size() ||
+        expected_size >
+            maximum_received_attachment_bytes
+    ) {
+        return false;
+    }
+
+    std::string file_name =
+        sanitize_received_file_name(decoded_name);
+    std::string received_directory =
+        application_settings->
+            get_received_files_directory();
+
+    if (!ensure_received_directory(received_directory)) {
+        return false;
+    }
+
+    std::string destination =
+        make_unique_received_path(
+            received_directory,
+            file_name
+        );
+
+    if (destination.empty()) {
+        return false;
+    }
+
+    FILE* file = fopen(destination.c_str(), "wb");
+    if (file == 0) {
+        return false;
+    }
+
+    bool written = true;
+
+    if (!decoded_data.empty()) {
+        written =
+            fwrite(
+                decoded_data.data(),
+                1,
+                decoded_data.size(),
+                file
+            ) == decoded_data.size();
+    }
+
+    if (fclose(file) != 0) {
+        written = false;
+    }
+
+    if (!written) {
+        DeleteFileA(destination.c_str());
+        return false;
+    }
+
+    attachment.set_path(destination.c_str());
+    return !attachment.empty();
+}
+
 void StatusView::consume_conversation_events() {
     if (
         conversation_service_host == 0 ||
@@ -762,6 +1130,7 @@ void StatusView::consume_conversation_events() {
             case ConversationEvent::event_request_started:
                 active_conversation_request_id = request_id;
                 conversation_delta_event_count = 0;
+                conversation_attachment_event_count = 0;
                 conversation_presentation_update_count = 0;
                 conversation_presentation_milliseconds = 0;
                 streaming_message_index = -1;
@@ -794,6 +1163,37 @@ void StatusView::consume_conversation_events() {
 
                 if (!streaming_message_text.empty()) {
                     presentation_dirty = true;
+                }
+                break;
+
+            case ConversationEvent::event_attachment:
+                if (
+                    request_id == 0 ||
+                    request_id != active_conversation_request_id
+                ) {
+                    break;
+                }
+
+                if (presentation_dirty) {
+                    flush_streaming_message_presentation();
+                    presentation_dirty = false;
+                }
+
+                {
+                    Attachment attachment;
+                    if (save_received_attachment(
+                            event.get_text(),
+                            attachment
+                        )) {
+                        conversation_view.append_attachment(
+                            attachment
+                        );
+                        ++conversation_attachment_event_count;
+                    } else {
+                        conversation_view.append_system_message(
+                            "A remote attachment could not be stored."
+                        );
+                    }
                 }
                 break;
 
@@ -831,10 +1231,11 @@ void StatusView::consume_conversation_events() {
                     char presentation_timing[192];
                     sprintf(
                         presentation_timing,
-                        " | native batch %lu deltas -> %lu updates | present %lu ms",
+                        " | native batch %lu deltas -> %lu updates | present %lu ms | files %lu",
                         conversation_delta_event_count,
                         conversation_presentation_update_count,
-                        conversation_presentation_milliseconds
+                        conversation_presentation_milliseconds,
+                        conversation_attachment_event_count
                     );
                     conversation_timing_text += presentation_timing;
 
