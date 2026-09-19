@@ -151,7 +151,7 @@ The remote semantic Conversation probe and its explicit probe-only security poli
 completed positive real-target passes. That content-free probe remains available as a
 diagnostic path.
 
-The current experimental baseline goes one step further: `salix_bridge.py` can relay
+The current validated text baseline goes one step further: `salix_bridge.py` can relay
 text-only Conversation requests to a localhost-only
 `tools/salix_chat_session.py` broker. A small development WebExtension running inside
 the user's **normal LibreWolf process** talks to that broker; no Selenium/Marionette
