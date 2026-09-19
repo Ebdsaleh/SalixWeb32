@@ -753,6 +753,7 @@ void StatusView::consume_conversation_events() {
     }
 
     ConversationEvent event;
+    bool presentation_dirty = false;
 
     while (conversation_service_host->take_event(event)) {
         unsigned long request_id = event.get_request_id();
@@ -760,8 +761,12 @@ void StatusView::consume_conversation_events() {
         switch (event.get_type()) {
             case ConversationEvent::event_request_started:
                 active_conversation_request_id = request_id;
+                conversation_delta_event_count = 0;
+                conversation_presentation_update_count = 0;
+                conversation_presentation_milliseconds = 0;
                 streaming_message_index = -1;
                 streaming_message_text.clear();
+                presentation_dirty = false;
                 break;
 
             case ConversationEvent::event_message_started:
@@ -772,6 +777,7 @@ void StatusView::consume_conversation_events() {
                     active_conversation_request_id = request_id;
                     streaming_message_index = -1;
                     streaming_message_text.clear();
+                    presentation_dirty = false;
                 }
                 break;
 
@@ -784,28 +790,20 @@ void StatusView::consume_conversation_events() {
                 }
 
                 streaming_message_text += event.get_text();
+                ++conversation_delta_event_count;
 
-                if (streaming_message_text.empty()) {
-                    break;
-                }
-
-                if (streaming_message_index < 0) {
-                    if (conversation_view.append_remote_message(
-                            streaming_message_text.c_str()
-                        )) {
-                        streaming_message_index =
-                            conversation_view.get_message_count() - 1;
-                    }
-                } else {
-                    conversation_view.update_message(
-                        streaming_message_index,
-                        streaming_message_text.c_str()
-                    );
+                if (!streaming_message_text.empty()) {
+                    presentation_dirty = true;
                 }
                 break;
 
             case ConversationEvent::event_message_completed:
                 if (request_id == active_conversation_request_id) {
+                    if (presentation_dirty) {
+                        flush_streaming_message_presentation();
+                        presentation_dirty = false;
+                    }
+
                     unsigned long completed_tick = GetTickCount();
                     unsigned long total_milliseconds =
                         completed_tick - conversation_request_start_tick;
@@ -830,6 +828,16 @@ void StatusView::consume_conversation_events() {
                         conversation_timing_text += backend_timing;
                     }
 
+                    char presentation_timing[192];
+                    sprintf(
+                        presentation_timing,
+                        " | native batch %lu deltas -> %lu updates | present %lu ms",
+                        conversation_delta_event_count,
+                        conversation_presentation_update_count,
+                        conversation_presentation_milliseconds
+                    );
+                    conversation_timing_text += presentation_timing;
+
                     active_conversation_request_id = 0;
                     conversation_request_start_tick = 0;
                     streaming_message_index = -1;
@@ -838,6 +846,11 @@ void StatusView::consume_conversation_events() {
                 break;
 
             case ConversationEvent::event_request_failed:
+                if (presentation_dirty) {
+                    flush_streaming_message_presentation();
+                    presentation_dirty = false;
+                }
+
                 if (event.get_text()[0] != '\0') {
                     conversation_view.append_system_message(
                         event.get_text()
@@ -872,6 +885,16 @@ void StatusView::consume_conversation_events() {
             default:
                 break;
         }
+    }
+
+    // Future true streaming may deliver partial event batches before the
+    // message_completed event. Present at most once per native drain pass so
+    // incremental updates remain possible without rebuilding for every delta.
+    if (
+        presentation_dirty &&
+        active_conversation_request_id != 0
+    ) {
+        flush_streaming_message_presentation();
     }
 }
 
