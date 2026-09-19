@@ -475,8 +475,8 @@ The first provider-neutral conversation-service contract is now implemented:
   companion plus the real P4 with a clean VC7.1 build,
 - [x] establish and real-P4 validate the UTF-8 framework / UTF-16 Win32 presentation
   boundary, Unicode clipboard round-trip, and glyph-aware Win32 font fallback,
-- [~] batch native Conversation delta presentation on `dev`; first P4 pass exposed a
-  backend one-event-per-update throttle, now removed; corrected one-render retest pending,
+- [x] batch native Conversation delta presentation; corrected real-P4 retest drained
+  27 semantic deltas into 1 native presentation update with 0 ms measured presentation,
 - [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
 - [ ] add attachment relay after the text baseline is green,
@@ -497,9 +497,10 @@ presentation work continue.
 
 The first real timing pass on `dev/test` measured about 19.4 s for the modern relay but
 57.5 s to native `message_completed` on the P4, leaving roughly 38.1 s outside the
-modern relay window. That makes native post-response event replay/presentation the next
-measured performance investigation target. The instrumentation feature itself is now
-clean-build validated and ready for promotion.
+modern relay window. The corrected batching tranche is now real-P4 validated: the
+completed response produced 27 semantic deltas but only 1 native presentation update,
+with 0 ms measured presentation and only about 184 ms between bridge completion and
+native completion. The artificial post-response drip-feed penalty is therefore removed.
 
 ## Persistent file-location foundation
 
@@ -529,8 +530,8 @@ See `docs/FILE_LOCATIONS.md`.
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,
-2. validate native Conversation delta batching against the measured 38–47 second P4 gap,
-3. profile any remaining native post-response presentation cost,
+2. validate the persistent file-location foundation on Server 2003,
+3. repeat the file-location smoke pass on MiniXP,
 4. harden response extraction and failure diagnostics against ordinary page changes,
 5. optimize relay latency without weakening the current boundaries,
 6. add explicit conversation-thread selection after one-current-thread relay is green,
