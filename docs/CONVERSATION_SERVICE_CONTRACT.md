@@ -185,12 +185,16 @@ text_delta(", world")
 message_completed
 ```
 
-The message is reparsed through the existing native Markdown/block presentation path as
-its canonical source grows. The provider/backend does not render Markdown itself.
+The provider/backend does not render Markdown itself. Salix accumulates canonical
+`text_delta` content on the application thread and may coalesce presentation work across
+all events already available in one backend update.
 
-This first implementation favors correctness and architectural proof. If very high-rate
-real streams later make reparsing every delta wasteful on the Pentium 4, the application
-can coalesce deltas before presentation without changing the backend contract.
+This behavior is now validated on the real Pentium 4 for the completed-response relay:
+27 semantic deltas were preserved but drained into one native Conversation presentation
+update. The backend contract therefore retains incremental semantics without requiring
+one expensive Markdown/layout rebuild per synthetic delta. Future true streaming remains
+incremental because only events that have actually arrived can be drained in a given
+update.
 
 ## Placeholder backend
 
