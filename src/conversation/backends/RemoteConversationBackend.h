@@ -82,7 +82,6 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         unsigned short port;
         bool is_initialized;
         bool bridge_online;
-        bool event_taken_this_update;
         PendingOperation pending_operation;
         CapabilityState capability_state;
         unsigned long active_request_id;
