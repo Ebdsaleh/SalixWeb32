@@ -14,13 +14,18 @@ Compiler:   Visual C++ 7.1 / Visual Studio .NET 2003
 Executable: SalixWeb32.exe
 ```
 
-Secondary smoke target:
+Deferred compatibility target:
 
 ```text
 MiniXP on the same Pentium 4 hardware
 ```
 
-MiniXP results are smoke tests and do not replace testing on a clean retail Windows XP installation.
+MiniXP remains historical compatibility evidence only for now. Active tranche acceptance
+is performed on Windows Server 2003 R2 / Pentium 4. MiniXP testing is deferred until the
+Server 2003 feature set is complete and the MiniXP environment is usable again; current
+MiniXP failures include a `gdiplus.dll` problem and a generally incomplete stripped
+environment. Previous MiniXP passes remain valid historical records but do not create an
+active validation requirement.
 
 ## Phase 1 native skeleton baseline
 
@@ -938,7 +943,7 @@ The corresponding VC7.1 `Debug | Win32` rebuild completed with zero errors and z
 warnings. The UTF-8 / Win32 Unicode boundary, Unicode clipboard round-trip, and Salix
 glyph-fallback behavior are therefore target-green.
 
-## Persistent file-location regression — pending target validation
+## Persistent file-location regression — Server 2003 R2 validation tranche staged
 
 A September 19, 2026 Server 2003 diagnostic capture exposed a concrete path-ownership
 bug. After the native attachment picker had browsed an external RenderWare directory,
@@ -1001,6 +1006,11 @@ Target checklist:
 23. With no portable `attachment_directory=` history, confirm the first attachment picker
     still starts at `%USERPROFILE%`, then remembers subsequent navigation in the portable
     `settings.ini`.
-24. Repeat the smoke pass on MiniXP after Server 2003 is green.
+24. Record the exact Standard and Portable paths from the real Server 2003 R2 target,
+    together with the VC7.1 build result and any diagnostic capture/report evidence.
+
+MiniXP is deliberately **not** part of this tranche's acceptance gate. Compatibility
+testing there is deferred until the Server 2003 feature set is complete and the MiniXP
+environment is repaired/stabilized.
 
 See `docs/FILE_LOCATIONS.md`.
