@@ -491,9 +491,10 @@ localhost broker -> normal-LibreWolf WebExtension -> authenticated ChatGPT threa
 assistant response -> semantic events -> native Salix Conversation view.
 
 The current release candidate is **v0.0.4**, following the existing v0.0.3 native
-conversation/rich-composer milestone. v0.0.4 is intended to freeze this first-contact
-architecture before latency, true streaming, thread selection, attachments, and Unicode
-presentation work continue.
+conversation/rich-composer milestone. v0.0.4 freezes the first-contact architecture.
+Post-baseline relay timing, UTF-8/UTF-16 text handling, glyph fallback, and native
+completed-response batching have now also been validated on the real P4; true streaming,
+thread selection, attachment relay, and further latency work remain follow-up tranches.
 
 The first real timing pass on `dev/test` measured about 19.4 s for the modern relay but
 57.5 s to native `message_completed` on the P4, leaving roughly 38.1 s outside the
