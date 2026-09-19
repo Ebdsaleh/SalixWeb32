@@ -13,6 +13,7 @@
 #include "TextMetrics.h"
 #include "TextNavigation.h"
 #include "TextWrapLayout.h"
+#include "Utf8Text.h"
 #include "rendering/ComponentRenderer.h"
 
 Label::Label()
@@ -196,10 +197,23 @@ void Label::clear_selection() {
 }
 
 void Label::set_selection_range(int start, int end) {
+    int text_length = (int)text.length();
+
+    start = Utf8Text::clamp_to_boundary(
+        text.c_str(),
+        text_length,
+        start
+    );
+    end = Utf8Text::clamp_to_boundary(
+        text.c_str(),
+        text_length,
+        end
+    );
+
     selection.select_range(
         start,
         end,
-        (int)text.length(),
+        text_length,
         false
     );
 }
@@ -437,7 +451,11 @@ bool Label::handle_event(const UIEvent& event) {
                 move_cursor(get_selection_start(), false);
             } else {
                 move_cursor(
-                    selection.get_caret_position() - 1,
+                    Utf8Text::previous_index(
+                        text.c_str(),
+                        (int)text.length(),
+                        selection.get_caret_position()
+                    ),
                     event.shift_down
                 );
             }
@@ -448,7 +466,11 @@ bool Label::handle_event(const UIEvent& event) {
                 move_cursor(get_selection_end(), false);
             } else {
                 move_cursor(
-                    selection.get_caret_position() + 1,
+                    Utf8Text::next_index(
+                        text.c_str(),
+                        (int)text.length(),
+                        selection.get_caret_position()
+                    ),
                     event.shift_down
                 );
             }
@@ -534,6 +556,12 @@ void Label::move_cursor(
     int new_cursor_position,
     bool extend_selection
 ) {
+    new_cursor_position = Utf8Text::clamp_to_boundary(
+        text.c_str(),
+        (int)text.length(),
+        new_cursor_position
+    );
+
     selection.move_caret(
         new_cursor_position,
         (int)text.length(),

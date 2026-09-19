@@ -729,6 +729,95 @@ A same-session diagnostic capture also remained healthy: runtime and remote web 
 state were operational, the configured Diagnostics directory was used, and the timing
 report remained present in the capture.
 
+## UTF-8 / Win32 Unicode boundary — validated on real P4
+
+This tranche keeps framework/wire text in UTF-8 byte strings while making byte boundaries
+code-point aware and converting to UTF-16 only at the Win32 presentation/clipboard
+boundary.
+
+Implementation scope:
+
+- UTF-8 code points remain atomic during soft wrapping,
+- label/input caret navigation does not step into continuation bytes,
+- delete/backspace remove whole UTF-8 code points,
+- Win32 measurement and drawing use `GetTextExtentPoint32W` / `TextOutW`,
+- formatted button text uses `DrawTextW`,
+- formatted fonts are created through `CreateFontW`,
+- the Win32 clipboard publishes/reads `CF_UNICODETEXT`,
+- incoming legacy `CF_TEXT` is converted ACP -> UTF-8,
+- native ACP character input is normalized to a Unicode code point then encoded as UTF-8,
+- invalid UTF-8 presentation falls back to ACP so older application/path strings are not
+  broken while their source APIs remain ANSI.
+
+### Real target checklist
+
+1. Pull the staged `test` candidate on Aurora8 and the P4.
+2. Clean/Rebuild `Debug | Win32` in VC7.1 and require zero errors/warnings.
+3. Keep the existing browser relay running and send an ASCII-only prompt from the P4
+   requesting an exact Unicode response.
+4. Use this validation response:
+
+```text
+I’m “testing” — café € → ↓
+```
+
+5. Require the native Conversation view to display the punctuation/accents/arrows as the
+   characters above, with no mojibake sequences such as `Iâ€™m`.
+6. Drag-select the Unicode response in SalixWeb32, copy it, paste into Server 2003
+   Notepad, and require the same Unicode text.
+7. Paste the copied Unicode phrase back into the Salix composer and require it to remain
+   intact there.
+8. Send that pasted phrase through the relay and confirm the browser thread receives the
+   same characters.
+9. Use `Options -> Debug -> Copy Diagnostic Report` and require:
+
+```text
+Text encoding: UTF-8 framework | UTF-16 Win32 presentation
+```
+
+10. Confirm the existing Conversation security profile and relay-timing diagnostics still
+    work.
+11. Record the new P4 timing line. Unicode correctness must not silently remove the
+    timing instrumentation established in the previous tranche.
+
+Font-selection note: the first pass proved that missing-glyph boxes can still occur
+even when the Unicode data is correct. A follow-up Server 2003 Notepad check demonstrated
+that the target OS can render `→ ↓`, so Salix must provide font fallback rather than
+assuming its hard-pinned Tahoma/Courier New face is sufficient. Mojibake remains an
+encoding failure; a box that disappears under the Salix fallback chain is a font
+selection failure.
+
+Observed real-P4 Unicode validation on September 19, 2026:
+
+- the native Conversation view rendered the smart apostrophe, curly quotes, em dash,
+  `é`, and `€` correctly with no mojibake,
+- the selected/copied/pasted phrase was sent back through the real browser relay,
+- ChatGPT received the exact original UTF-8 text:
+  `I’m “testing” — café € → ↓`,
+- the diagnostic report declared
+  `Text encoding: UTF-8 framework | UTF-16 Win32 presentation`,
+- the Conversation security profile remained unchanged,
+- relay timing remained present.
+
+The first pass still showed boxes for `→ ↓` inside Salix while Server 2003 Notepad
+rendered those same code points correctly. That narrowed the remaining problem to
+Salix's hard-pinned font choice rather than the OS or UTF-8 data.
+
+Salix then gained Win32 glyph-aware fallback selection while preserving Tahoma/Courier
+New as preferred faces. Because the VC7.1 SDK headers did not declare
+`GetGlyphIndicesW`, the glyph probe is resolved dynamically from `gdi32.dll` so the
+target does not depend on newer SDK declarations.
+
+The final target retest showed `→ ↓` rendering correctly in:
+
+- the native Conversation `You:` message,
+- the native Conversation `Remote:` message,
+- and the native composer.
+
+The corresponding VC7.1 `Debug | Win32` rebuild completed with zero errors and zero
+warnings. The UTF-8 / Win32 Unicode boundary, Unicode clipboard round-trip, and Salix
+glyph-fallback behavior are therefore target-green.
+
 ## Persistent file-location regression — pending target validation
 
 A September 19, 2026 Server 2003 diagnostic capture exposed a concrete path-ownership

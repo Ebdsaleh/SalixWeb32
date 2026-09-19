@@ -11,11 +11,13 @@
 #include "Win32EmoticonPainter.h"
 #include "engine/platform/win32/Win32TextMetrics.h"
 #include "engine/platform/win32/Win32TextFontCache.h"
+#include "engine/platform/win32/Win32Utf8Text.h"
 #include "framework/EmoticonRegistry.h"
 #include "framework/Label.h"
 #include "framework/TextInput.h"
 #include "framework/TextFormat.h"
 #include "framework/TextWrapLayout.h"
+#include "framework/Utf8Text.h"
 #include "framework/Style.h"
 
 namespace {
@@ -82,7 +84,11 @@ namespace {
             return 0;
         }
 
-        HFONT font = font_cache.get_font(format);
+        HFONT font = font_cache.get_font_for_text(
+            format,
+            text,
+            text_length
+        );
         if (font == NULL) {
             return 0;
         }
@@ -92,11 +98,11 @@ namespace {
         SIZE text_size;
         text_size.cx = 0;
         text_size.cy = 0;
-        GetTextExtentPoint32A(
+        Win32Utf8Text::get_text_extent(
             device_context,
             text,
             text_length,
-            &text_size
+            text_size
         );
 
         if (text_height != 0) {
@@ -139,7 +145,11 @@ namespace {
         int line_end
     ) {
         TextFormat format = format_getter(context, start);
-        int position = start + 1;
+        int position = Utf8Text::next_index(
+            text,
+            text_length,
+            start
+        );
 
         while (position < line_end) {
             TextFormat next_format = format_getter(context, position);
@@ -167,7 +177,17 @@ namespace {
                 }
             }
 
-            ++position;
+            int next = Utf8Text::next_index(
+                text,
+                text_length,
+                position
+            );
+
+            if (next <= position) {
+                ++position;
+            } else {
+                position = next;
+            }
         }
 
         return position;
@@ -591,24 +611,13 @@ namespace {
             );
 
             if (draw_selection && selection_getter != 0) {
-                while (run_end > position + 1) {
-                    bool end_selected = selection_getter(
-                        context,
-                        run_end - 1
-                    );
+                int selection_index = Utf8Text::next_index(
+                    text,
+                    text_length,
+                    position
+                );
 
-                    if (end_selected == selected) {
-                        break;
-                    }
-
-                    --run_end;
-                }
-
-                for (
-                    int selection_index = position + 1;
-                    selection_index < run_end;
-                    ++selection_index
-                ) {
+                while (selection_index < run_end) {
                     if (
                         selection_getter(context, selection_index) !=
                         selected
@@ -616,10 +625,26 @@ namespace {
                         run_end = selection_index;
                         break;
                     }
+
+                    int next_selection_index = Utf8Text::next_index(
+                        text,
+                        text_length,
+                        selection_index
+                    );
+
+                    if (next_selection_index <= selection_index) {
+                        ++selection_index;
+                    } else {
+                        selection_index = next_selection_index;
+                    }
                 }
             }
 
-            HFONT font = font_cache.get_font(format);
+            HFONT font = font_cache.get_font_for_text(
+                format,
+                text + position,
+                run_end - position
+            );
             HGDIOBJ previous_font = NULL;
 
             if (font != NULL) {
@@ -629,11 +654,11 @@ namespace {
             SIZE run_size;
             run_size.cx = 0;
             run_size.cy = 0;
-            GetTextExtentPoint32A(
+            Win32Utf8Text::get_text_extent(
                 device_context,
                 text + position,
                 run_end - position,
-                &run_size
+                run_size
             );
 
             int text_y = line_rect.top +
@@ -676,7 +701,7 @@ namespace {
                 SetTextColor(device_context, normal_text_color);
             }
 
-            TextOutA(
+            Win32Utf8Text::text_out(
                 device_context,
                 x,
                 text_y,

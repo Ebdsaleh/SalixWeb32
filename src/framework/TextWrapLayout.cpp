@@ -8,6 +8,7 @@
 #include "EmoticonRegistry.h"
 #include "TextFormat.h"
 #include "TextMetrics.h"
+#include "Utf8Text.h"
 
 namespace {
     const TextFormat* get_format_pointer(
@@ -91,7 +92,41 @@ namespace {
             }
         }
 
-        return 1;
+        int utf8_length = Utf8Text::sequence_length(
+            text,
+            text_length,
+            position
+        );
+
+        return utf8_length > 0 ? utf8_length : 1;
+    }
+
+    bool has_emoticon_at(
+        const char* text,
+        int text_length,
+        const TextFormat* formats,
+        int format_count,
+        int position,
+        int logical_end
+    ) {
+        TextFormat format = get_format_at(formats, format_count, position);
+
+        if (format.code_style != TextFormat::code_none) {
+            return false;
+        }
+
+        EmoticonRegistry::EmoticonId emoticon_id;
+        int alias_length = 0;
+
+        return EmoticonRegistry::match_at(
+                text,
+                text_length,
+                position,
+                emoticon_id,
+                alias_length
+            ) &&
+            alias_length > 0 &&
+            position + alias_length <= logical_end;
     }
 
     int get_measurement_span_length(
@@ -112,34 +147,49 @@ namespace {
         );
 
         if (
-            token_length > 1 ||
+            has_emoticon_at(
+                text,
+                text_length,
+                formats,
+                format_count,
+                position,
+                logical_end
+            ) ||
             text[position] == ' ' ||
             text[position] == '\t'
         ) {
             return token_length;
         }
 
-        int end = position + 1;
+        int end = position + token_length;
 
         while (end < logical_end) {
             if (text[end] == ' ' || text[end] == '\t') {
                 break;
             }
 
-            int next_token_length = get_token_length(
-                text,
-                text_length,
-                formats,
-                format_count,
-                end,
-                logical_end
-            );
-
-            if (next_token_length > 1) {
+            if (has_emoticon_at(
+                    text,
+                    text_length,
+                    formats,
+                    format_count,
+                    end,
+                    logical_end
+                )) {
                 break;
             }
 
-            ++end;
+            int next = Utf8Text::next_index(
+                text,
+                text_length,
+                end
+            );
+
+            if (next <= end) {
+                ++end;
+            } else {
+                end = next;
+            }
         }
 
         return end - position;
@@ -362,8 +412,15 @@ void TextWrapLayout::build_lines(
                 }
 
                 if (visual_end <= visual_start) {
-                    visual_end = visual_start + 1;
-                    if (visual_end > logical_end) {
+                    visual_end = Utf8Text::next_index(
+                        text,
+                        text_length,
+                        visual_start
+                    );
+                    if (
+                        visual_end <= visual_start ||
+                        visual_end > logical_end
+                    ) {
                         visual_end = logical_end;
                     }
                 }

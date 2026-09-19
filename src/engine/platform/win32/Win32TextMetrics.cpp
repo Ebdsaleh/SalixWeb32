@@ -5,8 +5,10 @@
 // =================================================================================
 
 #include "Win32TextMetrics.h"
+#include "Win32Utf8Text.h"
 #include "framework/TextFormat.h"
 #include "framework/EmoticonRegistry.h"
+#include "framework/Utf8Text.h"
 
 namespace {
     TextFormat get_format_at(
@@ -54,7 +56,11 @@ namespace {
             return;
         }
 
-        HFONT font = font_cache.get_font(format);
+        HFONT font = font_cache.get_font_for_text(
+            format,
+            text,
+            text_length
+        );
         if (font == NULL) {
             return;
         }
@@ -64,15 +70,15 @@ namespace {
         SIZE text_size;
         text_size.cx = 0;
         text_size.cy = 0;
-        GetTextExtentPoint32A(
-            device_context,
-            text,
-            text_length,
-            &text_size
-        );
-
-        width = text_size.cx;
-        height = text_size.cy;
+        if (Win32Utf8Text::get_text_extent(
+                device_context,
+                text,
+                text_length,
+                text_size
+            )) {
+            width = text_size.cx;
+            height = text_size.cy;
+        }
 
         if (previous_font != NULL && previous_font != HGDI_ERROR) {
             SelectObject(device_context, previous_font);
@@ -112,7 +118,11 @@ namespace {
             start
         );
 
-        int position = start + 1;
+        int position = Utf8Text::next_index(
+            text,
+            text_length,
+            start
+        );
 
         while (position < line_end && position < text_length) {
             TextFormat next_format = get_format_at(
@@ -144,7 +154,17 @@ namespace {
                 }
             }
 
-            ++position;
+            int next = Utf8Text::next_index(
+                text,
+                text_length,
+                position
+            );
+
+            if (next <= position) {
+                ++position;
+            } else {
+                position = next;
+            }
         }
 
         return position;
@@ -413,12 +433,26 @@ namespace {
             }
 
             while (position < run_end) {
+                int next_position = Utf8Text::next_index(
+                    text,
+                    text_length,
+                    position
+                );
+
+                if (
+                    next_position <= position ||
+                    next_position > run_end
+                ) {
+                    next_position = run_end;
+                }
+
                 int character_width = 0;
                 int character_height = 0;
-                measure_character(
+                measure_span(
                     device_context,
                     font_cache,
                     text + position,
+                    next_position - position,
                     format,
                     character_width,
                     character_height
@@ -430,7 +464,7 @@ namespace {
                 }
 
                 current_x += character_width;
-                ++position;
+                position = next_position;
             }
         }
 
@@ -462,11 +496,11 @@ int Win32TextMetrics::measure_text_width(
     text_size.cx = 0;
     text_size.cy = 0;
 
-    if (!GetTextExtentPoint32A(
+    if (!Win32Utf8Text::get_text_extent(
             device_context,
             text,
             text_length,
-            &text_size
+            text_size
         )) {
         text_size.cx = 0;
     }
@@ -497,30 +531,44 @@ int Win32TextMetrics::get_character_index_at_x(
 
     int previous_width = 0;
     int result_index = text_length;
+    int position = 0;
 
-    for (int index = 1; index <= text_length; ++index) {
+    while (position < text_length) {
+        int next_position = Utf8Text::next_index(
+            text,
+            text_length,
+            position
+        );
+
+        if (next_position <= position) {
+            next_position = position + 1;
+        }
+
         SIZE text_size;
         text_size.cx = 0;
         text_size.cy = 0;
 
-        if (!GetTextExtentPoint32A(
+        if (!Win32Utf8Text::get_text_extent(
                 device_context,
                 text,
-                index,
-                &text_size
+                next_position,
+                text_size
             )) {
             result_index = text_length;
             break;
         }
 
-        int midpoint = previous_width + ((text_size.cx - previous_width) / 2);
+        int midpoint =
+            previous_width +
+            ((text_size.cx - previous_width) / 2);
 
         if (pixel_x < midpoint) {
-            result_index = index - 1;
+            result_index = position;
             break;
         }
 
         previous_width = text_size.cx;
+        position = next_position;
     }
 
     if (previous_font != NULL && previous_font != HGDI_ERROR) {

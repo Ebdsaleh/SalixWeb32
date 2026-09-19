@@ -65,6 +65,7 @@ class StatusView : public View {
             report += "\r\n";
             report += host_label.get_text();
             report += "\r\n";
+            report += "Text encoding: UTF-8 framework | UTF-16 Win32 presentation\r\n";
             report += web_backend_label.get_text();
             report += "\r\n";
             report += web_capability_label.get_text();

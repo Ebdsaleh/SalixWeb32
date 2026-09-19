@@ -160,6 +160,37 @@ and `ConversationView` mutation remain on the application thread.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
+## Text encoding boundary
+
+Application, conversation, Markdown, and clipboard MIME text is canonically stored as
+UTF-8 bytes.
+
+The framework keeps its existing byte-indexed `std::string` representation, but
+wrapping/navigation/hit-testing treat valid UTF-8 sequences as atomic code points.
+The Win32 presentation backend converts UTF-8 spans to UTF-16 and uses Unicode GDI APIs
+for measurement/drawing. The Win32 clipboard similarly maps framework UTF-8 to
+`CF_UNICODETEXT`.
+
+```text
+framework/service UTF-8
+        |
+        v
+Win32Utf8Text
+        |
+        v
+UTF-16
+        |
+        +-- Unicode GDI
+        `-- CF_UNICODETEXT
+```
+
+Legacy ACP strings that still enter from older Win32 `...A` platform APIs are accepted
+as a compatibility fallback only when the source bytes are not valid UTF-8. New
+application/service text should remain UTF-8.
+
+Font glyph availability is separate from encoding correctness. See
+`docs/TEXT_ENCODING.md`.
+
 ## Persistent file-location boundary
 
 SalixWeb32 does not treat the process current working directory as durable application

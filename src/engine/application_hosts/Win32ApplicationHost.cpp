@@ -132,6 +132,36 @@ namespace {
         return UIEvent::key_none;
     }
 
+    int decode_ansi_character(WPARAM value) {
+        unsigned char byte_value =
+            (unsigned char)(value & 0xFF);
+
+        if (byte_value < 0x80) {
+            return (int)byte_value;
+        }
+
+        char source[2];
+        source[0] = (char)byte_value;
+        source[1] = '\0';
+
+        WCHAR wide[2];
+        wide[0] = 0;
+        wide[1] = 0;
+
+        int converted = MultiByteToWideChar(
+            CP_ACP,
+            MB_PRECOMPOSED,
+            source,
+            1,
+            wide,
+            1
+        );
+
+        return converted == 1
+            ? (int)wide[0]
+            : (int)byte_value;
+    }
+
     void populate_modifier_state(UIEvent& event) {
         event.shift_down = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         event.control_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
@@ -555,7 +585,7 @@ LRESULT Win32ApplicationHost::handle_message(
 
         case WM_CHAR: {
             UIEvent event(UIEvent::event_character);
-            event.character_code = (int)w_param;
+            event.character_code = decode_ansi_character(w_param);
             populate_modifier_state(event);
 
             if (application_view != 0 && application_view->handle_event(event)) {

@@ -473,6 +473,8 @@ The first provider-neutral conversation-service contract is now implemented:
 - [ ] add conversation-thread selection/new-thread control,
 - [x] instrument end-to-end browser-relay latency and validate it on the modern
   companion plus the real P4 with a clean VC7.1 build,
+- [x] establish and real-P4 validate the UTF-8 framework / UTF-16 Win32 presentation
+  boundary, Unicode clipboard round-trip, and glyph-aware Win32 font fallback,
 - [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
 - [ ] add attachment relay after the text baseline is green,

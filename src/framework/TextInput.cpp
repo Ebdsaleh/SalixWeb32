@@ -15,6 +15,7 @@
 #include "MimeTypes.h"
 #include "TextMetrics.h"
 #include "TextNavigation.h"
+#include "Utf8Text.h"
 #include "rendering/ComponentRenderer.h"
 
 namespace {
@@ -101,7 +102,12 @@ void TextInput::set_text(const char* new_text) {
     }
 
     if ((int)text.length() > max_length) {
-        text.erase(max_length);
+        int prefix_length = Utf8Text::prefix_length_for_byte_limit(
+            text.c_str(),
+            (int)text.length(),
+            max_length
+        );
+        text.erase(prefix_length);
     }
 
     character_formats.assign(text.length(), typing_format);
@@ -120,11 +126,16 @@ void TextInput::set_max_length(int new_max_length) {
     max_length = new_max_length;
 
     if ((int)text.length() > max_length) {
-        text.erase(max_length);
+        int prefix_length = Utf8Text::prefix_length_for_byte_limit(
+            text.c_str(),
+            (int)text.length(),
+            max_length
+        );
+        text.erase(prefix_length);
 
-        if ((int)character_formats.size() > max_length) {
+        if ((int)character_formats.size() > prefix_length) {
             character_formats.erase(
-                character_formats.begin() + max_length,
+                character_formats.begin() + prefix_length,
                 character_formats.end()
             );
         }
@@ -200,6 +211,13 @@ bool TextInput::get_is_focused() const {
 void TextInput::set_cursor_position(int new_cursor_position) {
     reset_vertical_navigation_goal();
     end_edit_group();
+
+    new_cursor_position = Utf8Text::clamp_to_boundary(
+        text.c_str(),
+        (int)text.length(),
+        new_cursor_position
+    );
+
     selection.reset(new_cursor_position, (int)text.length());
 }
 
@@ -813,7 +831,11 @@ bool TextInput::handle_event(const UIEvent& event) {
                     move_cursor(get_selection_start(), false);
                 } else {
                     move_cursor(
-                        selection.get_caret_position() - 1,
+                        Utf8Text::previous_index(
+                            text.c_str(),
+                            (int)text.length(),
+                            selection.get_caret_position()
+                        ),
                         event.shift_down
                     );
                 }
@@ -825,7 +847,11 @@ bool TextInput::handle_event(const UIEvent& event) {
                     move_cursor(get_selection_end(), false);
                 } else {
                     move_cursor(
-                        selection.get_caret_position() + 1,
+                        Utf8Text::next_index(
+                            text.c_str(),
+                            (int)text.length(),
+                            selection.get_caret_position()
+                        ),
                         event.shift_down
                     );
                 }
@@ -884,11 +910,28 @@ bool TextInput::handle_event(const UIEvent& event) {
                 ) {
                     begin_edit(edit_delete);
                     int position = selection.get_caret_position();
-                    text.erase(position, 1);
+                    int next_position = Utf8Text::next_index(
+                        text.c_str(),
+                        (int)text.length(),
+                        position
+                    );
+                    int erase_count = next_position - position;
+
+                    if (erase_count < 1) {
+                        erase_count = 1;
+                    }
+
+                    text.erase(position, erase_count);
 
                     if (position < (int)character_formats.size()) {
+                        int format_end = position + erase_count;
+                        if (format_end > (int)character_formats.size()) {
+                            format_end = (int)character_formats.size();
+                        }
+
                         character_formats.erase(
-                            character_formats.begin() + position
+                            character_formats.begin() + position,
+                            character_formats.begin() + format_end
                         );
                     }
 
@@ -929,12 +972,29 @@ bool TextInput::handle_event(const UIEvent& event) {
             !text.empty()
         ) {
             begin_edit(edit_backspace);
-            int new_cursor_position = selection.get_caret_position() - 1;
-            text.erase(new_cursor_position, 1);
+            int old_cursor_position = selection.get_caret_position();
+            int new_cursor_position = Utf8Text::previous_index(
+                text.c_str(),
+                (int)text.length(),
+                old_cursor_position
+            );
+            int erase_count = old_cursor_position - new_cursor_position;
+
+            if (erase_count < 1) {
+                erase_count = 1;
+            }
+
+            text.erase(new_cursor_position, erase_count);
 
             if (new_cursor_position < (int)character_formats.size()) {
+                int format_end = new_cursor_position + erase_count;
+                if (format_end > (int)character_formats.size()) {
+                    format_end = (int)character_formats.size();
+                }
+
                 character_formats.erase(
-                    character_formats.begin() + new_cursor_position
+                    character_formats.begin() + new_cursor_position,
+                    character_formats.begin() + format_end
                 );
             }
 
@@ -953,12 +1013,18 @@ bool TextInput::handle_event(const UIEvent& event) {
 
     if (
         event.character_code >= 32 &&
-        event.character_code <= 126
+        event.character_code <= 0x10FFFF
     ) {
-        char character_text[2];
-        character_text[0] = (char)event.character_code;
-        character_text[1] = '\0';
-        insert_plain_text(character_text, edit_typing);
+        char character_text[5];
+        int encoded_length = Utf8Text::encode_code_point(
+            (unsigned long)event.character_code,
+            character_text
+        );
+
+        if (encoded_length > 0) {
+            insert_plain_text(character_text, edit_typing);
+        }
+
         return true;
     }
 
@@ -978,6 +1044,11 @@ void TextInput::move_cursor(
     bool extend_selection
 ) {
     reset_vertical_navigation_goal();
+    new_cursor_position = Utf8Text::clamp_to_boundary(
+        text.c_str(),
+        (int)text.length(),
+        new_cursor_position
+    );
     selection.move_caret(
         new_cursor_position,
         (int)text.length(),
@@ -1162,28 +1233,64 @@ bool TextInput::insert_plain_text(
         return false;
     }
 
+    std::string source_text(new_text);
     std::string filtered_text;
+    int source_length = (int)source_text.length();
+    int source_position = 0;
 
-    for (int index = 0; new_text[index] != '\0'; ++index) {
-        char character = new_text[index];
+    while (source_position < source_length) {
+        int next_position = Utf8Text::next_index(
+            source_text.c_str(),
+            source_length,
+            source_position
+        );
+
+        if (next_position <= source_position) {
+            next_position = source_position + 1;
+        }
+
+        char character = source_text[source_position];
 
         if (character == '\r') {
+            source_position = next_position;
             continue;
         }
 
-        if (character == '\n') {
-            if (!is_multiline) {
-                character = ' ';
+        if (
+            character == '\n' ||
+            character == '\t'
+        ) {
+            char normalized = character;
+
+            if (character == '\n' && !is_multiline) {
+                normalized = ' ';
+            } else if (character == '\t') {
+                normalized = ' ';
             }
-        } else if (character == '\t') {
-            character = ' ';
+
+            if ((int)filtered_text.length() + 1 > max_length) {
+                break;
+            }
+
+            filtered_text += normalized;
+        } else {
+            int sequence_length = next_position - source_position;
+
+            if (
+                (int)filtered_text.length() + sequence_length >
+                max_length
+            ) {
+                break;
+            }
+
+            filtered_text.append(
+                source_text,
+                source_position,
+                sequence_length
+            );
         }
 
-        filtered_text += character;
-
-        if ((int)filtered_text.length() >= max_length) {
-            break;
-        }
+        source_position = next_position;
     }
 
     if (filtered_text.empty()) {
@@ -1210,7 +1317,12 @@ bool TextInput::insert_plain_text(
     }
 
     if ((int)filtered_text.length() > remaining_capacity) {
-        filtered_text.erase(remaining_capacity);
+        int prefix_length = Utf8Text::prefix_length_for_byte_limit(
+            filtered_text.c_str(),
+            (int)filtered_text.length(),
+            remaining_capacity
+        );
+        filtered_text.erase(prefix_length);
     }
 
     ensure_format_length();

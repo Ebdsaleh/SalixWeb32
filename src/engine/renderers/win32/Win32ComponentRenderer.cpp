@@ -4,7 +4,10 @@
 // Description: Implements Win32 rendering for framework UI components.
 // =================================================================================
 
+#include <string.h>
+
 #include "Win32ComponentRenderer.h"
+#include "engine/platform/win32/Win32Utf8Text.h"
 #include "Win32EmoticonPainter.h"
 #include "Win32TextPainter.h"
 #include "Win32ScrollableTextPainter.h"
@@ -241,13 +244,26 @@ void Win32ComponentRenderer::render_button(const Button& button) {
         to_color_ref(text_color)
     );
 
-    DrawTextA(
-        device_context,
-        button_text == 0 ? "" : button_text,
-        -1,
-        &button_rect,
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX
-    );
+    const char* safe_button_text =
+        button_text == 0 ? "" : button_text;
+    std::vector<WCHAR> wide_button_text;
+
+    if (
+        Win32Utf8Text::to_wide(
+            safe_button_text,
+            (int)strlen(safe_button_text),
+            wide_button_text
+        ) &&
+        !wide_button_text.empty()
+    ) {
+        DrawTextW(
+            device_context,
+            &wide_button_text[0],
+            (int)wide_button_text.size(),
+            &button_rect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX
+        );
+    }
 
     SetTextColor(device_context, old_text_color);
 }

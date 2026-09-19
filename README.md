@@ -112,6 +112,8 @@ The native application/framework foundation is operational on the real Pentium 4
 - code-block presentation and copy support,
 - attachments, image preview, and file actions,
 - native tabs, scrollbars, menus, diagnostics, screenshots, and clipboard integration,
+- a UTF-8 framework / UTF-16 Win32 text boundary with Unicode GDI and clipboard support
+  currently staged for real-target validation,
 - an evolving `Options -> Debug` submenu for one-click target diagnostics/capture/export workflows,
 - explicit persistent file-location ownership with configurable diagnostics and remembered attachment-picker history,
 - the `WebPlatformBackend` / `WebPlatformHost` abstraction,
@@ -173,6 +175,15 @@ captured target baseline measured about 19.4 seconds on the modern relay versus
 57.5 seconds to native `message_completed`, identifying roughly 38.1 seconds outside
 the modern relay window for subsequent native-side profiling. The corresponding VC7.1
 build completed with zero errors and zero warnings.
+
+The text path now keeps framework/wire content as UTF-8, makes
+wrapping/navigation code-point aware, and converts to UTF-16 only at the native Win32
+presentation/clipboard boundary. The real P4 validation round-tripped
+`I’m “testing” — café € → ↓` through Conversation rendering, Unicode clipboard,
+composer paste, and the real browser relay without mojibake. Salix also performs
+glyph-aware Win32 font fallback when the preferred Tahoma/Courier New face cannot draw
+a span; the final Server 2003 retest rendered the arrow glyphs correctly. The matching
+VC7.1 build completed with zero errors and zero warnings.
 
 The modern companion is development scaffolding and a behavioral reference, not the
 authoritative SalixWeb32 build environment. The product executable and required native

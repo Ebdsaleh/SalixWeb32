@@ -227,6 +227,7 @@
 			<File RelativePath="..\..\src\framework\TextSelection.h"/>
 			<File RelativePath="..\..\src\framework\TextViewportState.h"/>
 			<File RelativePath="..\..\src\framework\TextWrapLayout.h"/>
+			<File RelativePath="..\..\src\framework\Utf8Text.h"/>
 			<File RelativePath="..\..\src\framework\ToggleButton.h"/>
 			<File RelativePath="..\..\src\framework\UIEvent.h"/>
 			<File RelativePath="..\..\src\framework\View.h"/>
@@ -263,6 +264,7 @@
 			<File RelativePath="..\..\src\engine\platform\win32\Win32NativeControlHost.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextFontCache.h"/>
 			<File RelativePath="..\..\src\engine\platform\win32\Win32TextMetrics.h"/>
+			<File RelativePath="..\..\src\engine\platform\win32\Win32Utf8Text.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ComponentRenderer.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32EmoticonPainter.h"/>
 			<File RelativePath="..\..\src\engine\renderers\win32\Win32ScrollableTextPainter.h"/>
