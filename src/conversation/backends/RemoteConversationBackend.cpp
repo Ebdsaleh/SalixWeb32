@@ -347,7 +347,6 @@ RemoteConversationBackend::RemoteConversationBackend(
     port(new_port),
     is_initialized(false),
     bridge_online(false),
-    event_taken_this_update(false),
     pending_operation(operation_none),
     capability_state(capability_unknown),
     active_request_id(0),
@@ -399,7 +398,6 @@ bool RemoteConversationBackend::initialize() {
     }
 
     bridge_online = false;
-    event_taken_this_update = false;
     pending_operation = operation_none;
     capability_state = capability_unknown;
     active_request_id = 0;
@@ -418,8 +416,6 @@ bool RemoteConversationBackend::initialize() {
 }
 
 void RemoteConversationBackend::update() {
-    event_taken_this_update = false;
-
     if (
         !is_initialized ||
         request_executor == 0 ||
@@ -500,7 +496,6 @@ void RemoteConversationBackend::shutdown() {
 
     is_initialized = false;
     bridge_online = false;
-    event_taken_this_update = false;
     pending_operation = operation_none;
     capability_state = capability_unknown;
     active_request_id = 0;
@@ -671,16 +666,17 @@ bool RemoteConversationBackend::take_event(
 ) {
     event.clear();
 
-    if (
-        event_taken_this_update ||
-        events.empty()
-    ) {
+    if (events.empty()) {
         return false;
     }
 
+    // Drain every semantic event that is already available. The completed
+    // browser-relay response currently arrives as one bounded event queue, so
+    // throttling to one event per runtime update only stretches presentation
+    // across many frames. Future true streaming remains incremental because
+    // only events actually queued by that update can be drained.
     event = events[0];
     events.erase(events.begin());
-    event_taken_this_update = true;
 
     if (
         events.empty() &&
