@@ -142,6 +142,13 @@ response types do not cross this boundary.
 The first `PlaceholderConversationBackend` performs no network access and has validated
 the request/event lifecycle and native streaming presentation on the P4.
 
+The application preserves semantic event order without requiring one presentation rebuild
+per event. When multiple `text_delta` events are already available in the same backend
+update, `StatusView` drains that available batch, accumulates the canonical text, and
+coalesces native Conversation presentation. The completed-response browser relay has
+validated this on the real P4 with 27 deltas producing one presentation update. Future
+true streaming remains incremental because only newly arrived events can be drained.
+
 `RemoteConversationBackend` reuses the existing backend-neutral network contracts but
 owns a **separate Win32 request executor/HTTP transport instance** from Browser Probe.
 This avoids Browser and Conversation single-flight/lifecycle contention while allowing
