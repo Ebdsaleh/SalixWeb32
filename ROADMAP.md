@@ -475,6 +475,8 @@ The first provider-neutral conversation-service contract is now implemented:
   companion plus the real P4 with a clean VC7.1 build,
 - [x] establish and real-P4 validate the UTF-8 framework / UTF-16 Win32 presentation
   boundary, Unicode clipboard round-trip, and glyph-aware Win32 font fallback,
+- [~] batch native Conversation delta presentation on `dev` so completed responses
+  do not rebuild Markdown/layout once per synthetic delta (P4 validation pending),
 - [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
 - [ ] add attachment relay after the text baseline is green,
@@ -527,8 +529,8 @@ See `docs/FILE_LOCATIONS.md`.
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,
-2. establish/fix the native UTF-8/Unicode presentation boundary,
-3. profile the measured P4 post-response replay/presentation gap,
+2. validate native Conversation delta batching against the measured 38–47 second P4 gap,
+3. profile any remaining native post-response presentation cost,
 4. harden response extraction and failure diagnostics against ordinary page changes,
 5. optimize relay latency without weakening the current boundaries,
 6. add explicit conversation-thread selection after one-current-thread relay is green,
