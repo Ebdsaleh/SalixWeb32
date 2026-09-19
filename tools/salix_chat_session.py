@@ -11,6 +11,7 @@ broker. The P4-facing salix_bridge.py remains a separate process.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 import threading
@@ -25,6 +26,10 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8766
 DEFAULT_RESPONSE_TIMEOUT_SECONDS = 180.0
 MAX_MESSAGE_BYTES = 128 * 1024
+MAX_RELAY_JSON_BYTES = 8 * 1024 * 1024
+MAX_ATTACHMENTS = 8
+MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
+MAX_TOTAL_ATTACHMENT_BYTES = 4 * 1024 * 1024
 HEARTBEAT_STALE_SECONDS = 4.0
 
 
@@ -62,16 +67,75 @@ def _sanitize_timing(value: Any) -> dict[str, int]:
     return timing
 
 
+def _safe_attachment_name(value: str) -> str:
+    value = value.replace("\\", "/").split("/")[-1].strip()
+    value = value.replace("\r", "_").replace("\n", "_")
+    if not value or value in (".", ".."):
+        return "attachment.bin"
+    return value[:255]
+
+
+def _normalize_attachments(value: Any) -> list[dict[str, str]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("attachments must be an array")
+    if len(value) > MAX_ATTACHMENTS:
+        raise ValueError("too many attachments")
+
+    attachments: list[dict[str, str]] = []
+    total_bytes = 0
+
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("attachment entry is invalid")
+
+        name = item.get("name")
+        mime_type = item.get("mime_type", "application/octet-stream")
+        encoded = item.get("data_base64")
+
+        if not isinstance(name, str) or not name:
+            raise ValueError("attachment name is invalid")
+        if not isinstance(mime_type, str) or not mime_type:
+            mime_type = "application/octet-stream"
+        if not isinstance(encoded, str):
+            raise ValueError("attachment data is missing")
+
+        try:
+            raw = base64.b64decode(encoded.encode("ascii"), validate=True)
+        except Exception as error:
+            raise ValueError("attachment base64 is invalid") from error
+
+        if len(raw) > MAX_ATTACHMENT_BYTES:
+            raise ValueError("attachment exceeds 2 MB limit")
+
+        total_bytes += len(raw)
+        if total_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
+            raise ValueError("attachments exceed 4 MB total limit")
+
+        attachments.append(
+            {
+                "name": _safe_attachment_name(name),
+                "mime_type": mime_type[:128],
+                "data_base64": encoded,
+            }
+        )
+
+    return attachments
+
+
 @dataclass
 class PendingRequest:
     request_id: int
     text: str
+    attachments: list[dict[str, str]]
     created_at: float
     delivered_at: float = 0.0
     completed_at: float = 0.0
     delivered: bool = False
     completed: bool = False
     response_text: str = ""
+    response_attachments: list[dict[str, str]] | None = None
     error_text: str = ""
     extension_timing: dict[str, int] | None = None
 
@@ -163,12 +227,14 @@ class RelayState:
                 "command": "send_message",
                 "request_id": request.request_id,
                 "text": request.text,
+                "attachments": request.attachments,
             }
 
     def complete_request(
         self,
         request_id: int,
         response_text: str,
+        response_attachments: list[dict[str, str]],
         error_text: str,
         extension_timing: dict[str, int] | None = None,
     ) -> bool:
@@ -185,6 +251,7 @@ class RelayState:
             request.completed = True
             request.completed_at = time.monotonic()
             request.response_text = response_text
+            request.response_attachments = response_attachments
             request.error_text = error_text
             request.extension_timing = extension_timing or {}
             self.last_error = error_text
@@ -195,15 +262,18 @@ class RelayState:
         self,
         request_id: int,
         text: str,
-    ) -> tuple[str, dict[str, int]]:
+        attachments: list[dict[str, str]],
+    ) -> tuple[str, list[dict[str, str]], dict[str, int]]:
         if request_id < 1:
             raise ValueError("request_id must be positive")
 
         encoded = text.encode("utf-8")
-        if not encoded:
-            raise ValueError("message text is empty")
         if len(encoded) > MAX_MESSAGE_BYTES:
             raise ValueError("message text exceeds relay limit")
+        if not encoded and not attachments:
+            raise ValueError("message text or attachment is required")
+
+        normalized_attachments = _normalize_attachments(attachments)
 
         with self.condition:
             status = self.get_status_locked()
@@ -220,6 +290,7 @@ class RelayState:
             request = PendingRequest(
                 request_id=request_id,
                 text=text,
+                attachments=normalized_attachments,
                 created_at=time.monotonic(),
             )
             self.pending = request
@@ -243,7 +314,8 @@ class RelayState:
             if request.error_text:
                 raise RuntimeError(request.error_text)
 
-            if not request.response_text:
+            response_attachments = request.response_attachments or []
+            if not request.response_text and not response_attachments:
                 raise RuntimeError(
                     "LibreWolf extension returned an empty assistant response"
                 )
@@ -273,7 +345,7 @@ class RelayState:
                 int(round((completed_at - request.created_at) * 1000.0)),
             )
 
-            return request.response_text, timing
+            return request.response_text, response_attachments, timing
 
     def get_status_locked(self) -> dict[str, Any]:
         age = (
@@ -470,7 +542,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
             return
 
         if self.path in ("/v1/result", "/v1/failure"):
-            request = self._read_json(MAX_MESSAGE_BYTES * 2)
+            request = self._read_json(MAX_RELAY_JSON_BYTES)
             if request is None:
                 return
 
@@ -498,21 +570,48 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 return
 
             response_text = ""
+            response_attachments: list[dict[str, str]] = []
             error_text = ""
 
             if self.path == "/v1/result":
-                value = request.get("text")
-                if not isinstance(value, str) or not value:
+                value = request.get("text", "")
+                if not isinstance(value, str):
                     self._send_json(
                         400,
                         {
                             "protocol": SESSION_PROTOCOL,
                             "status": "bad_request",
-                            "error": "non-empty assistant text required",
+                            "error": "assistant text must be a string",
                         },
                     )
                     return
                 response_text = value
+
+                try:
+                    response_attachments = _normalize_attachments(
+                        request.get("attachments")
+                    )
+                except ValueError as error:
+                    self._send_json(
+                        400,
+                        {
+                            "protocol": SESSION_PROTOCOL,
+                            "status": "bad_request",
+                            "error": str(error),
+                        },
+                    )
+                    return
+
+                if not response_text and not response_attachments:
+                    self._send_json(
+                        400,
+                        {
+                            "protocol": SESSION_PROTOCOL,
+                            "status": "bad_request",
+                            "error": "assistant response is empty",
+                        },
+                    )
+                    return
             else:
                 value = request.get("error")
                 if not isinstance(value, str) or not value:
@@ -528,6 +627,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
             if not self.state.complete_request(
                 request_id,
                 response_text,
+                response_attachments,
                 error_text,
                 extension_timing,
             ):
@@ -550,12 +650,12 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/v1/message":
-            request = self._read_json(MAX_MESSAGE_BYTES * 2)
+            request = self._read_json(MAX_RELAY_JSON_BYTES)
             if request is None:
                 return
 
             request_id = request.get("request_id")
-            text = request.get("text")
+            text = request.get("text", "")
 
             if not isinstance(request_id, int) or request_id < 1:
                 self._send_json(
@@ -568,26 +668,54 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            if not isinstance(text, str) or not text:
+            if not isinstance(text, str):
                 self._send_json(
                     400,
                     {
                         "protocol": SESSION_PROTOCOL,
                         "status": "bad_request",
-                        "error": "non-empty text required",
+                        "error": "text must be a string",
+                    },
+                )
+                return
+
+            try:
+                attachments = _normalize_attachments(request.get("attachments"))
+            except ValueError as error:
+                self._send_json(
+                    400,
+                    {
+                        "protocol": SESSION_PROTOCOL,
+                        "status": "bad_request",
+                        "error": str(error),
+                    },
+                )
+                return
+
+            if not text and not attachments:
+                self._send_json(
+                    400,
+                    {
+                        "protocol": SESSION_PROTOCOL,
+                        "status": "bad_request",
+                        "error": "text or attachment is required",
                     },
                 )
                 return
 
             print(
                 f"[chat-session] request id={request_id} "
-                f"text_bytes={len(text.encode('utf-8'))}"
+                f"text_bytes={len(text.encode('utf-8'))} "
+                f"attachments={len(attachments)}"
             )
 
             try:
-                response_text, relay_timing = self.state.submit_message(
-                    request_id,
-                    text,
+                response_text, response_attachments, relay_timing = (
+                    self.state.submit_message(
+                        request_id,
+                        text,
+                        attachments,
+                    )
                 )
             except Exception as error:
                 detail = f"{type(error).__name__}: {error}"
@@ -608,7 +736,8 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
 
             print(
                 f"[chat-session] request id={request_id} "
-                f"response_bytes={len(response_text.encode('utf-8'))}"
+                f"response_bytes={len(response_text.encode('utf-8'))} "
+                f"attachments={len(response_attachments)}"
             )
             print(
                 "[chat-session] timing "
@@ -624,6 +753,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                     "status": "ok",
                     "request_id": request_id,
                     "text": response_text,
+                    "attachments": response_attachments,
                     "timing": relay_timing,
                 },
             )
@@ -727,7 +857,7 @@ def main() -> int:
     print("Browser control       : normal LibreWolf WebExtension (no Marionette)")
     print("Authentication        : existing normal LibreWolf profile/session")
     print("Active conversation   : current ChatGPT tab/thread in LibreWolf")
-    print("Forwarding            : message text + rendered assistant text only")
+    print("Forwarding            : message text + bounded files + assistant files")
     print("Cookies/credentials   : never exposed by this broker API")
     print()
     print("LibreWolf must already be running normally.")
