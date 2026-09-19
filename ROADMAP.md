@@ -467,6 +467,8 @@ The first provider-neutral conversation-service contract is now implemented:
   Selenium/GeckoDriver/Marionette browser automation,
 - [x] add a trusted-LAN text-only browser-relay path without forwarding credentials,
   cookies, browser session state, or attachments,
+- [x] validate the complete modern-side LibreWolf relay round-trip with a real ChatGPT
+  message and returned semantic events,
 - [ ] validate the LibreWolf browser relay end-to-end on the real P4,
 - [ ] add conversation-thread selection/new-thread control,
 - [ ] convert the relay from completed-response framing to true incremental transport,

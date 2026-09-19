@@ -559,14 +559,32 @@ Observed evidence:
 The Debug submenu is therefore target-green and can evolve as the development feedback
 surface for future feature probes.
 
-### LibreWolf browser relay — pending target validation
+### LibreWolf browser relay — modern side validated; P4 target pending
 
-The next gate is the first useful text-in/text-out ChatGPT baseline.
+The first useful text-in/text-out ChatGPT baseline is now validated on the modern
+companion side. The remaining gate is the real Pentium 4 / Server 2003 SalixWeb32
+client.
 
 The original Selenium/GeckoDriver approach was rejected after real testing because
 LibreWolf entered Marionette remote-control mode and ChatGPT would not load the selected
 conversation normally. The current baseline therefore uses a normal LibreWolf process
 plus a temporary development WebExtension.
+
+Modern-side validation evidence from September 19, 2026:
+
+- bridge health returned HTTP 200,
+- `conversation_browser_session=ready`,
+- `python tools\test_chat_relay.py` reported `browser relay ready`,
+- a real message was sent through:
+  smoke helper -> bridge -> localhost broker -> LibreWolf WebExtension ->
+  authenticated ChatGPT thread,
+- the relay request returned HTTP 200,
+- the returned payload contained `request_started`, `message_started`, multiple
+  `text_delta` events, and `message_completed`,
+- the exact real assistant response was reconstructed and printed by the smoke helper.
+
+This validates the complete modern-side semantic round-trip. It does not yet validate
+the VC7.1 client path.
 
 Modern companion preparation:
 
