@@ -2,9 +2,9 @@
 """Modern-side listener/broker for SalixWeb32 compatibility work.
 
 Browser Probe remains a bounded diagnostic HTTPS fetch. Conversation traffic can use
-the separate localhost-only salix_chat_session.py worker, which owns the visible
-LibreWolf/ChatGPT session. The bridge never receives ChatGPT credentials, cookies, or
-browser session storage; only user message text and rendered assistant response text
+the separate localhost-only salix_chat_session.py broker plus the relay WebExtension
+running inside normal LibreWolf. The bridge never receives ChatGPT credentials, cookies,
+or browser session storage; only user message text and rendered assistant response text
 cross the trusted development LAN.
 """
 
@@ -887,13 +887,13 @@ def main() -> int:
     parser.add_argument(
         "--chat-worker-host",
         default="127.0.0.1",
-        help="localhost browser worker host (default: 127.0.0.1)",
+        help="localhost chat-session broker host (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--chat-worker-port",
         type=int,
         default=8766,
-        help="localhost browser worker port (default: 8766)",
+        help="localhost chat-session broker port (default: 8766)",
     )
     args = parser.parse_args()
 
@@ -924,7 +924,7 @@ def main() -> int:
     )
     print("Message forwarding    : text enabled on trusted development LAN")
     print("Sensitive forwarding  : attachments/credentials/session disabled")
-    print("Browser auth/session  : remains inside the LibreWolf worker")
+    print("Browser auth/session  : remains inside normal LibreWolf")
     print("Response path         : rendered assistant text -> semantic events")
     print("Press Ctrl+C to stop.")
 

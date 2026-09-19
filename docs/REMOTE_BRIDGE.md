@@ -205,8 +205,8 @@ because that is the capability being proven. It still does not forward:
 - attachment paths or file contents,
 - service tokens.
 
-Authentication and session ownership remain entirely inside the visible LibreWolf worker
-on the modern machine. The health contract labels this transport `trusted_lan` rather
+Authentication and session ownership remain entirely inside normal LibreWolf on the
+modern machine. The health contract labels this transport `trusted_lan` rather
 than pretending it is authenticated/encrypted. This is a development policy, not a claim
 that plain HTTP is cryptographically secure.
 
@@ -280,5 +280,5 @@ text-only browser-relay path. The browser relay currently waits for a completed 
 assistant response before returning it to the P4; true generation-time streaming is a
 later tranche.
 
-Credentials and browser session state remain outside the bridge contract. The visible
-LibreWolf worker owns those details on the modern machine.
+Credentials and browser session state remain outside the bridge contract. Normal
+LibreWolf owns those details on the modern machine.

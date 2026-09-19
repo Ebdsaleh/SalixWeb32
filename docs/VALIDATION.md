@@ -559,84 +559,81 @@ Observed evidence:
 The Debug submenu is therefore target-green and can evolve as the development feedback
 surface for future feature probes.
 
-### LibreWolf browser relay — modern side validated; P4 target pending
+### LibreWolf browser relay — validated end-to-end on real P4
 
-The first useful text-in/text-out ChatGPT baseline is now validated on the modern
-companion side. The remaining gate is the real Pentium 4 / Server 2003 SalixWeb32
-client.
+The first useful text-in/text-out ChatGPT baseline is now validated across the complete
+real target path.
 
 The original Selenium/GeckoDriver approach was rejected after real testing because
 LibreWolf entered Marionette remote-control mode and ChatGPT would not load the selected
-conversation normally. The current baseline therefore uses a normal LibreWolf process
-plus a temporary development WebExtension.
+conversation normally. The accepted baseline uses the user's normal LibreWolf process
+plus a temporary development WebExtension, a localhost-only session broker, and the
+existing P4-facing bridge.
 
-Modern-side validation evidence from September 19, 2026:
+Validated September 19, 2026:
 
-- bridge health returned HTTP 200,
-- `conversation_browser_session=ready`,
-- `python tools\test_chat_relay.py` reported `browser relay ready`,
-- a real message was sent through:
-  smoke helper -> bridge -> localhost broker -> LibreWolf WebExtension ->
-  authenticated ChatGPT thread,
-- the relay request returned HTTP 200,
-- the returned payload contained `request_started`, `message_started`, multiple
-  `text_delta` events, and `message_completed`,
-- the exact real assistant response was reconstructed and printed by the smoke helper.
+- Visual C++ 7.1 `Debug | Win32` rebuilt the real SalixWeb32 target with **0 errors and
+  0 warnings**.
+- Native diagnostics reported:
+  `Remote Conversation Bridge Backend | SALIX-CONVERSATION/1 ready | browser relay |
+  trusted LAN | text only`.
+- The active security profile reported:
+  `mode content | transport trusted-lan | text yes | attachments no | credentials no |
+  session no`.
+- The user sent `Hello from Pentium 4` from the native SalixWeb32 Conversation
+  composer on Windows Server 2003.
+- The modern bridge received that request as request ID 1 with 20 text bytes and no
+  attachments, credentials, or session forwarding.
+- The localhost broker/WebExtension path operated through normal LibreWolf with no
+  Marionette/WebDriver browser mode.
+- The authenticated ChatGPT conversation produced the real assistant response.
+- The broker returned 469 response bytes, the bridge returned HTTP 200 to the P4, and
+  Salix rendered the returned message in the native Conversation view.
+- Diagnostic capture remained operational under the configured
+  `%APPDATA%\SalixWeb32\Diagnostics` location.
 
-This validates the complete modern-side semantic round-trip. It does not yet validate
-the VC7.1 client path.
+This proves the complete baseline:
 
-Modern companion preparation:
+```text
+native SalixWeb32 / Pentium 4
+        -> SALIX-CONVERSATION/1
+        -> salix_bridge.py
+        -> localhost salix_chat_session.py broker
+        -> LibreWolf relay WebExtension
+        -> normal authenticated LibreWolf / chatgpt.com
+        -> rendered assistant response
+        -> semantic Conversation events
+        -> native Salix Conversation view
+```
 
-1. Pull the same commit on the modern machine.
-2. Start LibreWolf normally with the user's normal authenticated profile.
-3. Open `about:debugging#/runtime/this-firefox`.
-4. Click **Load Temporary Add-on...** and select
-   `tools\librewolf_chat_relay_extension\manifest.json`.
-5. Reload/open the desired ChatGPT conversation after loading the extension so the
-   content script is active.
-6. Confirm there is **no Marionette/WebDriver remote-control banner**.
-7. Start `python tools\salix_chat_session.py`.
-8. Confirm the worker reports
-   `Browser control : normal LibreWolf WebExtension (no Marionette)`.
-9. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
-10. Run `python tools\test_chat_relay.py` and require
-    `conversation_browser_session=ready`.
-11. Run:
-    `python tools\test_chat_relay.py --message "Hello from the Salix relay smoke test"`.
-12. Confirm the text appears in the already-open ChatGPT conversation in normal
-    LibreWolf.
-13. Confirm the real assistant response returns to the smoke-test terminal through
-    `SALIX-CONVERSATION/1` semantic events.
-14. Send a second smoke-test message to prove the browser session remains reusable.
+Known observations accepted for this baseline:
 
-P4 validation:
+- response delivery is noticeably slow because the first implementation waits for the
+  rendered assistant response to stabilize before returning the completed response,
+- true generation-time streaming is not implemented yet,
+- text only is enabled; attachments remain deliberately blocked,
+- conversation selection is still the currently open ChatGPT thread,
+- some non-ASCII punctuation/symbols can display as mojibake in the legacy native text
+  path and require a later encoding/presentation pass,
+- the relay extension is still loaded as a temporary development extension and must be
+  reloaded after LibreWolf restarts.
 
-1. Pull the same commit.
-2. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
-3. Launch SalixWeb32 with the existing remote bridge configuration.
-4. Confirm the Conversation header reaches:
-   `SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only`.
-5. Use `Options -> Debug -> Copy Diagnostic Report` and confirm:
-   `mode content | transport trusted-lan | text yes | attachments no | credentials no | session no`.
-6. Send `Hello from Pentium 4`.
-7. Confirm the text appears in the already-open ChatGPT conversation in normal
-   LibreWolf.
-8. Wait for the real assistant response to complete.
-9. Confirm the returned response appears as a native Remote message in SalixWeb32.
-10. Send a second message to prove the relay remains reusable.
-11. Confirm Browser Probe still works independently.
-12. Confirm no attachment, credential, cookie, or browser-session material is forwarded
-    by either companion log.
+These are follow-up work items, not failures of the validated architecture.
 
-The first implementation waits for the rendered assistant response to stabilize, then
-returns the completed text to the bridge. The bridge divides it into semantic
-`text_delta` events that Salix releases incrementally. True generation-time byte
-streaming is a later optimization and is not required for this first pass.
+Regression checklist for the frozen baseline:
 
-If the worker reports `extension_not_connected`, the temporary extension is not
-currently loaded/heartbeating. If it reports `chatgpt_composer_not_ready`, ensure the
-ChatGPT tab is open and reload it after loading the extension.
+1. clean/rebuild `Debug | Win32` with VC7.1 at zero errors/warnings,
+2. normal LibreWolf is authenticated with no Marionette/WebDriver banner,
+3. relay WebExtension is loaded and ChatGPT tab is open,
+4. `salix_chat_session.py` reports the normal-LibreWolf WebExtension path,
+5. `salix_bridge.py` reports browser-relay text baseline,
+6. P4 Conversation header reaches
+   `SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only`,
+7. a P4 text message appears in the active ChatGPT thread,
+8. the real assistant response returns to the native Salix Conversation view,
+9. attachments/credentials/session forwarding remain disabled,
+10. Browser Probe and the content-free Conversation probe remain available as
+    independent diagnostics.
 
 
 ## Persistent file-location regression — pending target validation

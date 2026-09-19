@@ -73,9 +73,13 @@ SalixWeb32 / Pentium 4
                                            | localhost
                                            v
                                   salix_chat_session.py
+                                           ^
+                                           | localhost
+                                           |
+                                  LibreWolf relay extension
                                            |
                                            v
-                                   visible LibreWolf
+                                   normal LibreWolf
                                            |
                                            v
                                       chatgpt.com
@@ -117,7 +121,8 @@ The native application/framework foundation is operational on the real Pentium 4
 - backend-neutral network request/response contracts,
 - a background Win32 request executor so blocking network transport does not run on the UI thread,
 - persistent machine-local bridge configuration,
-- a modern-side Python bridge plus a separate localhost-only LibreWolf chat-session worker,
+- a modern-side Python bridge plus a separate localhost-only chat-session broker and
+  normal-LibreWolf relay WebExtension,
 - and Browser Probe diagnostics for inspecting real modern HTTPS responses.
 
 Browser Probe has been exercised against `https://www.chatgpt.com/` from the real Server 2003/Pentium 4 target through the companion. The current path can retrieve a real HTTP 200 HTML response, report redirects/headers/document signals, expose lightweight extracted text, and copy the complete captured raw response while keeping the on-screen Raw preview deliberately bounded for the legacy renderer.
@@ -145,6 +150,17 @@ the user's **normal LibreWolf process** talks to that broker; no Selenium/Marion
 browser process is used. The user authenticates normally in LibreWolf, while Salix does
 not receive ChatGPT credentials, cookies, or browser session storage. Only typed message
 text and rendered assistant response text cross the trusted development LAN.
+
+That text-only relay is now validated end-to-end on the real Pentium 4 / Windows Server
+2003 target. A native SalixWeb32 message reached the authenticated ChatGPT thread through
+the companion/WebExtension path, and the real assistant response returned through
+`SALIX-CONVERSATION/1` semantic events into the native Conversation view. The target
+VC7.1 build remained clean at zero errors and zero warnings.
+
+The first validated implementation intentionally favors architectural clarity over
+latency: the extension waits for the rendered assistant response to stabilize before the
+broker returns the completed response to Salix. Noticeable response delay is therefore a
+known optimization target rather than a release-blocking architecture failure.
 
 The modern companion is development scaffolding and a behavioral reference, not the
 authoritative SalixWeb32 build environment. The product executable and required native

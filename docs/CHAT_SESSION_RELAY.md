@@ -233,10 +233,10 @@ can be handled as a separate tranche.
 
 ## Failure behavior
 
-If the extension is missing, the localhost worker remains healthy but reports
+If the extension is missing, the localhost broker remains healthy but reports
 `extension_not_connected`.
 
-If no ChatGPT composer is available, the worker reports
+If no ChatGPT composer is available, the broker reports
 `chatgpt_composer_not_ready`.
 
 If page interaction fails after a request begins, the extension returns a failure to the
@@ -248,4 +248,21 @@ inspected directly.
 
 ## Target validation
 
-See `docs/VALIDATION.md` for the current P4 checklist.
+The baseline was validated end-to-end on the real Pentium 4 / Windows Server 2003 target
+on September 19, 2026.
+
+A native SalixWeb32 message reached the currently open authenticated ChatGPT thread
+through the bridge, localhost broker, and normal-LibreWolf WebExtension. The real
+assistant response returned through `SALIX-CONVERSATION/1` semantic events and rendered
+inside the native Conversation view. The VC7.1 target build was clean with zero errors
+and zero warnings.
+
+The current path is intentionally text-only and completed-response-oriented. The observed
+latency is accepted for this architecture baseline; optimization and true
+generation-time streaming are separate follow-up work.
+
+Known presentation issue: some non-ASCII symbols currently render as mojibake in the
+legacy native text path. That is an encoding/presentation issue rather than a relay
+correctness failure.
+
+See `docs/VALIDATION.md` for the full evidence and regression checklist.

@@ -602,13 +602,13 @@ def main() -> int:
     parser.add_argument(
         "--listen-host",
         default=DEFAULT_HOST,
-        help="worker listen address; keep this at 127.0.0.1",
+        help="broker listen address; keep this at 127.0.0.1",
     )
     parser.add_argument(
         "--listen-port",
         type=int,
         default=DEFAULT_PORT,
-        help="localhost worker port (default: 8766)",
+        help="localhost broker port (default: 8766)",
     )
     parser.add_argument(
         "--response-timeout",
@@ -620,7 +620,7 @@ def main() -> int:
 
     if args.listen_host not in ("127.0.0.1", "localhost"):
         parser.error(
-            "the browser worker is intentionally localhost-only; "
+            "the chat-session broker is intentionally localhost-only; "
             "use 127.0.0.1 or localhost"
         )
 
@@ -640,17 +640,17 @@ def main() -> int:
 
     print(f"Chat session protocol : {SESSION_PROTOCOL}")
     print(f"Extension protocol    : {EXTENSION_PROTOCOL}")
-    print(f"Worker endpoint       : http://{args.listen_host}:{args.listen_port}")
+    print(f"Broker endpoint       : http://{args.listen_host}:{args.listen_port}")
     print("Browser control       : normal LibreWolf WebExtension (no Marionette)")
     print("Authentication        : existing normal LibreWolf profile/session")
     print("Active conversation   : current ChatGPT tab/thread in LibreWolf")
     print("Forwarding            : message text + rendered assistant text only")
-    print("Cookies/credentials   : never exposed by this worker API")
+    print("Cookies/credentials   : never exposed by this broker API")
     print()
     print("LibreWolf must already be running normally.")
     print("Load tools\\librewolf_chat_relay_extension as a temporary add-on.")
     print("When the extension heartbeat sees the ChatGPT composer, relay is ready.")
-    print("Press Ctrl+C here to stop the localhost worker.")
+    print("Press Ctrl+C here to stop the localhost broker.")
 
     try:
         server.serve_forever()

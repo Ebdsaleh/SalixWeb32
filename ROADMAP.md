@@ -469,14 +469,25 @@ The first provider-neutral conversation-service contract is now implemented:
   cookies, browser session state, or attachments,
 - [x] validate the complete modern-side LibreWolf relay round-trip with a real ChatGPT
   message and returned semantic events,
-- [ ] validate the LibreWolf browser relay end-to-end on the real P4,
+- [x] validate the LibreWolf browser relay end-to-end on the real P4,
 - [ ] add conversation-thread selection/new-thread control,
+- [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
 - [ ] add attachment relay after the text baseline is green,
 - [ ] progressively replace companion capabilities with NT5-native equivalents where
   practical.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
+
+**September 19, 2026 milestone:** the complete text-only path is target-green on the real
+Pentium 4 / Server 2003 machine: native SalixWeb32 request -> trusted-LAN bridge ->
+localhost broker -> normal-LibreWolf WebExtension -> authenticated ChatGPT thread ->
+assistant response -> semantic events -> native Salix Conversation view.
+
+The current release candidate is **v0.0.4**, following the existing v0.0.3 native
+conversation/rich-composer milestone. v0.0.4 is intended to freeze this first-contact
+architecture before latency, true streaming, thread selection, attachments, and Unicode
+presentation work continue.
 
 ## Persistent file-location foundation
 
@@ -506,14 +517,15 @@ See `docs/FILE_LOCATIONS.md`.
 ## Current near-term priority
 
 1. keep the real P4 build clean under VC7.1,
-2. validate the text-only LibreWolf browser relay end-to-end from SalixWeb32,
+2. freeze/tag the validated text-only P4 <-> ChatGPT relay baseline,
 3. harden response extraction and failure diagnostics against ordinary page changes,
-4. add explicit conversation-thread selection after one-current-thread relay is green,
-5. move from completed-response framing to true incremental response transport,
-6. add attachment transfer only after the text path is stable,
-7. continue using the companion as a reference/scaffold while replacing its capabilities
+4. optimize relay latency without weakening the current boundaries,
+5. add explicit conversation-thread selection after one-current-thread relay is green,
+6. move from completed-response framing to true incremental response transport,
+7. add attachment transfer only after the text path is stable,
+8. continue using the companion as a reference/scaffold while replacing its capabilities
    with NT5-native implementations where practical,
-8. keep Browser Probe and the content-free Conversation probe as regression tools.
+9. keep Browser Probe and the content-free Conversation probe as regression tools.
 
 # Guiding priority
 
