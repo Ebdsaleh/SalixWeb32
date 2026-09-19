@@ -199,7 +199,11 @@ objects, Python implementation objects, or provider-specific response structures
 
 Backends may internally use an API, a browser/session runtime, a translator, a native
 network stack, or another mechanism, but those details stop at the backend boundary.
-Presentation updates are consumed on the application thread.
+Presentation updates are consumed on the application thread. A backend may expose
+multiple semantic events that are already available in the same update; the application
+may drain that available batch and coalesce presentation while preserving event order and
+canonical text. This was target-validated on the real Pentium 4 to avoid artificial
+one-event-per-update pacing of an already-complete response.
 
 See `docs/CONVERSATION_SERVICE_CONTRACT.md`.
 
