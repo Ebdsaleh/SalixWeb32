@@ -17,6 +17,184 @@
 namespace {
     const char* bridge_protocol = "SALIX-BRIDGE/1";
     const char* conversation_protocol = "SALIX-CONVERSATION/1";
+    const unsigned long maximum_attachment_count = 8;
+    const unsigned long maximum_attachment_bytes = 2UL * 1024UL * 1024UL;
+    const unsigned long maximum_total_attachment_bytes = 4UL * 1024UL * 1024UL;
+
+    struct OutgoingAttachment {
+        std::string name;
+        std::string mime_type;
+        std::string data;
+    };
+
+    std::string get_file_name(const char* path) {
+        if (path == 0 || path[0] == '\0') {
+            return "";
+        }
+
+        std::string value(path);
+        std::string::size_type separator =
+            value.find_last_of("\\/");
+
+        return separator == std::string::npos
+            ? value
+            : value.substr(separator + 1);
+    }
+
+    std::string lower_copy(const std::string& value) {
+        std::string result(value);
+
+        for (std::string::size_type index = 0;
+             index < result.size();
+             ++index) {
+            char character = result[index];
+            if (character >= 'A' && character <= 'Z') {
+                result[index] = (char)(
+                    character - 'A' + 'a'
+                );
+            }
+        }
+
+        return result;
+    }
+
+    std::string get_attachment_mime_type(
+        const std::string& file_name
+    ) {
+        std::string lower_name = lower_copy(file_name);
+        std::string::size_type dot =
+            lower_name.find_last_of('.');
+
+        if (dot == std::string::npos) {
+            return "application/octet-stream";
+        }
+
+        std::string extension = lower_name.substr(dot);
+
+        if (extension == ".txt" || extension == ".log") {
+            return "text/plain";
+        }
+        if (extension == ".md") {
+            return "text/markdown";
+        }
+        if (extension == ".csv") {
+            return "text/csv";
+        }
+        if (extension == ".json") {
+            return "application/json";
+        }
+        if (extension == ".xml") {
+            return "application/xml";
+        }
+        if (extension == ".html" || extension == ".htm") {
+            return "text/html";
+        }
+        if (extension == ".css") {
+            return "text/css";
+        }
+        if (
+            extension == ".c" ||
+            extension == ".cc" ||
+            extension == ".cpp" ||
+            extension == ".cxx" ||
+            extension == ".h" ||
+            extension == ".hh" ||
+            extension == ".hpp" ||
+            extension == ".py" ||
+            extension == ".js" ||
+            extension == ".lua" ||
+            extension == ".rs" ||
+            extension == ".ini" ||
+            extension == ".cfg" ||
+            extension == ".conf" ||
+            extension == ".toml" ||
+            extension == ".yaml" ||
+            extension == ".yml"
+        ) {
+            return "text/plain";
+        }
+        if (extension == ".png") {
+            return "image/png";
+        }
+        if (extension == ".jpg" || extension == ".jpeg") {
+            return "image/jpeg";
+        }
+        if (extension == ".gif") {
+            return "image/gif";
+        }
+        if (extension == ".bmp") {
+            return "image/bmp";
+        }
+        if (extension == ".tif" || extension == ".tiff") {
+            return "image/tiff";
+        }
+        if (extension == ".pdf") {
+            return "application/pdf";
+        }
+        if (extension == ".zip") {
+            return "application/zip";
+        }
+
+        return "application/octet-stream";
+    }
+
+    bool read_attachment_file(
+        const char* path,
+        std::string& data
+    ) {
+        data.clear();
+
+        if (path == 0 || path[0] == '\0') {
+            return false;
+        }
+
+        FILE* file = fopen(path, "rb");
+        if (file == 0) {
+            return false;
+        }
+
+        if (fseek(file, 0, SEEK_END) != 0) {
+            fclose(file);
+            return false;
+        }
+
+        long length = ftell(file);
+        if (
+            length < 0 ||
+            (unsigned long)length > maximum_attachment_bytes
+        ) {
+            fclose(file);
+            return false;
+        }
+
+        if (fseek(file, 0, SEEK_SET) != 0) {
+            fclose(file);
+            return false;
+        }
+
+        if (length > 0) {
+            std::vector<char> buffer(
+                (std::vector<char>::size_type)length
+            );
+
+            size_t read_count = fread(
+                &buffer[0],
+                1,
+                (size_t)length,
+                file
+            );
+
+            if (read_count != (size_t)length) {
+                fclose(file);
+                return false;
+            }
+
+            data.assign(&buffer[0], (std::string::size_type)length);
+        }
+
+        fclose(file);
+        return true;
+    }
 
     std::string get_protocol_value(
         const std::string& metadata,
@@ -188,6 +366,9 @@ namespace {
         if (name == "text_delta") {
             return ConversationEvent::event_text_delta;
         }
+        if (name == "attachment") {
+            return ConversationEvent::event_attachment;
+        }
         if (name == "message_completed") {
             return ConversationEvent::event_message_completed;
         }
@@ -234,9 +415,17 @@ namespace {
                 return false;
             }
         } else if (mode == "browser_relay") {
+            std::string text_forwarded =
+                get_protocol_value(metadata, "text_forwarded");
+            std::string attachments_forwarded =
+                get_protocol_value(metadata, "attachments_forwarded");
+
             if (
-                get_protocol_value(metadata, "text_forwarded") != "1" ||
-                get_protocol_value(metadata, "attachments_forwarded") != "0" ||
+                (text_forwarded != "0" && text_forwarded != "1") ||
+                (attachments_forwarded != "0" &&
+                 attachments_forwarded != "1") ||
+                (text_forwarded == "0" &&
+                 attachments_forwarded == "0") ||
                 get_protocol_value(metadata, "credentials_forwarded") != "0" ||
                 get_protocol_value(metadata, "session_forwarded") != "0" ||
                 get_protocol_value(metadata, "transport_security") != "trusted_lan"
@@ -264,7 +453,7 @@ namespace {
         unsigned long event_count =
             get_protocol_unsigned(metadata, "event_count");
 
-        if (event_count == 0 || event_count > 32) {
+        if (event_count == 0 || event_count > 64) {
             return false;
         }
 
@@ -373,7 +562,7 @@ void RemoteConversationBackend::get_security_profile(
     profile.transport_security =
         conversation_transport_trusted_lan;
     profile.text = true;
-    profile.attachments = false;
+    profile.attachments = true;
     profile.credentials = false;
     profile.session_state = false;
 }
@@ -592,12 +781,6 @@ bool RemoteConversationBackend::submit_request(
         return false;
     }
 
-    if (request.get_attachment_count() > 0) {
-        status_text =
-            "browser relay baseline does not forward attachments";
-        return false;
-    }
-
     if (capability_state != capability_ready) {
         if (
             capability_state == capability_incompatible ||
@@ -611,37 +794,129 @@ bool RemoteConversationBackend::submit_request(
     }
 
     std::string text(request.get_text());
+    int attachment_count = request.get_attachment_count();
 
-    if (text.empty()) {
+    if (
+        attachment_count < 0 ||
+        (unsigned long)attachment_count > maximum_attachment_count
+    ) {
+        status_text = "browser relay supports at most 8 attachments";
         return false;
     }
 
-    char metadata[512];
-    sprintf(
-        metadata,
-        "%s\n"
-        "mode=browser_relay\n"
-        "request_id=%lu\n"
-        "text_forwarded=1\n"
-        "attachments_forwarded=0\n"
+    if (text.empty() && attachment_count == 0) {
+        return false;
+    }
+
+    std::vector<OutgoingAttachment> attachments;
+    unsigned long total_attachment_bytes = 0;
+
+    for (int index = 0; index < attachment_count; ++index) {
+        const char* path = request.get_attachment_path(index);
+
+        OutgoingAttachment attachment;
+        attachment.name = get_file_name(path);
+
+        if (attachment.name.empty()) {
+            status_text = "attachment filename is invalid";
+            return false;
+        }
+
+        attachment.mime_type =
+            get_attachment_mime_type(attachment.name);
+
+        if (!read_attachment_file(path, attachment.data)) {
+            status_text =
+                "attachment could not be read or exceeds 2 MB";
+            return false;
+        }
+
+        total_attachment_bytes +=
+            (unsigned long)attachment.data.size();
+
+        if (
+            total_attachment_bytes >
+            maximum_total_attachment_bytes
+        ) {
+            status_text =
+                "attachments exceed 4 MB total relay limit";
+            return false;
+        }
+
+        attachments.push_back(attachment);
+    }
+
+    std::string metadata;
+    char line[256];
+
+    metadata += conversation_protocol;
+    metadata += "\nmode=browser_relay\n";
+
+    sprintf(line, "request_id=%lu\n", request_id);
+    metadata += line;
+
+    metadata += text.empty()
+        ? "text_forwarded=0\n"
+        : "text_forwarded=1\n";
+    metadata += attachments.empty()
+        ? "attachments_forwarded=0\n"
+        : "attachments_forwarded=1\n";
+    metadata +=
         "credentials_forwarded=0\n"
-        "session_forwarded=0\n"
-        "text_len=%lu\n"
-        "\n",
-        conversation_protocol,
-        request_id,
-        (unsigned long)text.size()
+        "session_forwarded=0\n";
+
+    sprintf(
+        line,
+        "text_len=%lu\nattachment_count=%lu\n",
+        (unsigned long)text.size(),
+        (unsigned long)attachments.size()
     );
+    metadata += line;
+
+    for (
+        unsigned long index = 0;
+        index < (unsigned long)attachments.size();
+        ++index
+    ) {
+        const OutgoingAttachment& attachment =
+            attachments[index];
+
+        sprintf(
+            line,
+            "attachment_%lu_name_len=%lu\n"
+            "attachment_%lu_mime_len=%lu\n"
+            "attachment_%lu_data_len=%lu\n",
+            index,
+            (unsigned long)attachment.name.size(),
+            index,
+            (unsigned long)attachment.mime_type.size(),
+            index,
+            (unsigned long)attachment.data.size()
+        );
+        metadata += line;
+    }
+
+    metadata += "\n";
 
     std::string body(metadata);
     body += text;
+
+    for (
+        unsigned long index = 0;
+        index < (unsigned long)attachments.size();
+        ++index
+    ) {
+        body += attachments[index].name;
+        body += attachments[index].mime_type;
+        body += attachments[index].data;
+    }
 
     NetworkRequest network_request(
         "POST",
         "/v1/conversation/message"
     );
     network_request.set_content_type(
-        "application/x-salix-conversation; charset=utf-8"
+        "application/x-salix-conversation"
     );
     network_request.set_body(body);
 
@@ -684,7 +959,7 @@ bool RemoteConversationBackend::take_event(
         capability_state == capability_ready
     ) {
         status_text =
-            "SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text only";
+            "SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text + files";
     }
 
     return true;
@@ -783,7 +1058,7 @@ void RemoteConversationBackend::apply_health_response(
         get_protocol_value(
             body,
             "conversation_attachment_forwarding"
-        ) != "disabled" ||
+        ) != "enabled" ||
         get_protocol_value(
             body,
             "conversation_credential_forwarding"

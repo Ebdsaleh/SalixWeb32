@@ -14,7 +14,7 @@
 #include "web/network/NetworkResponse.h"
 
 namespace {
-    const int maximum_response_bytes = 1024 * 1024;
+    const int maximum_response_bytes = 8 * 1024 * 1024;
 
     bool resolve_ipv4_address(
         const char* host,
@@ -375,7 +375,7 @@ bool Win32HttpTransport::send(
     closesocket(socket_handle);
 
     if ((int)raw_response.size() >= maximum_response_bytes) {
-        set_error("Bridge response exceeded the first-pass size limit.");
+        set_error("Bridge response exceeded the bounded transfer size limit.");
         return false;
     }
 
