@@ -232,6 +232,25 @@ opens the directory that actually received the generated artifact.
 Diagnostic reports may include the current **Attachment recent folder** for observability.
 That does not make the value a user-facing application-storage setting.
 
+## Active target-validation tranche
+
+The current acceptance target for this policy is the real Pentium 4 running
+Windows Server 2003 R2 with the Visual C++ 7.1 build.
+
+The tranche must validate both:
+
+```text
+Standard mode
+Portable (--portable) mode
+```
+
+and prove that attachment-picker navigation cannot redirect application-owned settings or
+diagnostic output through process current-directory changes.
+
+MiniXP compatibility testing is deferred. It is not an acceptance requirement for the
+current file-location tranche and will be revisited after the Server 2003 feature set is
+complete and the MiniXP environment is usable again.
+
 ## Future categories
 
 Future persistent categories should be added beneath or explicitly derived from
