@@ -299,7 +299,7 @@ returned attachment -> Remote:
 Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
 and text files retain an Open path through the platform `DesktopServices` provider.
 
-The active reverse-file candidate uses LibreWolf relay extension `0.2.3`. Because it is
+The active reverse-file candidate uses LibreWolf relay extension `0.2.4`. Because it is
 still loaded as a temporary development extension, it must be reloaded after pulling this
 candidate before file-relay validation.
 
@@ -325,6 +325,18 @@ Version `0.2.3` therefore scans the full assistant turn container, accepts file-
 anchors/buttons/data-link controls, briefly waits for a file control when the response
 text mentions a filename, and returns explicit capture telemetry to the localhost broker.
 This retest remains pending.
+
+The `0.2.3` target retest proved discovery progressed further: ChatGPT's returned file
+card was opened automatically and the browser subsequently raised its native **Save As**
+dialog. That is not acceptable relay behavior; the user must not manually choose a
+download path.
+
+Version `0.2.4` separates preview controls from real Download controls. It prefers
+explicit download actions, can open the file preview only when needed to reveal the
+Download control, and hands any browser-created interactive download to a managed
+WebExtension download with `saveAs:false`. The original interactive download is
+cancelled/erased and the managed file is written only to the temporary relay download
+area before broker packaging/cleanup.
 
 ## Win32 image services
 
