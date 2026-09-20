@@ -13,6 +13,8 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import mimetypes
+from pathlib import Path
 import sys
 import threading
 import time
@@ -112,6 +114,97 @@ def _normalize_attachments(value: Any) -> list[dict[str, str]]:
         total_bytes += len(raw)
         if total_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
             raise ValueError("attachments exceed 4 MB total limit")
+
+        attachments.append(
+            {
+                "name": _safe_attachment_name(name),
+                "mime_type": mime_type[:128],
+                "data_base64": encoded,
+            }
+        )
+
+    return attachments
+
+
+def _normalize_extension_response_attachments(
+    value: Any,
+) -> list[dict[str, str]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("attachments must be an array")
+    if len(value) > MAX_ATTACHMENTS:
+        raise ValueError("too many attachments")
+
+    attachments: list[dict[str, str]] = []
+    total_bytes = 0
+
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("attachment entry is invalid")
+
+        name = item.get("name")
+        mime_type = item.get("mime_type", "application/octet-stream")
+        encoded = item.get("data_base64")
+        local_path = item.get("local_path")
+
+        if not isinstance(name, str) or not name:
+            raise ValueError("attachment name is invalid")
+        if not isinstance(mime_type, str) or not mime_type:
+            mime_type = "application/octet-stream"
+
+        if isinstance(encoded, str):
+            try:
+                raw = base64.b64decode(
+                    encoded.encode("ascii"),
+                    validate=True,
+                )
+            except Exception as error:
+                raise ValueError(
+                    "attachment base64 is invalid"
+                ) from error
+        elif isinstance(local_path, str) and local_path:
+            path = Path(local_path)
+
+            try:
+                size = path.stat().st_size
+            except OSError as error:
+                raise ValueError(
+                    "captured attachment file is unavailable"
+                ) from error
+
+            if size < 0 or size > MAX_ATTACHMENT_BYTES:
+                raise ValueError(
+                    "captured attachment exceeds 2 MB limit"
+                )
+
+            try:
+                raw = path.read_bytes()
+            except OSError as error:
+                raise ValueError(
+                    "captured attachment could not be read"
+                ) from error
+
+            encoded = base64.b64encode(raw).decode("ascii")
+
+            if (
+                mime_type == "application/octet-stream" and
+                path.name
+            ):
+                guessed = mimetypes.guess_type(path.name)[0]
+                if guessed:
+                    mime_type = guessed
+        else:
+            raise ValueError("attachment data is missing")
+
+        if len(raw) > MAX_ATTACHMENT_BYTES:
+            raise ValueError("attachment exceeds 2 MB limit")
+
+        total_bytes += len(raw)
+        if total_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
+            raise ValueError(
+                "attachments exceed 4 MB total limit"
+            )
 
         attachments.append(
             {
@@ -588,8 +681,10 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 response_text = value
 
                 try:
-                    response_attachments = _normalize_attachments(
-                        request.get("attachments")
+                    response_attachments = (
+                        _normalize_extension_response_attachments(
+                            request.get("attachments")
+                        )
                     )
                 except ValueError as error:
                     self._send_json(
