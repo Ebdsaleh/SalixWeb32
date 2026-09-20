@@ -67,26 +67,53 @@ response text with the localhost broker.
 
 ## First baseline scope
 
-Enabled:
+Enabled in the current dev candidate:
 
 - current open ChatGPT thread,
 - Salix user text -> normal LibreWolf ChatGPT composer,
+- bounded Salix file attachments -> normal LibreWolf ChatGPT composer,
 - rendered assistant text -> Salix semantic events,
-- repeated text requests in the same browser session.
+- bounded assistant-returned files -> Salix semantic attachment events,
+- repeated requests in the same browser session.
 
 Not enabled yet:
 
 - thread picker/new-thread control from Salix,
-- attachments,
-- file downloads,
+- unrestricted/large file transfer,
 - credentials/session transfer,
 - generation-time byte streaming.
 
 The current browser relay waits for the rendered assistant response to stabilize. The
-bridge then divides the completed response into bounded `text_delta` events. Salix keeps
-those semantic deltas intact but drains every event already available from that completed
-response in one native pass and coalesces presentation to one Conversation update. Future
-true streaming can still present once per newly arrived batch.
+bridge then divides completed text into bounded `text_delta` events and appends semantic
+`attachment` events for any returned files captured from the assistant turn. Salix keeps
+those semantics intact, drains every event already available from the completed response,
+and coalesces text presentation while storing returned files under the application data
+root. Future true streaming can still present once per newly arrived batch.
+
+## File-relay candidate
+
+The attachment candidate uses WebExtension version `0.2.0`.
+
+Outgoing Salix files are transferred as bounded attachment descriptors through the
+trusted development LAN, localhost broker, and extension. The content script reconstructs
+browser `File` objects and supplies them to the visible ChatGPT composer using the
+page's file input or a drag/drop-compatible fallback.
+
+Returned assistant files are discovered from the completed assistant turn, downloaded
+inside the authenticated browser context, bounded, and returned as semantic attachment
+payloads. Browser credentials/cookies are used only by the browser itself to perform
+normal authenticated fetches; they are not copied into the Salix protocol.
+
+First-pass limits:
+
+```text
+8 files maximum
+2 MB maximum per file
+4 MB maximum total file bytes
+```
+
+The temporary extension must be reloaded after pulling this candidate because its
+manifest/background version is now `0.2.0`.
 
 ## Modern-machine setup
 
@@ -343,10 +370,12 @@ assistant response returned through `SALIX-CONVERSATION/1` semantic events and r
 inside the native Conversation view. The VC7.1 target build was clean with zero errors
 and zero warnings.
 
-The current path is intentionally text-only and completed-response-oriented. Browser-side
-generation/stabilization latency remains a follow-up optimization target, while native
-completed-response batching is now validated on the real P4. True generation-time
-streaming remains a separate later tranche.
+The validated baseline remains completed-response-oriented. The current dev candidate
+extends that path with bounded file attachments in both directions; this file path still
+requires target validation. Browser-side generation/stabilization latency remains a
+follow-up optimization target, while native completed-response batching is already
+validated on the real P4. True generation-time streaming remains a separate later
+tranche.
 
 The UTF-8 framework / UTF-16 Win32 boundary and glyph-aware fallback are also validated
 on the real P4, including Unicode clipboard and relay round-trip coverage.
