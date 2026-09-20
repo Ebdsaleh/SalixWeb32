@@ -151,7 +151,15 @@ Implemented or active post-baseline work:
 
 The classic emoticon registry stores text aliases such as `:)`, `:D`, `;)`, `:P`, `:'(`, and `<3` as canonical message content while the Win32 presentation layer can draw original classic-messenger-inspired graphical faces. Code semantics suppress that substitution so the same aliases remain literal source text inside inline or fenced code.
 
-The native tabbed workspace baseline has been exercised successfully on the real Pentium 4 under both Windows Server 2003 SP2 and MiniXP. The later native-menu/attachment work has also rebuilt and run green on the Pentium 4 under Windows Server 2003 SP2, including multi-file selection, removable attachment chips, inline image presentation, internal Preview, default-application Open, and Preview mouse-wheel zoom. The current `<` / `>` overflow controls are functionally accepted for now but their visual interaction is explicitly deferred to a later UI-polish pass. The latest attachment tranche must not be treated as MiniXP-validated until that repeat smoke pass is explicitly performed.
+The native tabbed workspace baseline was historically exercised on the real Pentium 4
+under both Windows Server 2003 SP2 and MiniXP. Active acceptance is now Server 2003 R2
+only; MiniXP compatibility work is deferred until the Server 2003 feature set is complete
+and the MiniXP environment is usable again. The later native-menu/attachment work has
+rebuilt and run green on Server 2003, including multi-file selection, removable
+attachment chips, inline image presentation, internal Preview, default-application Open,
+Preview mouse-wheel zoom, and native P4 outgoing file relay. The current `<` / `>`
+overflow controls are functionally accepted for now but their visual interaction is
+explicitly deferred to a later UI-polish pass.
 
 Known VC7.1-era SDK gotchas are recorded in `docs/BUILD_ENVIRONMENT.md`, including the recurring local `WM_MOUSEWHEEL` compatibility definition, common-controls include-order requirements, and Winsock2-before-`windows.h` rule.
 
@@ -368,8 +376,10 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 
 - [x] conversation display with semantic local/remote message updates
 - [x] text input -> provider-neutral `ConversationRequest` handoff
-- [~] attachments (semantic local model + image presentation active; transfer backend pending)
-- [ ] file transfer
+- [~] attachments (semantic local model, image presentation, and native P4 outgoing
+  transfer validated; returned-file capture candidate active)
+- [~] bounded file transfer through Conversation backend (outgoing green; reverse
+  sandbox-link capture pending target retest)
 - [x] copy/paste large diagnostic text through the native clipboard path
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
