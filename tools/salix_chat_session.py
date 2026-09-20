@@ -77,6 +77,8 @@ ATTACHMENT_DEBUG_INTEGER_KEYS = (
     "download_capture_successes",
     "direct_fetch_attempts",
     "direct_fetch_successes",
+    "preview_open_attempts",
+    "preview_download_controls",
     "attachments_collected",
 )
 
