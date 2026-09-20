@@ -100,6 +100,7 @@ A normal launch stores Salix-owned writable state here:
 %APPDATA%\SalixWeb32\
     settings.ini
     Diagnostics\
+    Received\
 ```
 
 `SalixWeb32.exe` itself may live anywhere. Moving or launching the executable from a
@@ -114,11 +115,29 @@ Launching with `--portable` makes the executable directory the data root:
     SalixWeb32.exe
     settings.ini
     Diagnostics\
+    Received\
 ```
 
 The attachment picker still uses its own remembered navigation history. With no saved
 history, its first-use location remains `%USERPROFILE%`; Portable mode changes
 application-owned state placement, not the user's normal file-browsing starting point.
+
+## Received Conversation files
+
+Files returned through the bounded Conversation attachment relay are application-owned
+persistent content and are stored beneath the active data root:
+
+```text
+Standard:
+    %APPDATA%\SalixWeb32\Received
+
+Portable:
+    <executable_root>\Received
+```
+
+Received filenames are sanitized and same-name collisions are resolved with a unique
+destination filename. The attachment picker recent directory does not influence this
+location, and process current-directory state is never used to select it.
 
 ## Launch directory and development configuration
 
