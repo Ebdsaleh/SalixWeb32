@@ -165,6 +165,14 @@ the companion/WebExtension path, and the real assistant response returned throug
 `SALIX-CONVERSATION/1` semantic events into the native Conversation view. The target
 VC7.1 build remained clean at zero errors and zero warnings.
 
+The next dev candidate extends that validated baseline with bounded file attachments in
+both directions. Salix can package text/image/generic files behind the
+`ConversationServiceBackend` boundary, while assistant-returned files come back as
+semantic attachment events and are stored under the active Salix data root. The first
+target-validation bounds are 8 files, 2 MB per file, and 4 MB total; credentials and
+browser session state remain disabled. LibreWolf extension version `0.2.0` implements
+the browser-side upload/return path.
+
 The relay still waits for the rendered assistant response to stabilize before the broker
 returns the completed response to Salix, so browser-side generation/stabilization remains
 a latency target. Native post-response drip-feeding is no longer part of that delay:
