@@ -592,6 +592,41 @@ function findVisibleExplicitDownloadControl() {
   return null;
 }
 
+function closeAttachmentPreview(downloadControl, debug) {
+  const scopes = [];
+  const selectors = [
+    "[role='dialog']",
+    "[data-testid*='preview']",
+    "[data-testid*='modal']",
+    "aside"
+  ];
+
+  for (const selector of selectors) {
+    const scope = downloadControl.closest(selector);
+    if (scope && !scopes.includes(scope)) {
+      scopes.push(scope);
+    }
+  }
+
+  for (const scope of scopes) {
+    const buttons = Array.from(
+      scope.querySelectorAll(
+        "button[aria-label='Close'], button[title='Close']"
+      )
+    );
+
+    for (const button of buttons) {
+      if (visible(button)) {
+        button.click();
+        debug.preview_close_successes += 1;
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 async function openAttachmentPreview(element, debug) {
   debug.preview_open_attempts += 1;
   element.click();
@@ -935,6 +970,8 @@ async function downloadAssistantAttachment(element, debug) {
         debug
       );
 
+      closeAttachmentPreview(previewDownload, debug);
+
       if (captured) {
         return captured;
       }
@@ -958,6 +995,7 @@ async function collectAssistantAttachments(responseText) {
     direct_fetch_successes: 0,
     preview_open_attempts: 0,
     preview_download_controls: 0,
+    preview_close_successes: 0,
     attachments_collected: 0,
     errors: []
   };
