@@ -170,7 +170,7 @@ both directions. Salix can package text/image/generic files behind the
 `ConversationServiceBackend` boundary, while assistant-returned files come back as
 semantic attachment events and are stored under the active Salix data root. The first
 target-validation bounds are 8 files, 2 MB per file, and 4 MB total; credentials and
-browser session state remain disabled. LibreWolf extension version `0.2.2` implements
+browser session state remain disabled. LibreWolf extension version `0.2.3` implements
 the browser-side upload/return path.
 
 The relay still waits for the rendered assistant response to stabilize before the broker
