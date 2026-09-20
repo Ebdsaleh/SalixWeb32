@@ -165,15 +165,15 @@ the companion/WebExtension path, and the real assistant response returned throug
 `SALIX-CONVERSATION/1` semantic events into the native Conversation view. The target
 VC7.1 build remained clean at zero errors and zero warnings.
 
-The next dev candidate extends that validated baseline with bounded file attachments in
-both directions. Salix can package text/image/generic files behind the
+The bounded file-attachment baseline is now validated in both directions on the real
+Pentium 4 / Windows Server 2003 target. Salix can package text/image/generic files behind the
 `ConversationServiceBackend` boundary, while assistant-returned files come back as
 semantic attachment events and are stored under the active Salix data root. The first
 target-validation bounds are 8 files, 2 MB per file, and 4 MB total; credentials and
-browser session state remain disabled. The current LibreWolf extension candidate is
-`0.2.7`: outgoing file relay and reverse file-byte transport are validated, while the
-active retest is limited to preserving the semantic returned filename/extension and
-suppressing duplicate browser controls for one assistant file.
+browser session state remain disabled. LibreWolf extension `0.2.7` is the validated companion baseline for this tranche:
+outgoing file relay, returned-file request interception, duplicate suppression, semantic
+filename/extension preservation, native `Received` storage, and default-application Open
+for returned text files are all green.
 
 The relay still waits for the rendered assistant response to stabilize before the broker
 returns the completed response to Salix, so browser-side generation/stabilization remains
