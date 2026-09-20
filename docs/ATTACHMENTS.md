@@ -299,7 +299,7 @@ returned attachment -> Remote:
 Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
 and text files retain an Open path through the platform `DesktopServices` provider.
 
-The active reverse-file candidate uses LibreWolf relay extension `0.2.5`. Because it is
+The active reverse-file candidate uses LibreWolf relay extension `0.2.6`. Because it is
 still loaded as a temporary development extension, it must be reloaded after pulling this
 candidate before file-relay validation.
 
@@ -349,6 +349,21 @@ No filename is supplied to `downloads.download()`; the browser response determin
 temporary local filename. If no usable HTTP(S) URL is exposed, the relay reports telemetry
 instead of opening another Save dialog. The extension also attempts to close the preview
 after capture so the visible browser returns to the conversation.
+
+The `0.2.5` target retest confirmed the Save As regression was removed, but the returned
+file still did not reach Salix. Capture telemetry showed two file candidates, one preview
+open, one explicit Download control, and **zero** DOM-exposed HTTP(S) download URLs. The
+P4 correctly remained at `files 0`; the absence of the `Received` directory is expected
+because Salix creates that directory lazily only when a real semantic attachment event is
+stored.
+
+Version `0.2.6` adds a bounded Firefox `webRequest` interception fallback for this
+JavaScript-only Download control. The extension arms interception only for an active
+returned-file capture, clicks the explicit Download control, cancels the actual
+ChatGPT/oaiusercontent file-content request before the browser can present Save As, then
+replays that captured signed URL through `downloads.download(..., saveAs:false)`. The
+listener is limited to ChatGPT and oaiusercontent HTTPS hosts and remains inactive outside
+the bounded capture window.
 
 ## Win32 image services
 
