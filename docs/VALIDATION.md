@@ -1079,6 +1079,10 @@ Native semantics:
 5. Require bridge health to report:
    `conversation_attachment_forwarding=enabled`.
 6. Confirm credentials/session forwarding remain disabled.
+7. Create a small text file and run:
+   `python tools\test_chat_relay.py --message "Attachment smoke test" --file <path>`.
+8. Confirm the visible ChatGPT thread receives that file and the helper completes with
+   HTTP 200.
 
 ### Real P4 validation
 
