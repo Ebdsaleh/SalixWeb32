@@ -664,6 +664,69 @@ function attachmentCandidateElements(root) {
   return elements;
 }
 
+function downloadControlUrls(element) {
+  const values = [];
+
+  function collect(candidate) {
+    if (!candidate) {
+      return;
+    }
+
+    const direct = [
+      candidate.getAttribute("href"),
+      candidate.href,
+      candidate.getAttribute("data-href"),
+      candidate.getAttribute("data-url"),
+      candidate.getAttribute("data-download-url")
+    ];
+
+    for (const value of direct) {
+      if (
+        typeof value === "string" &&
+        value &&
+        !values.includes(value)
+      ) {
+        values.push(value);
+      }
+    }
+  }
+
+  collect(element);
+
+  const anchor = element.closest("a[href]");
+  if (anchor && anchor !== element) {
+    collect(anchor);
+  }
+
+  const nestedAnchor = element.querySelector("a[href]");
+  if (nestedAnchor) {
+    collect(nestedAnchor);
+  }
+
+  const urls = [];
+
+  for (const value of values) {
+    if (!value || value.startsWith("sandbox:")) {
+      continue;
+    }
+
+    try {
+      const url = new URL(value, location.href);
+
+      if (
+        (url.protocol === "https:" || url.protocol === "http:") &&
+        !urls.includes(url.href)
+      ) {
+        urls.push(url.href);
+      }
+    } catch (_exception) {
+      // Keep only absolute/relative HTTP(S) URLs for managed downloads.
+    }
+  }
+
+  return urls;
+}
+
 function attachmentCandidateUrls(element) {
   const values = [
     element.getAttribute("href"),
@@ -696,20 +759,37 @@ function attachmentCandidateUrls(element) {
   return urls;
 }
 
-async function captureBrowserDownload(element, debug) {
-  debug.download_capture_attempts += 1;
+async function captureManagedDownload(
+  element,
+  debug
+) {
+  const urls = downloadControlUrls(element);
 
-  const prepared = await browser.runtime.sendMessage({
-    type: "salix_prepare_download_capture"
-  });
+  debug.download_url_candidates += urls.length;
 
-  if (!prepared || prepared.ok !== true) {
-    debug.errors.push("download capture could not be armed");
+  if (!urls.length) {
+    debug.errors.push(
+      "Download control exposed no HTTP(S) URL; control was not clicked."
+    );
     return null;
   }
 
-  try {
-    element.click();
+  for (const url of urls) {
+    debug.download_capture_attempts += 1;
+
+    const started = await browser.runtime.sendMessage({
+      type: "salix_start_managed_download",
+      url: url
+    });
+
+    if (!started || started.ok !== true) {
+      debug.errors.push(
+        started && started.error
+          ? String(started.error)
+          : "managed download could not be started"
+      );
+      continue;
+    }
 
     const captured = await browser.runtime.sendMessage({
       type: "salix_wait_download_capture",
@@ -725,15 +805,13 @@ async function captureBrowserDownload(element, debug) {
       debug.errors.push(
         captured && captured.error
           ? String(captured.error)
-          : "download capture returned no file"
+          : "managed download returned no file"
       );
-      return null;
+      continue;
     }
 
     debug.download_capture_successes += 1;
-    if (captured.managed_download === true) {
-      debug.managed_download_successes += 1;
-    }
+    debug.managed_download_successes += 1;
 
     const href = elementAttachmentHref(element);
     const label = (element.textContent || "").trim();
@@ -763,11 +841,9 @@ async function captureBrowserDownload(element, debug) {
       local_path: captured.filename,
       download_id: captured.download_id
     };
-  } finally {
-    await browser.runtime.sendMessage({
-      type: "salix_cancel_download_capture"
-    });
   }
+
+  return null;
 }
 
 async function downloadAssistantAttachment(element, debug) {
@@ -841,7 +917,7 @@ async function downloadAssistantAttachment(element, debug) {
   }
 
   if (explicitDownload) {
-    const captured = await captureBrowserDownload(element, debug);
+    const captured = await captureManagedDownload(element, debug);
     if (captured) {
       return captured;
     }
@@ -854,7 +930,7 @@ async function downloadAssistantAttachment(element, debug) {
     );
 
     if (previewDownload) {
-      const captured = await captureBrowserDownload(
+      const captured = await captureManagedDownload(
         previewDownload,
         debug
       );
@@ -876,6 +952,7 @@ async function collectAssistantAttachments(responseText) {
     sandbox_candidates: 0,
     download_capture_attempts: 0,
     download_capture_successes: 0,
+    download_url_candidates: 0,
     managed_download_successes: 0,
     direct_fetch_attempts: 0,
     direct_fetch_successes: 0,
