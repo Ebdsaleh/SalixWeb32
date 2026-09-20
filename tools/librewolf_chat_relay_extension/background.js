@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.2.3";
+const EXTENSION_VERSION = "0.2.4";
 
 let commandBusy = false;
 let activeDownloadCapture = null;
@@ -11,13 +11,74 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-browser.downloads.onCreated.addListener((download) => {
-  if (
-    activeDownloadCapture &&
-    activeDownloadCapture.download_id === null
-  ) {
-    activeDownloadCapture.download_id = download.id;
+function safeDownloadLeaf(value) {
+  const text = String(value || "").replace(/\\/g, "/");
+  const leaf = text.split("/").pop() || "attachment.bin";
+
+  return leaf
+    .replace(/[<>:"|?*\\/\r\n]+/g, "_")
+    .replace(/^\.+$/, "attachment.bin")
+    .slice(0, 180) || "attachment.bin";
+}
+
+async function handoffInteractiveDownload(download, capture) {
+  const sourceUrl = download.finalUrl || download.url || "";
+
+  capture.original_download_id = download.id;
+  capture.original_url = sourceUrl;
+  capture.original_filename = download.filename || "";
+
+  if (!sourceUrl) {
+    capture.error = "Captured browser download has no source URL.";
+    return;
   }
+
+  try {
+    await browser.downloads.cancel(download.id);
+  } catch (_exception) {
+    // The interactive download may still be waiting on Save As.
+  }
+
+  try {
+    await browser.downloads.erase({ id: download.id });
+  } catch (_exception) {
+    // History cleanup is best-effort.
+  }
+
+  try {
+    const leaf = safeDownloadLeaf(
+      download.filename ||
+      decodeURIComponent(sourceUrl.split("/").pop() || "") ||
+      "attachment.bin"
+    );
+
+    capture.download_id = await browser.downloads.download({
+      url: sourceUrl,
+      filename: "SalixWeb32Relay/" + leaf,
+      conflictAction: "uniquify",
+      saveAs: false
+    });
+    capture.managed_download_started = true;
+  } catch (exception) {
+    capture.error =
+      "Could not start non-interactive relay download: " +
+      String(exception);
+  }
+}
+
+browser.downloads.onCreated.addListener((download) => {
+  const capture = activeDownloadCapture;
+
+  if (
+    !capture ||
+    capture.handoff_started ||
+    capture.download_id !== null
+  ) {
+    return;
+  }
+
+  capture.handoff_started = true;
+  void handoffInteractiveDownload(download, capture);
 });
 
 async function waitForDownloadCapture(timeoutMilliseconds) {
@@ -32,6 +93,14 @@ async function waitForDownloadCapture(timeoutMilliseconds) {
   const deadline = Date.now() + timeoutMilliseconds;
 
   while (Date.now() < deadline) {
+    if (capture.error) {
+      activeDownloadCapture = null;
+      return {
+        ok: false,
+        error: capture.error
+      };
+    }
+
     if (capture.download_id !== null) {
       const matches = await browser.downloads.search({
         id: capture.download_id
@@ -81,7 +150,13 @@ browser.runtime.onMessage.addListener((message) => {
   if (message.type === "salix_prepare_download_capture") {
     activeDownloadCapture = {
       started_at: Date.now(),
-      download_id: null
+      download_id: null,
+      original_download_id: null,
+      original_url: "",
+      original_filename: "",
+      handoff_started: false,
+      managed_download_started: false,
+      error: ""
     };
 
     return Promise.resolve({ ok: true });
