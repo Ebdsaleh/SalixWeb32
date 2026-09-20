@@ -1134,7 +1134,20 @@ visibly attached `attachment_test.txt`, submitted the message automatically with
 manual Send click, and the file arrived successfully in the ChatGPT conversation with
 the expected contents. The outgoing modern browser attachment path is therefore green.
 
-The remaining acceptance gates are native P4 attachment send and remote-to-P4 returned
-file storage/presentation.
+The native P4 outgoing attachment gate is now green. A text file sent from the real
+Pentium 4 through SalixWeb32 arrived successfully in the ChatGPT conversation with the
+expected file contents. This validates the native path:
+
+```text
+P4 MessageDraft / ConversationRequest
+    -> RemoteConversationBackend
+    -> SALIX-CONVERSATION/1
+    -> bridge / localhost broker
+    -> LibreWolf extension 0.2.1
+    -> ChatGPT attachment
+```
+
+The remaining acceptance gate is remote-to-P4 returned file storage/presentation under
+the application-owned `Received` directory.
 
 MiniXP is not part of this tranche's acceptance gate.
