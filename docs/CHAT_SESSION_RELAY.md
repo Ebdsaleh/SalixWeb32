@@ -92,7 +92,7 @@ root. Future true streaming can still present once per newly arrived batch.
 
 ## File-relay candidate
 
-The attachment candidate uses WebExtension version `0.2.1`.
+The active reverse-file candidate uses WebExtension version `0.2.2`.
 
 Outgoing Salix files are transferred as bounded attachment descriptors through the
 trusted development LAN, localhost broker, and extension. The content script reconstructs
@@ -113,9 +113,11 @@ First-pass limits:
 ```
 
 The temporary extension must be reloaded after pulling this candidate because its
-manifest/background version is now `0.2.1`. Version `0.2.1` also verifies the final
-ChatGPT composer submission after attachment upload instead of assuming a single
-programmatic click was accepted.
+manifest/background version is now `0.2.2`. Version `0.2.1` validated the final
+ChatGPT composer submission after attachment upload. Version `0.2.2` adds browser-owned
+capture of returned ChatGPT `sandbox:` file links through the WebExtension downloads
+API so the localhost broker can read the completed file without exposing browser
+authentication/session material.
 
 The modern smoke helper can now exercise an outgoing file without the P4:
 
