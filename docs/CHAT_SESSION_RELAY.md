@@ -115,6 +115,15 @@ First-pass limits:
 The temporary extension must be reloaded after pulling this candidate because its
 manifest/background version is now `0.2.0`.
 
+The modern smoke helper can now exercise an outgoing file without the P4:
+
+```bat
+python tools\test_chat_relay.py --message "Attachment smoke test" --file path\to\small.txt
+```
+
+The helper uses the same bounded `SALIX-CONVERSATION/1` framing as the native backend
+and prints any returned semantic attachment events.
+
 ## Modern-machine setup
 
 Start LibreWolf **normally** using the profile you already use for ChatGPT.
