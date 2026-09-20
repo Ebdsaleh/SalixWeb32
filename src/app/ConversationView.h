@@ -44,6 +44,10 @@ class ConversationView : public Panel {
         bool update_message(int index, const char* text);
         bool update_message(int index, const FormattedText& text);
         bool append_attachment(const Attachment& attachment);
+        bool append_attachment(
+            MessageRole role,
+            const Attachment& attachment
+        );
 
         void clear_messages();
         int get_message_count() const;
