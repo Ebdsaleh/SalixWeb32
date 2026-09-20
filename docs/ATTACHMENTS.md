@@ -385,6 +385,18 @@ controls by semantic attachment name, suppresses same-name/same-payload duplicat
 localhost broker as a defense-in-depth check, and restores MIME inference from the
 semantic filename when the temporary browser download is generically named.
 
+The `0.2.7` target retest is green. The companion collected exactly one returned
+attachment from two browser candidates, skipped the duplicate candidate, the bridge
+returned `attachments=1`, and the P4 reported `files 1`. Salix stored exactly one
+`SalixWeb32_reverse_filename_0_2_7.txt` file in the application-owned `Received`
+directory, Windows recognized it as a Text Document, and Open launched Notepad.
+
+The basic bidirectional text-file relay is therefore validated end-to-end on the real P4.
+The existing bounds remain intentional: at most 8 attachments, 2 MB per file, 4 MB total.
+A later attempt to send a larger evidence bundle in one message was correctly rejected by
+the client at the 8-attachment boundary; this is expected policy enforcement rather than
+a transfer failure.
+
 ## Win32 image services
 
 The current platform implementation uses:
@@ -416,10 +428,9 @@ Observed green on the target:
 
 The overflow arrows remain a known **presentation-polish** item rather than a functional blocker. Their replacement/design should be revisited after the backend is working rather than expanding this UI tranche further.
 
-The complete image-selection/plain-copy edge cases and the remote-to-P4 returned-file
-path remain separate checklist items until explicitly exercised. The native P4 outgoing
-file path is now validated with a real text attachment delivered successfully through
-the browser relay into ChatGPT. MiniXP compatibility is deferred until the Server 2003
+The complete image-selection/plain-copy edge cases remain separate checklist items until
+explicitly exercised. Native P4 outgoing file relay and remote-to-P4 returned text-file
+relay are now both validated end-to-end through the visible-browser companion path. MiniXP compatibility is deferred until the Server 2003
 feature set is complete and the MiniXP environment is usable again.
 
 ## Target validation checklist
