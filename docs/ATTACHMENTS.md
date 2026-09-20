@@ -336,10 +336,11 @@ Observed green on the target:
 
 The overflow arrows remain a known **presentation-polish** item rather than a functional blocker. Their replacement/design should be revisited after the backend is working rather than expanding this UI tranche further.
 
-The complete image-selection/plain-copy edge cases and the new remote file-transfer path
-remain separate checklist items until explicitly exercised. MiniXP compatibility is
-deferred until the Server 2003 feature set is complete and the MiniXP environment is
-usable again.
+The complete image-selection/plain-copy edge cases and the remote-to-P4 returned-file
+path remain separate checklist items until explicitly exercised. The native P4 outgoing
+file path is now validated with a real text attachment delivered successfully through
+the browser relay into ChatGPT. MiniXP compatibility is deferred until the Server 2003
+feature set is complete and the MiniXP environment is usable again.
 
 ## Target validation checklist
 
