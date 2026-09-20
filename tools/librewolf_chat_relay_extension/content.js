@@ -156,24 +156,156 @@ function setComposerText(composer, text) {
   }
 }
 
-function findSendButton() {
+function buttonIsUsable(button) {
+  return (
+    button &&
+    visible(button) &&
+    !button.disabled &&
+    button.getAttribute("aria-disabled") !== "true"
+  );
+}
+
+function buttonLooksLikeSend(button) {
+  if (!button) {
+    return false;
+  }
+
+  const testId = (button.getAttribute("data-testid") || "").toLowerCase();
+  const aria = (button.getAttribute("aria-label") || "").toLowerCase();
+  const title = (button.getAttribute("title") || "").toLowerCase();
+  const type = (button.getAttribute("type") || "").toLowerCase();
+
+  if (
+    testId.indexOf("stop") >= 0 ||
+    aria.indexOf("stop") >= 0 ||
+    title.indexOf("stop") >= 0
+  ) {
+    return false;
+  }
+
+  return (
+    testId.indexOf("send") >= 0 ||
+    aria.indexOf("send") >= 0 ||
+    title.indexOf("send") >= 0 ||
+    type === "submit"
+  );
+}
+
+function findSendButton(composer) {
   const selectors = [
     "button[data-testid='send-button']",
+    "button[data-testid*='send']",
     "button[aria-label='Send prompt']",
-    "button[aria-label='Send message']"
+    "button[aria-label='Send message']",
+    "button[aria-label^='Send']",
+    "button[title^='Send']",
+    "button[type='submit']"
   ];
 
-  for (const selector of selectors) {
-    const buttons = Array.from(document.querySelectorAll(selector));
+  const scopes = [];
+  if (composer) {
+    const form = composer.closest("form");
+    if (form) {
+      scopes.push(form);
+    }
 
-    for (const button of buttons) {
-      if (visible(button) && !button.disabled) {
-        return button;
+    const parent = composer.parentElement;
+    if (parent && !scopes.includes(parent)) {
+      scopes.push(parent);
+    }
+  }
+
+  scopes.push(document);
+
+  for (const scope of scopes) {
+    for (const selector of selectors) {
+      const buttons = Array.from(scope.querySelectorAll(selector));
+
+      for (const button of buttons) {
+        if (
+          buttonIsUsable(button) &&
+          buttonLooksLikeSend(button)
+        ) {
+          return button;
+        }
       }
     }
   }
 
   return null;
+}
+
+function composerText(composer) {
+  if (!composer) {
+    return "";
+  }
+
+  if (composer instanceof HTMLTextAreaElement) {
+    return composer.value || "";
+  }
+
+  return composer.innerText || composer.textContent || "";
+}
+
+function userMessageCount() {
+  const roleNodes = Array.from(
+    document.querySelectorAll("[data-message-author-role='user']")
+  ).filter(visible);
+
+  if (roleNodes.length) {
+    return roleNodes.length;
+  }
+
+  return Array.from(
+    document.querySelectorAll("article[data-testid^='conversation-turn-']")
+  ).filter((turn) => {
+    const role = turn.querySelector("[data-message-author-role='user']");
+    return !!role;
+  }).length;
+}
+
+async function submitComposer(composer, originalText) {
+  const beforeUserCount = userMessageCount();
+  const submitDeadline = Date.now() + 15000;
+  let clickAttempted = false;
+
+  while (Date.now() < submitDeadline) {
+    const liveComposer = findComposer() || composer;
+    const sendButton = findSendButton(liveComposer);
+
+    if (sendButton) {
+      sendButton.focus();
+      sendButton.click();
+      clickAttempted = true;
+
+      const verificationDeadline = Date.now() + 1500;
+
+      while (Date.now() < verificationDeadline) {
+        if (userMessageCount() > beforeUserCount) {
+          return;
+        }
+
+        const currentComposer = findComposer();
+        if (
+          currentComposer &&
+          originalText &&
+          composerText(currentComposer).trim() !== originalText.trim()
+        ) {
+          return;
+        }
+
+        await sleep(100);
+      }
+    } else {
+      await sleep(100);
+    }
+  }
+
+  throw new Error(
+    clickAttempted
+      ? "ChatGPT Send control did not accept the relay submission."
+      : "ChatGPT Send control was not available after attachment upload."
+  );
 }
 
 function findFileInput() {
@@ -334,7 +466,7 @@ async function injectAttachments(composer, attachments) {
   const started = Date.now();
 
   while (Date.now() - started < ATTACHMENT_UPLOAD_TIMEOUT_MS) {
-    const sendButton = findSendButton();
+    const sendButton = findSendButton(composer);
     const pageText = document.body
       ? (document.body.innerText || "")
       : "";
@@ -563,32 +695,9 @@ async function submitMessage(text, attachments) {
     await injectAttachments(composer, attachments);
   }
 
-  await sleep(100);
+  await sleep(250);
 
-  const sendButton = findSendButton();
-
-  if (sendButton) {
-    sendButton.click();
-  } else {
-    composer.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true
-      })
-    );
-    composer.dispatchEvent(
-      new KeyboardEvent("keyup", {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true
-      })
-    );
-  }
+  await submitComposer(composer, text);
 
   const submittedAt = performance.now();
   const deadline = Date.now() + RESPONSE_TIMEOUT_MS;
