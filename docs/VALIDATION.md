@@ -1052,7 +1052,7 @@ MessageDraft / ConversationRequest
         -> SALIX-CONVERSATION/1
         -> salix_bridge.py
         -> localhost salix_chat_session.py
-        -> LibreWolf WebExtension 0.2.2
+        -> LibreWolf WebExtension 0.2.3
         -> visible authenticated ChatGPT conversation
         -> returned attachment events
         -> %APPDATA%\SalixWeb32\Received
@@ -1085,7 +1085,7 @@ Native semantics:
 ### Companion validation
 
 1. Pull the staged candidate on the modern companion.
-2. Reload the temporary LibreWolf extension and confirm version `0.2.2`.
+2. Reload the temporary LibreWolf extension and confirm version `0.2.3`.
 3. Restart `tools\salix_chat_session.py`.
 4. Restart `tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 5. Require bridge health to report:
@@ -1188,5 +1188,39 @@ For a returned `sandbox:` attachment it now:
 
 The next target retest must confirm `Remote: SalixWeb32_return_test.txt` plus the actual
 file under the Standard-mode `%APPDATA%\SalixWeb32\Received` directory.
+
+### Second reverse-file observation — 0.2.2
+
+The `0.2.2` target retest again returned the assistant text but no file. Native
+diagnostics reported:
+
+```text
+Conversation backend: ... text + files
+Conversation security: ... attachments yes ...
+native batch 28 deltas -> 1 updates
+present 0 ms
+files 0
+Received files folder:
+C:\Documents and Settings\Administrator\Application Data\SalixWeb32\Received
+```
+
+The modern broker/extension request also completed normally rather than waiting for the
+configured 30-second download-capture timeout. This means the browser download path was
+not entered: attachment discovery produced no candidate element.
+
+The likely rendered-DOM boundary is the file card being outside the narrower
+`[data-message-author-role='assistant']` node used by `assistantNodes()`. Version
+`0.2.3` changes returned-file discovery to:
+
+- scan the whole containing assistant conversation turn,
+- inspect anchors, buttons, role-buttons, and data-link controls,
+- recognize download labels/titles and file-like labels/URLs,
+- poll briefly for a late-rendered attachment control when the response text mentions a
+  filename,
+- report scan/candidate/sandbox/download/fetch counts and bounded error details to the
+  localhost broker.
+
+The next retest should capture the `[chat-session] attachment capture ...` telemetry
+line even if file relay still fails, so another failure can be localized without guessing.
 
 MiniXP is not part of this tranche's acceptance gate.
