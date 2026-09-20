@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.2.0";
+const EXTENSION_VERSION = "0.2.1";
 
 let commandBusy = false;
 
