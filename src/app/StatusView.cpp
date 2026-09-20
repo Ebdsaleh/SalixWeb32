@@ -783,6 +783,7 @@ void StatusView::show_submitted_message(const MessageDraft& draft) {
 
     for (int index = 0; index < attachment_count; ++index) {
         conversation_view.append_attachment(
+            ConversationView::message_local,
             draft.get_attachment(index)
         );
     }
@@ -1032,6 +1033,7 @@ void StatusView::consume_conversation_events() {
                             attachment
                         )) {
                         conversation_view.append_attachment(
+                            ConversationView::message_remote,
                             attachment
                         );
                         ++conversation_attachment_event_count;
