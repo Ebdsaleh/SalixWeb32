@@ -94,6 +94,13 @@ namespace {
         }
     }
 
+    bool is_markdown_escapable(char character) {
+        const char* punctuation =
+            "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
+        return strchr(punctuation, character) != 0;
+    }
+
     int find_delimiter(
         const char* text,
         int start,
@@ -144,7 +151,8 @@ namespace {
         while (position < end) {
             if (
                 text[position] == '\\' &&
-                position + 1 < end
+                position + 1 < end &&
+                is_markdown_escapable(text[position + 1])
             ) {
                 TextFormat format = apply_semantic_style(
                     get_source_format(source, position + 1),
