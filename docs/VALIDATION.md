@@ -1124,6 +1124,17 @@ The follow-up extension `0.2.1` hardens that boundary. It now:
 - verifies submission by observing a new user turn or cleared/changed composer content,
 - reports an explicit relay error instead of silently assuming submission succeeded.
 
-This submit fix remains pending modern retest.
+The follow-up modern retest is now green. With WebExtension `0.2.1`, the smoke helper:
+
+```bat
+python tools\test_chat_relay.py --message "Please confirm you received this file." --file attachment_test.txt
+```
+
+visibly attached `attachment_test.txt`, submitted the message automatically without any
+manual Send click, and the file arrived successfully in the ChatGPT conversation with
+the expected contents. The outgoing modern browser attachment path is therefore green.
+
+The remaining acceptance gates are native P4 attachment send and remote-to-P4 returned
+file storage/presentation.
 
 MiniXP is not part of this tranche's acceptance gate.
