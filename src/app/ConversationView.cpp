@@ -259,11 +259,18 @@ bool ConversationView::update_message(
 }
 
 bool ConversationView::append_attachment(const Attachment& attachment) {
+    return append_attachment(message_system, attachment);
+}
+
+bool ConversationView::append_attachment(
+    MessageRole role,
+    const Attachment& attachment
+) {
     if (attachment.empty()) {
         return false;
     }
 
-    if (!append_system_message(attachment.get_file_name())) {
+    if (!append_message(role, attachment.get_file_name())) {
         return false;
     }
 
