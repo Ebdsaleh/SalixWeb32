@@ -1052,7 +1052,7 @@ MessageDraft / ConversationRequest
         -> SALIX-CONVERSATION/1
         -> salix_bridge.py
         -> localhost salix_chat_session.py
-        -> LibreWolf WebExtension 0.2.4
+        -> LibreWolf WebExtension 0.2.5
         -> visible authenticated ChatGPT conversation
         -> returned attachment events
         -> %APPDATA%\SalixWeb32\Received
@@ -1085,7 +1085,7 @@ Native semantics:
 ### Companion validation
 
 1. Pull the staged candidate on the modern companion.
-2. Reload the temporary LibreWolf extension and confirm version `0.2.4`.
+2. Reload the temporary LibreWolf extension and confirm version `0.2.5`.
 3. Restart `tools\salix_chat_session.py`.
 4. Restart `tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 5. Require bridge health to report:
@@ -1254,5 +1254,32 @@ WebExtension `0.2.4` changes returned-file capture to:
 
 Because the Markdown correction changes native C++, the `0.2.4` candidate requires a
 fresh VC7.1 P4 rebuild before the next full retest.
+
+### Fourth reverse-file observation — 0.2.4
+
+The `0.2.4` retest confirmed that the Markdown backslash correction is green on the real
+P4: Windows paths such as
+`C:\Documents and Settings\Administrator\Application Data\SalixWeb32\Received`
+now retain every literal backslash in both local and remote conversation text.
+
+Returned-file capture still failed. LibreWolf again displayed its native Save As dialog
+and the P4 completed with `files 0`. Diagnostics still reported the correct
+`text + files` backend/security state and the correct application-owned Received
+directory.
+
+Version `0.2.5` changes the browser boundary again:
+
+- the extension may open the returned file preview only to expose the real Download
+  control,
+- it does **not** click that Download control,
+- it extracts an HTTP(S) URL from the control/anchor/data URL attributes,
+- the background extension calls `downloads.download({ url, saveAs:false })` without a
+  `filename` option,
+- if no HTTP(S) URL is exposed, the attempt fails with telemetry instead of creating a
+  Save As dialog,
+- the extension attempts to close the preview after capture.
+
+No native C++ changes are part of `0.2.5`; once Aurora8 is updated/reloaded, the P4 may
+retest using the already rebuilt Markdown-fixed binary.
 
 MiniXP is not part of this tranche's acceptance gate.
