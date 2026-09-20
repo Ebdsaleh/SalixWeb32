@@ -299,7 +299,7 @@ returned attachment -> Remote:
 Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
 and text files retain an Open path through the platform `DesktopServices` provider.
 
-The active reverse-file candidate uses LibreWolf relay extension `0.2.2`. Because it is
+The active reverse-file candidate uses LibreWolf relay extension `0.2.3`. Because it is
 still loaded as a temporary development extension, it must be reloaded after pulling this
 candidate before file-relay validation.
 
@@ -315,6 +315,16 @@ file path to the localhost broker. The broker reads and bounds the file bytes be
 returning them through the existing semantic attachment pipeline. Browser credentials,
 cookies, and session material still never enter the Salix protocol. Temporary modern-side
 download files are removed after the broker accepts the relay result.
+
+The first `0.2.2` target retest still produced `files 0`. Timing/log evidence showed no
+download-capture timeout, which means the returned file control was not discovered at
+all. ChatGPT can render the file card outside the narrow
+`[data-message-author-role='assistant']` content node.
+
+Version `0.2.3` therefore scans the full assistant turn container, accepts file-like
+anchors/buttons/data-link controls, briefly waits for a file control when the response
+text mentions a filename, and returns explicit capture telemetry to the localhost broker.
+This retest remains pending.
 
 ## Win32 image services
 
