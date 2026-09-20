@@ -981,7 +981,19 @@ Initial Standard-mode evidence from the real Server 2003 R2 / Pentium 4 target i
 - `settings.ini` resolved beneath that root,
 - no editable attachment-browser directory was shown in Settings.
 
-The remainder of the path-isolation and Portable-mode checklist is still pending.
+A later attachment-relay evidence bundle adds stronger Standard-mode path-isolation
+evidence:
+
+- VC7.1 `Debug | Win32` again rebuilt with zero errors and zero warnings,
+- the attachment picker recent folder was `X:\NTSHARE\Diagnostics`,
+- diagnostic capture/report output still remained under
+  `C:\Documents and Settings\Administrator\Application Data\SalixWeb32\Diagnostics`,
+- the diagnostic report resolved the separate received-file root as
+  `C:\Documents and Settings\Administrator\Application Data\SalixWeb32\Received`.
+
+This proves that attachment browsing no longer redirects application-owned Diagnostics
+or Received storage through process current-directory state. Portable-mode validation
+and the remaining preference/reset checklist items are still pending.
 
 Target checklist:
 
@@ -1040,7 +1052,7 @@ MessageDraft / ConversationRequest
         -> SALIX-CONVERSATION/1
         -> salix_bridge.py
         -> localhost salix_chat_session.py
-        -> LibreWolf WebExtension 0.2.1
+        -> LibreWolf WebExtension 0.2.2
         -> visible authenticated ChatGPT conversation
         -> returned attachment events
         -> %APPDATA%\SalixWeb32\Received
@@ -1073,7 +1085,7 @@ Native semantics:
 ### Companion validation
 
 1. Pull the staged candidate on the modern companion.
-2. Reload the temporary LibreWolf extension and confirm version `0.2.1`.
+2. Reload the temporary LibreWolf extension and confirm version `0.2.2`.
 3. Restart `tools\salix_chat_session.py`.
 4. Restart `tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 5. Require bridge health to report:
@@ -1149,5 +1161,32 @@ P4 MessageDraft / ConversationRequest
 
 The remaining acceptance gate is remote-to-P4 returned file storage/presentation under
 the application-owned `Received` directory.
+
+### First reverse-file observation and correction
+
+The first returned-file attempt did **not** create a native Remote attachment. The P4
+evidence bundle confirmed that the configured Received root existed and was reported
+correctly, but `SalixWeb32_return_test.txt` was absent from the evidence and no
+`Remote:` file entry appeared in the native conversation.
+
+The browser-side cause was explicit in the extension: `looksLikeAttachmentAnchor()`
+recognized ChatGPT `sandbox:` file links as attachment candidates, but
+`attachmentCandidateUrls()` immediately discarded every `sandbox:` URL before
+download collection. The reverse semantic attachment event therefore never existed; the
+P4 storage code was not the failing boundary.
+
+WebExtension `0.2.2` corrects that boundary without forwarding browser credentials.
+For a returned `sandbox:` attachment it now:
+
+1. arms a bounded WebExtension download capture,
+2. lets normal LibreWolf activate the ChatGPT attachment link,
+3. waits for the browser-owned authenticated download to complete,
+4. returns the completed local download path to the localhost broker,
+5. lets the broker read/bound/base64-package the file,
+6. forwards the existing semantic attachment response toward the P4,
+7. removes the temporary modern-side browser download after the broker accepts it.
+
+The next target retest must confirm `Remote: SalixWeb32_return_test.txt` plus the actual
+file under the Standard-mode `%APPDATA%\SalixWeb32\Received` directory.
 
 MiniXP is not part of this tranche's acceptance gate.
