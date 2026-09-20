@@ -58,9 +58,10 @@ attachment paths
 This is deliberately small. Provider-specific request options should not be added to the
 generic request unless they represent a reusable Salix conversation concept.
 
-Attachment paths are semantic request input only. Neither the local placeholder nor the
-initial remote probe transmits them. A real backend must define upload/security behavior
-before attachments leave the legacy machine.
+Attachment paths are semantic request input only. The local placeholder and the
+content-free remote probe do not transmit them. The remote browser-relay candidate now
+defines bounded upload behavior behind `RemoteConversationBackend`; the application
+still sees only semantic attachment input rather than browser/file-upload mechanics.
 
 ## Security profile and dispatch boundary
 
@@ -114,9 +115,9 @@ ConversationServiceHost
 ```
 
 The local placeholder backend is content/local-process. The current remote browser-relay
-backend is content/trusted-lan with text enabled and attachments, credentials, and
-session state disabled. The older probe-only/plaintext method remains available as a
-content-free diagnostic endpoint.
+candidate is content/trusted-lan with text and bounded attachments enabled while
+credentials and session state remain disabled. The older probe-only/plaintext method
+remains available as a content-free diagnostic endpoint.
 
 ## Event model
 
@@ -126,6 +127,7 @@ A backend returns semantic events:
 request_started
 message_started
 text_delta
+attachment
 message_completed
 request_failed
 ```
@@ -242,20 +244,33 @@ The current functional baseline uses:
 POST /v1/conversation/message
 ```
 
-with a length-framed request:
+with a length-framed request. Text and attachments are independently optional, but at
+least one semantic payload must be present:
 
 ```text
 SALIX-CONVERSATION/1
 mode=browser_relay
 request_id=<Salix-generated ID>
-text_forwarded=1
-attachments_forwarded=0
+text_forwarded=<0|1>
+attachments_forwarded=<0|1>
 credentials_forwarded=0
 session_forwarded=0
 text_len=<UTF-8 byte count>
+attachment_count=<N>
+attachment_0_name_len=<N>
+attachment_0_mime_len=<N>
+attachment_0_data_len=<N>
+...
 
-<message text>
+<text bytes>
+<attachment name bytes>
+<attachment MIME bytes>
+<attachment data bytes>
+...
 ```
+
+The native candidate currently bounds transport to 8 attachments, 2 MB per file, and
+4 MB total attachment bytes.
 
 `salix_bridge.py` is still the P4-facing listener. It forwards the message over
 localhost to `salix_chat_session.py`, which is now a broker rather than a browser
@@ -270,21 +285,24 @@ rendered text to the broker.
 The broker/extension path does not expose credentials, cookies, or browser session
 storage.
 
-The bridge then frames:
+The bridge then frames provider-neutral semantic events:
 
 ```text
 request_started
 message_started
 text_delta ...
+attachment ...
 message_completed
 ```
 
-for the existing native Conversation path.
+for the existing native Conversation path. Attachment wire framing and base64 decoding
+remain inside the remote backend; the application receives attachment name/MIME/data
+semantics through `ConversationEvent`.
 
 The current HTTP transport still receives the complete bridge response before
-`RemoteConversationBackend` releases at most one semantic event per application update.
-This gives native incremental presentation but is not yet byte-streaming transport from
-the browser while generation is in progress.
+`RemoteConversationBackend` drains the events already available in that response.
+Completed-response presentation is coalesced on the application thread; this is still not
+byte-streaming transport from the browser while generation is in progress.
 
 ### Capability negotiation
 
@@ -303,7 +321,7 @@ conversation_relay=enabled
 conversation_protocol=SALIX-CONVERSATION/1
 conversation_mode=browser_relay
 conversation_text_forwarding=enabled
-conversation_attachment_forwarding=disabled
+conversation_attachment_forwarding=enabled
 conversation_credential_forwarding=disabled
 conversation_session_forwarding=disabled
 conversation_transport_security=trusted_lan
@@ -320,10 +338,9 @@ The browser-relay baseline deliberately sends message text over the user's trust
 development LAN. The transport is therefore labelled `trusted_lan`; it is not presented
 as authenticated/encrypted.
 
-Only text is enabled in the current remote security profile. The following remain
-disabled:
+Text plus explicitly bounded attachment file contents are enabled in the current remote
+candidate. The following remain disabled:
 
-- attachment paths and file contents,
 - ChatGPT credentials or MFA material,
 - authorization headers,
 - browser cookies,
