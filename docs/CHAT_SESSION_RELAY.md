@@ -135,6 +135,11 @@ two controls represented one returned file and the signed endpoint filename was 
 Version `0.2.7` preserves the semantic assistant filename, deduplicates those controls,
 and restores MIME inference from that name.
 
+The `0.2.7` retest is green: the extension collected one attachment from two candidate
+controls, skipped the duplicate candidate, the bridge returned one attachment, and the
+P4 stored one correctly named `.txt` file that opened normally in Notepad. This closes
+the basic bidirectional text-file relay validation on the Server 2003 target.
+
 The modern smoke helper can now exercise an outgoing file without the P4:
 
 ```bat
