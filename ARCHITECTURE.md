@@ -153,7 +153,9 @@ true streaming remains incremental because only newly arrived events can be drai
 owns a **separate Win32 request executor/HTTP transport instance** from Browser Probe.
 This avoids Browser and Conversation single-flight/lifecycle contention while allowing
 both to reach the same companion host/port. The original content-free probe remains a
-diagnostic endpoint; the current functional path is a text-only browser relay.
+diagnostic endpoint. The validated baseline is text-only; the current dev candidate adds
+bounded attachment framing behind `RemoteConversationBackend` and emits semantic
+`attachment` events without exposing browser upload mechanics to the application.
 
 Before accepting a real Conversation request, `RemoteConversationBackend` asynchronously
 checks `GET /v1/health`. The companion must advertise the exact
@@ -345,7 +347,9 @@ Conversation/Markdown presentation native on the P4. Pixel transport is not forb
 but Salix is not being turned into a general remote-desktop client.
 
 The bridge must not carry ChatGPT credentials, cookies, or browser session tokens. The
-current trusted-LAN browser relay permits message text only. See
+validated baseline permits message text; the current dev candidate additionally permits
+explicitly bounded attachment file bytes while leaving credentials/session material
+disabled. See
 `docs/REMOTE_BRIDGE.md` and `docs/CHAT_SESSION_RELAY.md`.
 
 Conversation dispatch has an additional backend-neutral security gate:
@@ -563,7 +567,11 @@ network endpoint auditing
 
 A backend that lacks a security capability must report that honestly.
 
-The current LAN bridge is intentionally restricted to trusted local-network testing. It must not be exposed to the Internet or used for credentials. The browser-relay baseline permits message text only; authentication/session material remains inside LibreWolf. Future native security work must keep that boundary explicit.
+The current LAN bridge is intentionally restricted to trusted local-network testing. It
+must not be exposed to the Internet or used for credentials. The validated browser-relay
+baseline permits message text; the active dev candidate also permits bounded attachment
+file bytes under explicit capability negotiation. Authentication/session material
+remains inside LibreWolf. Future native security work must keep that boundary explicit.
 
 ## Presentation-to-interaction invariant
 
