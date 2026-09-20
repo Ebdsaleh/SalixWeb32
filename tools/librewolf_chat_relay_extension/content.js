@@ -629,16 +629,39 @@ function assistantAttachmentRoot() {
   );
 }
 
+function attachmentCandidateScore(element) {
+  if (elementIsExplicitDownloadControl(element)) {
+    return 3;
+  }
+
+  const href = elementAttachmentHref(element);
+  if (
+    href.startsWith("sandbox:") ||
+    href.indexOf("/files/") >= 0
+  ) {
+    return 2;
+  }
+
+  return 1;
+}
+
 function attachmentCandidateElements(root) {
   if (!root) {
     return [];
   }
 
-  return Array.from(
+  const elements = Array.from(
     root.querySelectorAll(
       "a, button, [role='button'], [data-href], [data-url], [data-download-url]"
     )
   ).filter(elementLooksLikeDownloadControl);
+
+  elements.sort((left, right) => {
+    return attachmentCandidateScore(right) -
+      attachmentCandidateScore(left);
+  });
+
+  return elements;
 }
 
 function attachmentCandidateUrls(element) {
@@ -708,6 +731,9 @@ async function captureBrowserDownload(element, debug) {
     }
 
     debug.download_capture_successes += 1;
+    if (captured.managed_download === true) {
+      debug.managed_download_successes += 1;
+    }
 
     const href = elementAttachmentHref(element);
     const label = (element.textContent || "").trim();
@@ -850,6 +876,7 @@ async function collectAssistantAttachments(responseText) {
     sandbox_candidates: 0,
     download_capture_attempts: 0,
     download_capture_successes: 0,
+    managed_download_successes: 0,
     direct_fetch_attempts: 0,
     direct_fetch_successes: 0,
     preview_open_attempts: 0,
