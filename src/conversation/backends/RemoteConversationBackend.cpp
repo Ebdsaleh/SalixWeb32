@@ -356,7 +356,6 @@ namespace {
 
         if (
             encoded_name.empty() ||
-            encoded_data.empty() ||
             size_text.empty()
         ) {
             return false;
