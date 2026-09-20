@@ -1040,7 +1040,7 @@ MessageDraft / ConversationRequest
         -> SALIX-CONVERSATION/1
         -> salix_bridge.py
         -> localhost salix_chat_session.py
-        -> LibreWolf WebExtension 0.2.0
+        -> LibreWolf WebExtension 0.2.1
         -> visible authenticated ChatGPT conversation
         -> returned attachment events
         -> %APPDATA%\SalixWeb32\Received
@@ -1073,7 +1073,7 @@ Native semantics:
 ### Companion validation
 
 1. Pull the staged candidate on the modern companion.
-2. Reload the temporary LibreWolf extension and confirm version `0.2.0`.
+2. Reload the temporary LibreWolf extension and confirm version `0.2.1`.
 3. Restart `tools\salix_chat_session.py`.
 4. Restart `tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 5. Require bridge health to report:
@@ -1107,5 +1107,23 @@ Native semantics:
 14. Confirm diagnostics include a file count in the native timing line.
 15. Confirm Browser Probe and the content-free Conversation probe still work.
 16. Confirm oversized/over-count requests fail cleanly without partial forwarding.
+
+### First modern attachment smoke observation
+
+The first modern attachment smoke pass proved that file injection itself worked: the
+test file appeared visibly in the ChatGPT composer and reached the conversation after a
+manual click on Send. The extension did not complete the final submit action
+programmatically.
+
+The follow-up extension `0.2.1` hardens that boundary. It now:
+
+- re-finds the live Send control after upload readiness,
+- accepts current send-button/test-id/ARIA/title/submit-button shapes,
+- excludes Stop controls,
+- retries a bounded click sequence if the page ignores the first click,
+- verifies submission by observing a new user turn or cleared/changed composer content,
+- reports an explicit relay error instead of silently assuming submission succeeded.
+
+This submit fix remains pending modern retest.
 
 MiniXP is not part of this tranche's acceptance gate.
