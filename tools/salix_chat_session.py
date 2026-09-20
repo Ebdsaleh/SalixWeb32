@@ -198,6 +198,7 @@ def _normalize_extension_response_attachments(
 
     attachments: list[dict[str, str]] = []
     total_bytes = 0
+    seen_payloads: set[tuple[str, bytes]] = set()
 
     for item in value:
         if not isinstance(item, dict):
@@ -265,9 +266,17 @@ def _normalize_extension_response_attachments(
                 "attachments exceed 4 MB total limit"
             )
 
+        safe_name = _safe_attachment_name(name)
+        duplicate_key = (safe_name.lower(), raw)
+
+        if duplicate_key in seen_payloads:
+            continue
+
+        seen_payloads.add(duplicate_key)
+
         attachments.append(
             {
-                "name": _safe_attachment_name(name),
+                "name": safe_name,
                 "mime_type": mime_type[:128],
                 "data_base64": encoded,
             }
