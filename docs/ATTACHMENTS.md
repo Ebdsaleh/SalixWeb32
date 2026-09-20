@@ -299,11 +299,22 @@ returned attachment -> Remote:
 Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
 and text files retain an Open path through the platform `DesktopServices` provider.
 
-The LibreWolf relay extension for this tranche is version `0.2.1`. Because it is still
-loaded as a temporary development extension, it must be reloaded after pulling this
-candidate before file-relay validation. Version `0.2.1` additionally performs a
-verified Send-control handoff after file upload so an injected attachment is not left
-waiting in the browser composer.
+The active reverse-file candidate uses LibreWolf relay extension `0.2.2`. Because it is
+still loaded as a temporary development extension, it must be reloaded after pulling this
+candidate before file-relay validation.
+
+Version `0.2.1` remains the validated outgoing-file baseline: it performs a verified
+Send-control handoff after file upload so an injected attachment is not left waiting in
+the browser composer.
+
+Version `0.2.2` adds returned-file capture for ChatGPT `sandbox:` attachment links.
+Those links are not directly fetchable by the content script. The extension now lets
+normal LibreWolf initiate the authenticated download, observes the completed browser
+download through the WebExtension downloads API, and passes only the completed local
+file path to the localhost broker. The broker reads and bounds the file bytes before
+returning them through the existing semantic attachment pipeline. Browser credentials,
+cookies, and session material still never enter the Salix protocol. Temporary modern-side
+download files are removed after the broker accepts the relay result.
 
 ## Win32 image services
 
