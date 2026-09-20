@@ -479,7 +479,8 @@ The first provider-neutral conversation-service contract is now implemented:
   27 semantic deltas into 1 native presentation update with 0 ms measured presentation,
 - [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
-- [ ] add attachment relay after the text baseline is green,
+- [~] validate bounded bidirectional Conversation file relay (8 files, 2 MB each,
+  4 MB total) with semantic attachment events and application-owned Received storage,
 - [ ] progressively replace companion capabilities with NT5-native equivalents where
   practical.
 
@@ -493,8 +494,9 @@ assistant response -> semantic events -> native Salix Conversation view.
 The current release candidate is **v0.0.4**, following the existing v0.0.3 native
 conversation/rich-composer milestone. v0.0.4 freezes the first-contact architecture.
 Post-baseline relay timing, UTF-8/UTF-16 text handling, glyph fallback, and native
-completed-response batching have now also been validated on the real P4; true streaming,
-thread selection, attachment relay, and further latency work remain follow-up tranches.
+completed-response batching have now also been validated on the real P4. A bounded
+bidirectional file-relay candidate is active on `dev`; true streaming, thread selection,
+and further latency work remain follow-up tranches.
 
 The first real timing pass on `dev/test` measured about 19.4 s for the modern relay but
 57.5 s to native `message_completed` on the P4, leaving roughly 38.1 s outside the
@@ -537,8 +539,8 @@ See `docs/FILE_LOCATIONS.md`.
 3. harden response extraction and failure diagnostics against ordinary page changes,
 4. optimize relay latency without weakening the current boundaries,
 5. add explicit conversation-thread selection after one-current-thread relay is green,
-6. move from completed-response framing to true incremental response transport,
-7. add attachment transfer only after the text path is stable,
+6. validate the bounded bidirectional file-relay candidate on Server 2003 R2,
+7. move from completed-response framing to true incremental response transport,
 8. continue using the companion as a reference/scaffold while replacing its capabilities
    with NT5-native implementations where practical,
 9. keep Browser Probe and the content-free Conversation probe as regression tools,
