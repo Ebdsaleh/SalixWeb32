@@ -1362,8 +1362,59 @@ assistant response, deduplicating candidate controls by semantic name, and apply
 additional broker duplicate guard for identical same-named payloads. MIME inference now
 prefers the semantic filename over the temporary browser download name.
 
-No new native C++ changes are part of `0.2.7`; reuse the existing P4 binary. The next
-acceptance target is exactly one returned file with the original `.txt` name, native
-`files 1`, and successful default-application Open.
+No new native C++ changes are part of `0.2.7`; reuse the existing P4 binary.
+
+### Seventh reverse-file observation — 0.2.7
+
+The `0.2.7` target retest is green for the complete basic bidirectional text-file path.
+
+Modern telemetry reported:
+
+```text
+attachments_collected=1
+candidates_seen=2
+duplicate_candidates_skipped=1
+duplicate_attachments_skipped=0
+intercept_capture_attempts=1
+intercept_capture_successes=1
+intercepted_requests=1
+managed_download_successes=1
+```
+
+The bridge returned exactly one semantic attachment. Native diagnostics on the real P4
+reported:
+
+```text
+Conversation backend: ... text + files
+Conversation security: ... attachments yes ...
+native batch 28 deltas -> 1 updates
+present 0 ms
+files 1
+Received files folder:
+C:\Documents and Settings\Administrator\Application Data\SalixWeb32\Received
+```
+
+The P4 stored exactly one file named
+`SalixWeb32_reverse_filename_0_2_7.txt` under the application-owned `Received`
+directory. Windows identified it as a Text Document and the native/default Open path
+launched Notepad successfully. The file contents matched the expected returned payload.
+
+This closes the basic bidirectional text-file tranche:
+
+- native P4 -> ChatGPT file send: green,
+- automatic browser submission: green,
+- ChatGPT -> browser returned-file capture: green,
+- Save As suppression: green,
+- one semantic attachment per returned file: green,
+- semantic filename/extension preservation: green,
+- native `Received` directory creation/storage: green,
+- default-application Open for the returned text file: green.
+
+A follow-up curiosity test attempted to send the entire evidence bundle back through the
+P4 client in one message. The client correctly rejected the request because the bounded
+relay contract allows at most 8 attachments. This is expected contract enforcement, not
+a regression in the validated file path. Evidence bundles larger than 8 files must be
+split across messages unless the bounded policy is deliberately revised in a future
+tranche.
 
 MiniXP is not part of this tranche's acceptance gate.
