@@ -75,6 +75,7 @@ ATTACHMENT_DEBUG_INTEGER_KEYS = (
     "sandbox_candidates",
     "download_capture_attempts",
     "download_capture_successes",
+    "managed_download_successes",
     "direct_fetch_attempts",
     "direct_fetch_successes",
     "preview_open_attempts",
