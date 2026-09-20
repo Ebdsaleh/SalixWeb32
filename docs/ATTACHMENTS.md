@@ -299,7 +299,7 @@ returned attachment -> Remote:
 Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
 and text files retain an Open path through the platform `DesktopServices` provider.
 
-The active reverse-file candidate uses LibreWolf relay extension `0.2.6`. Because it is
+The active reverse-file candidate uses LibreWolf relay extension `0.2.7`. Because it is
 still loaded as a temporary development extension, it must be reloaded after pulling this
 candidate before file-relay validation.
 
@@ -364,6 +364,26 @@ ChatGPT/oaiusercontent file-content request before the browser can present Save 
 replays that captured signed URL through `downloads.download(..., saveAs:false)`. The
 listener is limited to ChatGPT and oaiusercontent HTTPS hosts and remains inactive outside
 the bounded capture window.
+
+The `0.2.6` target retest crossed the hard reverse-transport boundary. The browser
+interceptor captured the file-content request without a Save As dialog, the broker
+reported two returned attachments, Salix reported `files 2`, and the P4 automatically
+created its application-owned `Received` directory. Both resulting files contained the
+exact expected 425-byte test payload.
+
+The remaining defects were metadata/deduplication only:
+
+- the signed content endpoint exposed the local leaf name `content`, so the semantic
+  `.txt` filename/extension was lost,
+- two DOM controls representing the same assistant file were independently captured,
+  creating `content` and `content(1)`,
+- the missing `.txt` extension prevented useful browser/native Open behavior.
+
+Version `0.2.7` carries the semantic filename discovered from the assistant file card
+(or response filename fallback) through preview/download capture, deduplicates browser
+controls by semantic attachment name, suppresses same-name/same-payload duplicates in the
+localhost broker as a defense-in-depth check, and restores MIME inference from the
+semantic filename when the temporary browser download is generically named.
 
 ## Win32 image services
 
