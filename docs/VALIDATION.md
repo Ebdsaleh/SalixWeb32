@@ -972,6 +972,17 @@ The corrective tranche now establishes explicit startup roots:
 - `Options -> Settings...` displaying application mode, data root, settings path, and
   Diagnostics only; attachment history remains automatic state.
 
+Initial Standard-mode evidence from the real Server 2003 R2 / Pentium 4 target is green:
+
+- VC7.1 `Debug | Win32` rebuilt with zero errors and zero warnings,
+- `Options -> Settings...` reported `Application mode: Standard`,
+- user data resolved to `C:\Documents and Settings\Administrator\Application Data\SalixWeb32`,
+- Diagnostics resolved beneath that root,
+- `settings.ini` resolved beneath that root,
+- no editable attachment-browser directory was shown in Settings.
+
+The remainder of the path-isolation and Portable-mode checklist is still pending.
+
 Target checklist:
 
 1. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
@@ -1014,3 +1025,83 @@ testing there is deferred until the Server 2003 feature set is complete and the 
 environment is repaired/stabilized.
 
 See `docs/FILE_LOCATIONS.md`.
+
+
+## Bounded bidirectional Conversation file relay — dev candidate pending target validation
+
+The next Conversation tranche extends the validated text-only browser relay with bounded
+file attachments while preserving the existing provider-neutral application boundary.
+
+Implementation path:
+
+```text
+MessageDraft / ConversationRequest
+        -> RemoteConversationBackend
+        -> SALIX-CONVERSATION/1
+        -> salix_bridge.py
+        -> localhost salix_chat_session.py
+        -> LibreWolf WebExtension 0.2.0
+        -> visible authenticated ChatGPT conversation
+        -> returned attachment events
+        -> %APPDATA%\SalixWeb32\Received
+        -> native ConversationView
+```
+
+Current bounds:
+
+```text
+maximum files per request: 8
+maximum file size:         2 MB
+maximum total file bytes:  4 MB
+```
+
+The remote security profile must advertise attachments explicitly before Salix accepts
+file-bearing content requests. Credentials and browser session state remain disabled.
+The content-free probe remains attachment-free.
+
+Native semantics:
+
+- outgoing attachments retain the local `You:` role,
+- assistant-returned attachments use the remote `Remote:` role,
+- images retain the existing thumbnail / Preview / Open behavior,
+- text and generic files retain a filename surrogate plus Open behavior,
+- received files are sanitized and stored beneath the active Salix `Received` directory,
+- same-name received files must not silently overwrite each other,
+- wire/base64 attachment framing remains inside the remote Conversation backend rather
+  than leaking into `StatusView` or `ConversationView`.
+
+### Companion validation
+
+1. Pull the staged candidate on the modern companion.
+2. Reload the temporary LibreWolf extension and confirm version `0.2.0`.
+3. Restart `tools\salix_chat_session.py`.
+4. Restart `tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+5. Require bridge health to report:
+   `conversation_attachment_forwarding=enabled`.
+6. Confirm credentials/session forwarding remain disabled.
+
+### Real P4 validation
+
+1. Pull the staged `test` candidate.
+2. Clean/Rebuild `Debug | Win32` under VC7.1 with zero errors and zero warnings.
+3. Confirm the Conversation backend reports `text + files`.
+4. Confirm the security profile reports:
+   `mode content | transport trusted-lan | text yes | attachments yes | credentials no | session no`.
+5. Create a small plain-text file on the P4 and attach it with the existing `+` picker.
+6. Send a message with that text file and confirm the file appears in the visible ChatGPT
+   conversation rather than only in local Salix presentation.
+7. Repeat with a small image and confirm the browser receives the image attachment.
+8. Ask the remote side to return a small text file.
+9. Confirm Salix renders the returned attachment as `Remote: <filename>`.
+10. Confirm the file is written beneath:
+    `%APPDATA%\SalixWeb32\Received` in Standard mode.
+11. Open the received text file through the attachment context action and confirm the
+    platform default application opens it.
+12. Return a small image and confirm thumbnail / Preview / Open still work.
+13. Repeat a same-name returned file and confirm Salix creates a unique destination rather
+    than overwriting the existing received file.
+14. Confirm diagnostics include a file count in the native timing line.
+15. Confirm Browser Probe and the content-free Conversation probe still work.
+16. Confirm oversized/over-count requests fail cleanly without partial forwarding.
+
+MiniXP is not part of this tranche's acceptance gate.
