@@ -97,15 +97,23 @@ See `docs/PRESENTATION_INTERACTION_POLICY.md`.
 
 ## Conversation presentation
 
-Generic files continue to have a readable system representation.
-
-Image files additionally receive an inline thumbnail below their system reference:
+Generic files keep a readable conversation representation with the semantic sender role.
 
 ```text
-System: renderware2.jpg
+You: notes.txt
+Remote: result.txt
+```
+
+Image files additionally receive an inline thumbnail below their role-bearing reference:
+
+```text
+You: renderware2.jpg
 
 [ aspect-ratio-preserving thumbnail ]
 ```
+
+Files returned by the remote conversation backend use the Remote role rather than being
+presented as system status.
 
 The first-pass thumbnail bounding box is:
 
@@ -213,7 +221,87 @@ Hey, check this out! <attachment: renderware2.jpg> What do you think?
 
 without requiring XML-like markup to become the internal storage model.
 
-Structured clipboard serialization and service/backend upload packaging remain follow-on work and are not claimed by this tranche.
+Structured clipboard serialization remains follow-on work. Service/backend file
+packaging is now implemented as a separate bounded relay tranche described below.
+
+## Bounded Conversation file relay — dev candidate
+
+The first real file-transport candidate extends the existing semantic attachment model
+through the provider-neutral Conversation backend rather than teaching the application
+about browser DOM upload controls.
+
+Current path:
+
+```text
+MessageDraft / ConversationRequest
+        |
+        v
+RemoteConversationBackend
+        |
+        | SALIX-CONVERSATION/1 bounded attachment framing
+        v
+salix_bridge.py
+        |
+        | localhost JSON/base64
+        v
+salix_chat_session.py
+        |
+        v
+normal LibreWolf WebExtension
+        |
+        +-- outgoing files -> visible ChatGPT composer
+        |
+        `-- assistant-returned files -> semantic attachment events
+                |
+                v
+ConversationView
+```
+
+The first candidate accepts text, image, and generic files. Known text/source extensions
+receive an appropriate MIME type where possible; unknown files remain
+`application/octet-stream`.
+
+The transport is deliberately bounded for target validation:
+
+```text
+maximum attachments per request: 8
+maximum bytes per attachment:     2 MB
+maximum total attachment bytes:   4 MB
+```
+
+These are relay limits, not framework-model limits.
+
+The remote security profile explicitly changes from `attachments no` to
+`attachments yes` only when the companion advertises the matching capability.
+Credentials and browser session state remain disabled. The content-free probe remains
+attachment-free.
+
+Assistant-returned file bytes are converted into semantic `attachment` events by
+`RemoteConversationBackend`. The application then stores them beneath the selected
+Salix data root:
+
+```text
+Standard:
+    %APPDATA%\SalixWeb32\Received
+
+Portable:
+    <executable_root>\Received
+```
+
+Received names are sanitized and collisions receive a unique filename instead of
+overwriting an existing file. Conversation presentation keeps sender ownership:
+
+```text
+outgoing attachment -> You:
+returned attachment -> Remote:
+```
+
+Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
+and text files retain an Open path through the platform `DesktopServices` provider.
+
+The LibreWolf relay extension for this tranche is version `0.2.0`. Because it is still
+loaded as a temporary development extension, it must be reloaded after pulling this
+candidate before file-relay validation.
 
 ## Win32 image services
 
@@ -246,7 +334,10 @@ Observed green on the target:
 
 The overflow arrows remain a known **presentation-polish** item rather than a functional blocker. Their replacement/design should be revisited after the backend is working rather than expanding this UI tranche further.
 
-The complete image-selection/plain-copy edge cases, generic-file behavior, and latest MiniXP repeat pass remain separate checklist items until explicitly exercised.
+The complete image-selection/plain-copy edge cases and the new remote file-transfer path
+remain separate checklist items until explicitly exercised. MiniXP compatibility is
+deferred until the Server 2003 feature set is complete and the MiniXP environment is
+usable again.
 
 ## Target validation checklist
 
@@ -270,5 +361,19 @@ The complete image-selection/plain-copy edge cases, generic-file behavior, and l
 18. Drag-select conversation text across the image and copy it.
 19. Paste into a plain text destination and confirm the image position becomes exactly `System: filename.ext` in source order.
 20. Begin a selection on the image and drag upward/downward; confirm the image surrogate is selected atomically.
-21. Attach a non-image file and confirm it still produces a useful system filename reference without a broken image placeholder.
-22. Repeat the completed smoke pass under MiniXP after Server 2003 succeeds.
+21. Attach a non-image text file and confirm it produces a useful `You:` filename
+    reference without a broken image placeholder.
+22. With the attachment-relay candidate active, send a small text file from the P4 and
+    confirm it appears in the visible ChatGPT composer/thread.
+23. Confirm the diagnostic security profile reports attachments enabled while credentials
+    and session forwarding remain disabled.
+24. Have the remote side return a small text file and confirm it appears in the native
+    conversation as `Remote: filename.ext`.
+25. Confirm the received file is stored beneath the active Salix `Received` directory,
+    opens through the platform default application, and does not overwrite an existing
+    same-named file.
+26. Send/receive a small image and confirm the existing thumbnail/Preview/Open behavior
+    still works for transported files.
+27. Confirm files above the per-file or total relay limits fail cleanly rather than being
+    partially forwarded.
+28. MiniXP is not an acceptance target for this tranche.
