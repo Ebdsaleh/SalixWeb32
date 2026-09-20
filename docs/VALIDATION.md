@@ -1052,7 +1052,7 @@ MessageDraft / ConversationRequest
         -> SALIX-CONVERSATION/1
         -> salix_bridge.py
         -> localhost salix_chat_session.py
-        -> LibreWolf WebExtension 0.2.6
+        -> LibreWolf WebExtension 0.2.7
         -> visible authenticated ChatGPT conversation
         -> returned attachment events
         -> %APPDATA%\SalixWeb32\Received
@@ -1085,7 +1085,7 @@ Native semantics:
 ### Companion validation
 
 1. Pull the staged candidate on the modern companion.
-2. Reload the temporary LibreWolf extension and confirm version `0.2.6`.
+2. Reload the temporary LibreWolf extension and confirm version `0.2.7`.
 3. Restart `tools\salix_chat_session.py`.
 4. Restart `tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
 5. Require bridge health to report:
@@ -1326,5 +1326,44 @@ through the existing managed `saveAs:false` download path. New telemetry fields 
 `intercepted_requests`.
 
 No native C++ changes are part of `0.2.6`; the already rebuilt P4 candidate can be reused.
+
+### Sixth reverse-file observation — 0.2.6
+
+The `0.2.6` target retest is the first successful reverse **byte transport**.
+
+Modern telemetry reported successful request interception and managed downloads. The
+bridge returned two attachments. Native diagnostics on the real P4 reported:
+
+```text
+Conversation backend: ... text + files
+Conversation security: ... attachments yes ...
+native batch 27 deltas -> 1 updates
+present 0 ms
+files 2
+Received files folder:
+C:\Documents and Settings\Administrator\Application Data\SalixWeb32\Received
+```
+
+The P4 automatically created the `Received` directory as designed. It contained
+`content` and `content(1)`. Both files were 425 bytes and byte-for-byte identical to
+the expected returned test payload, proving the complete browser -> broker ->
+SALIX-CONVERSATION/1 -> native filesystem byte path.
+
+The remaining `0.2.6` failures are metadata-level:
+
+- one semantic file was captured twice because two browser controls represented it,
+- the signed download endpoint supplied the generic leaf name `content`,
+- losing the original `.txt` filename also prevented useful file association/Open
+  behavior.
+
+Version `0.2.7` corrects that layer by preserving the assistant file-card filename
+through the preview/download capture, falling back to unique filename mentions from the
+assistant response, deduplicating candidate controls by semantic name, and applying an
+additional broker duplicate guard for identical same-named payloads. MIME inference now
+prefers the semantic filename over the temporary browser download name.
+
+No new native C++ changes are part of `0.2.7`; reuse the existing P4 binary. The next
+acceptance target is exactly one returned file with the original `.txt` name, native
+`files 1`, and successful default-application Open.
 
 MiniXP is not part of this tranche's acceptance gate.
