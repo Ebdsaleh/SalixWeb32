@@ -794,6 +794,66 @@ function attachmentCandidateUrls(element) {
   return urls;
 }
 
+async function finishManagedCapture(
+  element,
+  captured,
+  debug
+) {
+  if (
+    !captured ||
+    captured.ok !== true ||
+    typeof captured.filename !== "string" ||
+    !captured.filename
+  ) {
+    debug.errors.push(
+      captured && captured.error
+        ? String(captured.error)
+        : "managed download returned no file"
+    );
+    return null;
+  }
+
+  debug.download_capture_successes += 1;
+  debug.managed_download_successes += 1;
+
+  if (
+    typeof captured.intercepted_requests === "number" &&
+    captured.intercepted_requests > 0
+  ) {
+    debug.intercept_capture_successes += 1;
+    debug.intercepted_requests += captured.intercepted_requests;
+  }
+
+  const href = elementAttachmentHref(element);
+  const label = (element.textContent || "").trim();
+  const downloadName = element.getAttribute("download") || "";
+
+  let hrefName = "";
+  try {
+    hrefName = decodeURIComponent(
+      href.split("/").pop() || ""
+    );
+  } catch (_exception) {
+    hrefName = href.split("/").pop() || "";
+  }
+
+  return {
+    name: sanitizeAttachmentName(
+      downloadName ||
+      (looksLikeAttachmentName(label) ? label : "") ||
+      hrefName ||
+      captured.filename.split(/[\\/]/).pop()
+    ),
+    mime_type:
+      (
+        typeof captured.mime_type === "string" &&
+        captured.mime_type
+      ) ? captured.mime_type : "application/octet-stream",
+    local_path: captured.filename,
+    download_id: captured.download_id
+  };
+}
+
 async function captureManagedDownload(
   element,
   debug
@@ -801,13 +861,6 @@ async function captureManagedDownload(
   const urls = downloadControlUrls(element);
 
   debug.download_url_candidates += urls.length;
-
-  if (!urls.length) {
-    debug.errors.push(
-      "Download control exposed no HTTP(S) URL; control was not clicked."
-    );
-    return null;
-  }
 
   for (const url of urls) {
     debug.download_capture_attempts += 1;
@@ -831,51 +884,45 @@ async function captureManagedDownload(
       timeout_ms: 15000
     });
 
-    if (
-      !captured ||
-      captured.ok !== true ||
-      typeof captured.filename !== "string" ||
-      !captured.filename
-    ) {
+    const attachment = await finishManagedCapture(
+      element,
+      captured,
+      debug
+    );
+
+    if (attachment) {
+      return attachment;
+    }
+  }
+
+  if (!urls.length) {
+    debug.intercept_capture_attempts += 1;
+
+    const armed = await browser.runtime.sendMessage({
+      type: "salix_arm_download_request_capture"
+    });
+
+    if (!armed || armed.ok !== true) {
       debug.errors.push(
-        captured && captured.error
-          ? String(captured.error)
-          : "managed download returned no file"
+        armed && armed.error
+          ? String(armed.error)
+          : "download request interception could not be armed"
       );
-      continue;
+      return null;
     }
 
-    debug.download_capture_successes += 1;
-    debug.managed_download_successes += 1;
+    element.click();
 
-    const href = elementAttachmentHref(element);
-    const label = (element.textContent || "").trim();
-    const downloadName = element.getAttribute("download") || "";
+    const captured = await browser.runtime.sendMessage({
+      type: "salix_wait_download_capture",
+      timeout_ms: 15000
+    });
 
-    let hrefName = "";
-    try {
-      hrefName = decodeURIComponent(
-        href.split("/").pop() || ""
-      );
-    } catch (_exception) {
-      hrefName = href.split("/").pop() || "";
-    }
-
-    return {
-      name: sanitizeAttachmentName(
-        downloadName ||
-        (looksLikeAttachmentName(label) ? label : "") ||
-        hrefName ||
-        captured.filename.split(/[\\/]/).pop()
-      ),
-      mime_type:
-        (
-          typeof captured.mime_type === "string" &&
-          captured.mime_type
-        ) ? captured.mime_type : "application/octet-stream",
-      local_path: captured.filename,
-      download_id: captured.download_id
-    };
+    return finishManagedCapture(
+      element,
+      captured,
+      debug
+    );
   }
 
   return null;
@@ -990,6 +1037,9 @@ async function collectAssistantAttachments(responseText) {
     download_capture_attempts: 0,
     download_capture_successes: 0,
     download_url_candidates: 0,
+    intercept_capture_attempts: 0,
+    intercept_capture_successes: 0,
+    intercepted_requests: 0,
     managed_download_successes: 0,
     direct_fetch_attempts: 0,
     direct_fetch_successes: 0,
