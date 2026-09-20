@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.2.4";
+const EXTENSION_VERSION = "0.2.5";
 
 let commandBusy = false;
 let activeDownloadCapture = null;
@@ -11,75 +11,60 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function safeDownloadLeaf(value) {
-  const text = String(value || "").replace(/\\/g, "/");
-  const leaf = text.split("/").pop() || "attachment.bin";
-
-  return leaf
-    .replace(/[<>:"|?*\\/\r\n]+/g, "_")
-    .replace(/^\.+$/, "attachment.bin")
-    .slice(0, 180) || "attachment.bin";
-}
-
-async function handoffInteractiveDownload(download, capture) {
-  const sourceUrl = download.finalUrl || download.url || "";
-
-  capture.original_download_id = download.id;
-  capture.original_url = sourceUrl;
-  capture.original_filename = download.filename || "";
-
-  if (!sourceUrl) {
-    capture.error = "Captured browser download has no source URL.";
-    return;
-  }
+async function startManagedDownload(sourceUrl) {
+  let parsed;
 
   try {
-    await browser.downloads.cancel(download.id);
+    parsed = new URL(sourceUrl);
   } catch (_exception) {
-    // The interactive download may still be waiting on Save As.
+    return {
+      ok: false,
+      error: "Returned attachment download URL is invalid."
+    };
+  }
+
+  if (
+    parsed.protocol !== "https:" &&
+    parsed.protocol !== "http:"
+  ) {
+    return {
+      ok: false,
+      error:
+        "Returned attachment download URL uses unsupported scheme: " +
+        parsed.protocol
+    };
   }
 
   try {
-    await browser.downloads.erase({ id: download.id });
-  } catch (_exception) {
-    // History cleanup is best-effort.
-  }
-
-  try {
-    const leaf = safeDownloadLeaf(
-      download.filename ||
-      decodeURIComponent(sourceUrl.split("/").pop() || "") ||
-      "attachment.bin"
-    );
-
-    capture.download_id = await browser.downloads.download({
-      url: sourceUrl,
-      filename: "SalixWeb32Relay/" + leaf,
+    const downloadId = await browser.downloads.download({
+      url: parsed.href,
       conflictAction: "uniquify",
       saveAs: false
     });
-    capture.managed_download_started = true;
+
+    activeDownloadCapture = {
+      started_at: Date.now(),
+      download_id: downloadId,
+      source_url: parsed.href,
+      managed_download_started: true,
+      error: ""
+    };
+
+    return {
+      ok: true,
+      download_id: downloadId
+    };
   } catch (exception) {
-    capture.error =
-      "Could not start non-interactive relay download: " +
-      String(exception);
+    activeDownloadCapture = null;
+
+    return {
+      ok: false,
+      error:
+        "Could not start managed returned-file download: " +
+        String(exception)
+    };
   }
 }
-
-browser.downloads.onCreated.addListener((download) => {
-  const capture = activeDownloadCapture;
-
-  if (
-    !capture ||
-    capture.handoff_started ||
-    capture.download_id !== null
-  ) {
-    return;
-  }
-
-  capture.handoff_started = true;
-  void handoffInteractiveDownload(download, capture);
-});
 
 async function waitForDownloadCapture(timeoutMilliseconds) {
   const capture = activeDownloadCapture;
@@ -148,19 +133,8 @@ browser.runtime.onMessage.addListener((message) => {
     return undefined;
   }
 
-  if (message.type === "salix_prepare_download_capture") {
-    activeDownloadCapture = {
-      started_at: Date.now(),
-      download_id: null,
-      original_download_id: null,
-      original_url: "",
-      original_filename: "",
-      handoff_started: false,
-      managed_download_started: false,
-      error: ""
-    };
-
-    return Promise.resolve({ ok: true });
+  if (message.type === "salix_start_managed_download") {
+    return startManagedDownload(String(message.url || ""));
   }
 
   if (message.type === "salix_wait_download_capture") {
