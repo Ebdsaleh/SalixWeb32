@@ -379,7 +379,7 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [~] attachments (semantic local model, image presentation, and native P4 outgoing
   transfer validated; returned-file capture candidate active)
 - [~] bounded file transfer through Conversation backend (outgoing green; reverse
-  returned-file capture now on direct-URL 0.2.5 managed-download retest)
+  returned-file capture now on intercepted-request 0.2.6 managed-download retest)
 - [x] copy/paste large diagnostic text through the native clipboard path
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
