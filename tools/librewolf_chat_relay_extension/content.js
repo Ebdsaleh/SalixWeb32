@@ -546,23 +546,71 @@ function elementAttachmentHref(element) {
   return "";
 }
 
-function elementLooksLikeDownloadControl(element) {
+function elementIsExplicitDownloadControl(element) {
   const aria = (element.getAttribute("aria-label") || "").toLowerCase();
   const title = (element.getAttribute("title") || "").toLowerCase();
-  const label = (element.textContent || "").trim();
   const href = elementAttachmentHref(element);
 
   return (
     element.hasAttribute("download") ||
     aria.indexOf("download") >= 0 ||
     title.indexOf("download") >= 0 ||
-    href.startsWith("sandbox:") ||
     href.indexOf("/interpreter/download") >= 0 ||
-    href.indexOf("/backend-api/files/") >= 0 ||
+    href.indexOf("/backend-api/files/") >= 0
+  );
+}
+
+function elementLooksLikeDownloadControl(element) {
+  const label = (element.textContent || "").trim();
+  const href = elementAttachmentHref(element);
+
+  return (
+    elementIsExplicitDownloadControl(element) ||
+    href.startsWith("sandbox:") ||
     href.indexOf("/files/") >= 0 ||
     looksLikeAttachmentName(label) ||
     looksLikeAttachmentName(href)
   );
+}
+
+function findVisibleExplicitDownloadControl() {
+  const elements = Array.from(
+    document.querySelectorAll(
+      "a, button, [role='button'], [data-href], [data-url], [data-download-url]"
+    )
+  );
+
+  for (const element of elements) {
+    if (
+      visible(element) &&
+      elementIsExplicitDownloadControl(element)
+    ) {
+      return element;
+    }
+  }
+
+  return null;
+}
+
+async function openAttachmentPreview(element, debug) {
+  debug.preview_open_attempts += 1;
+  element.click();
+
+  const deadline = Date.now() + 3000;
+
+  while (Date.now() < deadline) {
+    const control = findVisibleExplicitDownloadControl();
+
+    if (control) {
+      debug.preview_download_controls += 1;
+      return control;
+    }
+
+    await sleep(RESPONSE_POLL_MS);
+  }
+
+  debug.errors.push("preview opened but no Download control appeared");
+  return null;
 }
 
 function assistantAttachmentRoot() {
@@ -698,18 +746,7 @@ async function captureBrowserDownload(element, debug) {
 
 async function downloadAssistantAttachment(element, debug) {
   const href = elementAttachmentHref(element);
-
-  if (
-    href.startsWith("sandbox:") ||
-    !href ||
-    element.tagName.toLowerCase() !== "a"
-  ) {
-    const captured = await captureBrowserDownload(element, debug);
-    if (captured) {
-      return captured;
-    }
-  }
-
+  const explicitDownload = elementIsExplicitDownloadControl(element);
   const urls = attachmentCandidateUrls(element);
 
   for (const url of urls) {
@@ -777,10 +814,28 @@ async function downloadAssistantAttachment(element, debug) {
     }
   }
 
-  if (href && !href.startsWith("sandbox:")) {
+  if (explicitDownload) {
     const captured = await captureBrowserDownload(element, debug);
     if (captured) {
       return captured;
+    }
+  }
+
+  if (!explicitDownload) {
+    const previewDownload = await openAttachmentPreview(
+      element,
+      debug
+    );
+
+    if (previewDownload) {
+      const captured = await captureBrowserDownload(
+        previewDownload,
+        debug
+      );
+
+      if (captured) {
+        return captured;
+      }
     }
   }
 
@@ -797,6 +852,8 @@ async function collectAssistantAttachments(responseText) {
     download_capture_successes: 0,
     direct_fetch_attempts: 0,
     direct_fetch_successes: 0,
+    preview_open_attempts: 0,
+    preview_download_controls: 0,
     attachments_collected: 0,
     errors: []
   };
