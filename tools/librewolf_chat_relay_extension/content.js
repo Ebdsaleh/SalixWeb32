@@ -4,6 +4,7 @@ const RESPONSE_TIMEOUT_MS = 180000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
 const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
+const ATTACHMENT_DISCOVERY_TIMEOUT_MS = 5000;
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024;
 
@@ -493,6 +494,12 @@ function looksLikeAttachmentName(value) {
   );
 }
 
+function textMentionsAttachmentName(value) {
+  return /\b[^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip)\b/i.test(
+    value || ""
+  );
+}
+
 function sanitizeAttachmentName(value) {
   const cleaned = String(value || "")
     .replace(/[\\/]+/g, "/")
@@ -522,13 +529,77 @@ function contentDispositionFileName(value) {
   return plainMatch ? plainMatch[1] : "";
 }
 
-function attachmentCandidateUrls(anchor) {
+function elementAttachmentHref(element) {
   const values = [
-    anchor.getAttribute("href"),
-    anchor.href,
-    anchor.getAttribute("data-href"),
-    anchor.getAttribute("data-url"),
-    anchor.getAttribute("data-download-url")
+    element.getAttribute("href"),
+    element.getAttribute("data-href"),
+    element.getAttribute("data-url"),
+    element.getAttribute("data-download-url")
+  ];
+
+  for (const value of values) {
+    if (typeof value === "string" && value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function elementLooksLikeDownloadControl(element) {
+  const aria = (element.getAttribute("aria-label") || "").toLowerCase();
+  const title = (element.getAttribute("title") || "").toLowerCase();
+  const label = (element.textContent || "").trim();
+  const href = elementAttachmentHref(element);
+
+  return (
+    element.hasAttribute("download") ||
+    aria.indexOf("download") >= 0 ||
+    title.indexOf("download") >= 0 ||
+    href.startsWith("sandbox:") ||
+    href.indexOf("/interpreter/download") >= 0 ||
+    href.indexOf("/backend-api/files/") >= 0 ||
+    href.indexOf("/files/") >= 0 ||
+    looksLikeAttachmentName(label) ||
+    looksLikeAttachmentName(href)
+  );
+}
+
+function assistantAttachmentRoot() {
+  const nodes = assistantNodes();
+  if (!nodes.length) {
+    return null;
+  }
+
+  const node = nodes[nodes.length - 1];
+
+  return (
+    node.closest("article[data-testid^='conversation-turn-']") ||
+    node.closest("article") ||
+    node.parentElement ||
+    node
+  );
+}
+
+function attachmentCandidateElements(root) {
+  if (!root) {
+    return [];
+  }
+
+  return Array.from(
+    root.querySelectorAll(
+      "a, button, [role='button'], [data-href], [data-url], [data-download-url]"
+    )
+  ).filter(elementLooksLikeDownloadControl);
+}
+
+function attachmentCandidateUrls(element) {
+  const values = [
+    element.getAttribute("href"),
+    element.href,
+    element.getAttribute("data-href"),
+    element.getAttribute("data-url"),
+    element.getAttribute("data-download-url")
   ];
 
   const urls = [];
@@ -554,41 +625,24 @@ function attachmentCandidateUrls(anchor) {
   return urls;
 }
 
-function looksLikeAttachmentAnchor(anchor) {
-  const href = anchor.getAttribute("href") || "";
-  const label = (anchor.textContent || "").trim();
-
-  return (
-    anchor.hasAttribute("download") ||
-    href.startsWith("sandbox:") ||
-    href.indexOf("/interpreter/download") >= 0 ||
-    href.indexOf("/backend-api/files/") >= 0 ||
-    href.indexOf("/files/") >= 0 ||
-    looksLikeAttachmentName(label) ||
-    looksLikeAttachmentName(href)
-  );
-}
-
-async function captureSandboxAttachment(anchor) {
-  const href = anchor.getAttribute("href") || "";
-  if (!href.startsWith("sandbox:")) {
-    return null;
-  }
+async function captureBrowserDownload(element, debug) {
+  debug.download_capture_attempts += 1;
 
   const prepared = await browser.runtime.sendMessage({
     type: "salix_prepare_download_capture"
   });
 
   if (!prepared || prepared.ok !== true) {
+    debug.errors.push("download capture could not be armed");
     return null;
   }
 
   try {
-    anchor.click();
+    element.click();
 
     const captured = await browser.runtime.sendMessage({
       type: "salix_wait_download_capture",
-      timeout_ms: 30000
+      timeout_ms: 15000
     });
 
     if (
@@ -597,11 +651,19 @@ async function captureSandboxAttachment(anchor) {
       typeof captured.filename !== "string" ||
       !captured.filename
     ) {
+      debug.errors.push(
+        captured && captured.error
+          ? String(captured.error)
+          : "download capture returned no file"
+      );
       return null;
     }
 
-    const label = (anchor.textContent || "").trim();
-    const downloadName = anchor.getAttribute("download") || "";
+    debug.download_capture_successes += 1;
+
+    const href = elementAttachmentHref(element);
+    const label = (element.textContent || "").trim();
+    const downloadName = element.getAttribute("download") || "";
 
     let hrefName = "";
     try {
@@ -634,19 +696,25 @@ async function captureSandboxAttachment(anchor) {
   }
 }
 
-async function downloadAssistantAttachment(anchor) {
-  const href = anchor.getAttribute("href") || "";
+async function downloadAssistantAttachment(element, debug) {
+  const href = elementAttachmentHref(element);
 
-  if (href.startsWith("sandbox:")) {
-    const captured = await captureSandboxAttachment(anchor);
+  if (
+    href.startsWith("sandbox:") ||
+    !href ||
+    element.tagName.toLowerCase() !== "a"
+  ) {
+    const captured = await captureBrowserDownload(element, debug);
     if (captured) {
       return captured;
     }
   }
 
-  const urls = attachmentCandidateUrls(anchor);
+  const urls = attachmentCandidateUrls(element);
 
   for (const url of urls) {
+    debug.direct_fetch_attempts += 1;
+
     try {
       const response = await fetch(url, {
         credentials: "include",
@@ -654,6 +722,9 @@ async function downloadAssistantAttachment(anchor) {
       });
 
       if (!response.ok) {
+        debug.errors.push(
+          "direct fetch HTTP " + response.status
+        );
         continue;
       }
 
@@ -662,18 +733,20 @@ async function downloadAssistantAttachment(anchor) {
         lengthHeader &&
         Number(lengthHeader) > MAX_ATTACHMENT_BYTES
       ) {
+        debug.errors.push("direct fetch file exceeds relay limit");
         continue;
       }
 
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.length > MAX_ATTACHMENT_BYTES) {
+        debug.errors.push("direct fetch file exceeds relay limit");
         continue;
       }
 
       const disposition = response.headers.get("content-disposition");
       const dispositionName = contentDispositionFileName(disposition);
-      const downloadName = anchor.getAttribute("download") || "";
-      const label = (anchor.textContent || "").trim();
+      const downloadName = element.getAttribute("download") || "";
+      const label = (element.textContent || "").trim();
 
       let urlName = "";
       try {
@@ -685,62 +758,121 @@ async function downloadAssistantAttachment(anchor) {
         urlName = "";
       }
 
-      const name = sanitizeAttachmentName(
-        dispositionName ||
-        downloadName ||
-        (looksLikeAttachmentName(label) ? label : "") ||
-        urlName
-      );
+      debug.direct_fetch_successes += 1;
 
       return {
-        name: name,
+        name: sanitizeAttachmentName(
+          dispositionName ||
+          downloadName ||
+          (looksLikeAttachmentName(label) ? label : "") ||
+          urlName
+        ),
         mime_type:
           response.headers.get("content-type") ||
           "application/octet-stream",
         data_base64: encodeBase64(bytes)
       };
-    } catch (_exception) {
-      // Try the next candidate URL.
+    } catch (exception) {
+      debug.errors.push("direct fetch failed: " + String(exception));
+    }
+  }
+
+  if (href && !href.startsWith("sandbox:")) {
+    const captured = await captureBrowserDownload(element, debug);
+    if (captured) {
+      return captured;
     }
   }
 
   return null;
 }
 
-async function collectAssistantAttachments() {
-  const nodes = assistantNodes();
-  if (!nodes.length) {
-    return [];
-  }
+async function collectAssistantAttachments(responseText) {
+  const debug = {
+    scan_root: "none",
+    scan_passes: 0,
+    candidates_seen: 0,
+    sandbox_candidates: 0,
+    download_capture_attempts: 0,
+    download_capture_successes: 0,
+    direct_fetch_attempts: 0,
+    direct_fetch_successes: 0,
+    attachments_collected: 0,
+    errors: []
+  };
 
-  const node = nodes[nodes.length - 1];
-  const anchors = Array.from(node.querySelectorAll("a[href]"))
-    .filter(looksLikeAttachmentAnchor);
+  const shouldWait = textMentionsAttachmentName(responseText);
+  const deadline = Date.now() + (
+    shouldWait ? ATTACHMENT_DISCOVERY_TIMEOUT_MS : 0
+  );
+
+  let elements = [];
+  let root = null;
+
+  do {
+    root = assistantAttachmentRoot();
+    debug.scan_passes += 1;
+
+    if (root) {
+      debug.scan_root = (
+        root.getAttribute("data-testid") ||
+        root.tagName.toLowerCase()
+      );
+
+      elements = attachmentCandidateElements(root);
+      if (elements.length) {
+        break;
+      }
+    }
+
+    if (!shouldWait || Date.now() >= deadline) {
+      break;
+    }
+
+    await sleep(RESPONSE_POLL_MS);
+  } while (Date.now() < deadline);
+
+  debug.candidates_seen = elements.length;
+  debug.sandbox_candidates = elements.filter(
+    (element) => elementAttachmentHref(element).startsWith("sandbox:")
+  ).length;
 
   const attachments = [];
   const seen = new Set();
 
-  for (const anchor of anchors) {
+  for (const element of elements) {
     if (attachments.length >= MAX_ATTACHMENT_COUNT) {
       break;
     }
 
     const key =
-      anchor.getAttribute("href") + "|" +
-      (anchor.textContent || "");
+      elementAttachmentHref(element) + "|" +
+      (element.textContent || "") + "|" +
+      (element.getAttribute("aria-label") || "") + "|" +
+      (element.getAttribute("title") || "");
 
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
 
-    const attachment = await downloadAssistantAttachment(anchor);
+    const attachment = await downloadAssistantAttachment(
+      element,
+      debug
+    );
+
     if (attachment) {
       attachments.push(attachment);
     }
   }
 
-  return attachments;
+  debug.attachments_collected = attachments.length;
+  debug.errors = debug.errors.slice(0, 8);
+
+  return {
+    attachments: attachments,
+    debug: debug
+  };
 }
 
 function sleep(milliseconds) {
@@ -834,11 +966,14 @@ async function submitMessage(text, attachments) {
           )
         : 0;
 
-      const responseAttachments = await collectAssistantAttachments();
+      const attachmentResult = await collectAssistantAttachments(
+        responseText
+      );
 
       return {
         text: responseText,
-        attachments: responseAttachments,
+        attachments: attachmentResult.attachments,
+        attachment_debug: attachmentResult.debug,
         timing: {
           browser_submit_ms: submitMs,
           browser_first_response_ms: firstResponseMs,
@@ -858,11 +993,14 @@ async function submitMessage(text, attachments) {
       ? Math.max(0, Math.round(firstResponseAt - submittedAt))
       : 0;
 
-    const responseAttachments = await collectAssistantAttachments();
+    const attachmentResult = await collectAssistantAttachments(
+      responseText
+    );
 
     return {
       text: responseText,
-      attachments: responseAttachments,
+      attachments: attachmentResult.attachments,
+      attachment_debug: attachmentResult.debug,
       timing: {
         browser_submit_ms: Math.max(
           0,
@@ -919,6 +1057,7 @@ browser.runtime.onMessage.addListener((message) => {
         ok: true,
         text: result.text,
         attachments: result.attachments || [],
+        attachment_debug: result.attachment_debug || {},
         timing: result.timing
       }))
       .catch((exception) => ({
