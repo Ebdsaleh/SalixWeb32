@@ -569,7 +569,81 @@ function looksLikeAttachmentAnchor(anchor) {
   );
 }
 
+async function captureSandboxAttachment(anchor) {
+  const href = anchor.getAttribute("href") || "";
+  if (!href.startsWith("sandbox:")) {
+    return null;
+  }
+
+  const prepared = await browser.runtime.sendMessage({
+    type: "salix_prepare_download_capture"
+  });
+
+  if (!prepared || prepared.ok !== true) {
+    return null;
+  }
+
+  try {
+    anchor.click();
+
+    const captured = await browser.runtime.sendMessage({
+      type: "salix_wait_download_capture",
+      timeout_ms: 30000
+    });
+
+    if (
+      !captured ||
+      captured.ok !== true ||
+      typeof captured.filename !== "string" ||
+      !captured.filename
+    ) {
+      return null;
+    }
+
+    const label = (anchor.textContent || "").trim();
+    const downloadName = anchor.getAttribute("download") || "";
+
+    let hrefName = "";
+    try {
+      hrefName = decodeURIComponent(
+        href.split("/").pop() || ""
+      );
+    } catch (_exception) {
+      hrefName = href.split("/").pop() || "";
+    }
+
+    return {
+      name: sanitizeAttachmentName(
+        downloadName ||
+        (looksLikeAttachmentName(label) ? label : "") ||
+        hrefName ||
+        captured.filename.split(/[\\/]/).pop()
+      ),
+      mime_type:
+        (
+          typeof captured.mime_type === "string" &&
+          captured.mime_type
+        ) ? captured.mime_type : "application/octet-stream",
+      local_path: captured.filename,
+      download_id: captured.download_id
+    };
+  } finally {
+    await browser.runtime.sendMessage({
+      type: "salix_cancel_download_capture"
+    });
+  }
+}
+
 async function downloadAssistantAttachment(anchor) {
+  const href = anchor.getAttribute("href") || "";
+
+  if (href.startsWith("sandbox:")) {
+    const captured = await captureSandboxAttachment(anchor);
+    if (captured) {
+      return captured;
+    }
+  }
+
   const urls = attachmentCandidateUrls(anchor);
 
   for (const url of urls) {
