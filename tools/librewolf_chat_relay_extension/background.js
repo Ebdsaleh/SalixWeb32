@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.2.5";
+const EXTENSION_VERSION = "0.2.6";
 
 let commandBusy = false;
 let activeDownloadCapture = null;
@@ -11,60 +11,122 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function startManagedDownload(sourceUrl) {
+function returnedFileContentUrl(value) {
+  let parsed;
+
+  try {
+    parsed = new URL(String(value || ""));
+  } catch (_exception) {
+    return false;
+  }
+
+  if (parsed.protocol !== "https:") {
+    return false;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const path = parsed.pathname.toLowerCase();
+
+  if (
+    (host === "chatgpt.com" || host === "www.chatgpt.com") &&
+    path.indexOf("/backend-api/estuary/content") === 0
+  ) {
+    return true;
+  }
+
+  return (
+    host === "oaiusercontent.com" ||
+    host.endsWith(".oaiusercontent.com")
+  );
+}
+
+async function startManagedDownloadForCapture(
+  capture,
+  sourceUrl
+) {
   let parsed;
 
   try {
     parsed = new URL(sourceUrl);
   } catch (_exception) {
-    return {
-      ok: false,
-      error: "Returned attachment download URL is invalid."
-    };
+    capture.error = "Returned attachment download URL is invalid.";
+    return;
   }
 
-  if (
-    parsed.protocol !== "https:" &&
-    parsed.protocol !== "http:"
-  ) {
-    return {
-      ok: false,
-      error:
-        "Returned attachment download URL uses unsupported scheme: " +
-        parsed.protocol
-    };
+  if (parsed.protocol !== "https:") {
+    capture.error =
+      "Returned attachment download URL uses unsupported scheme: " +
+      parsed.protocol;
+    return;
   }
 
   try {
-    const downloadId = await browser.downloads.download({
+    capture.source_url = parsed.href;
+    capture.download_id = await browser.downloads.download({
       url: parsed.href,
       conflictAction: "uniquify",
       saveAs: false
     });
-
-    activeDownloadCapture = {
-      started_at: Date.now(),
-      download_id: downloadId,
-      source_url: parsed.href,
-      managed_download_started: true,
-      error: ""
-    };
-
-    return {
-      ok: true,
-      download_id: downloadId
-    };
+    capture.managed_download_started = true;
   } catch (exception) {
-    activeDownloadCapture = null;
-
-    return {
-      ok: false,
-      error:
-        "Could not start managed returned-file download: " +
-        String(exception)
-    };
+    capture.error =
+      "Could not start managed returned-file download: " +
+      String(exception);
   }
 }
+
+function onReturnedFileRequest(details) {
+  const capture = activeDownloadCapture;
+
+  if (
+    !capture ||
+    !capture.intercept_enabled ||
+    capture.download_id !== null
+  ) {
+    return {};
+  }
+
+  if (
+    capture.tab_id >= 0 &&
+    details.tabId >= 0 &&
+    details.tabId !== capture.tab_id
+  ) {
+    return {};
+  }
+
+  if (!returnedFileContentUrl(details.url)) {
+    return {};
+  }
+
+  capture.intercept_enabled = false;
+  capture.intercepted_requests += 1;
+  capture.intercepted_url = details.url;
+
+  void startManagedDownloadForCapture(
+    capture,
+    details.url
+  );
+
+  return { cancel: true };
+}
+
+browser.webRequest.onBeforeRequest.addListener(
+  onReturnedFileRequest,
+  {
+    urls: [
+      "https://chatgpt.com/*",
+      "https://www.chatgpt.com/*",
+      "https://*.oaiusercontent.com/*"
+    ],
+    types: [
+      "main_frame",
+      "sub_frame",
+      "xmlhttprequest",
+      "other"
+    ]
+  },
+  ["blocking"]
+);
 
 async function waitForDownloadCapture(timeoutMilliseconds) {
   const capture = activeDownloadCapture;
@@ -104,7 +166,8 @@ async function waitForDownloadCapture(timeoutMilliseconds) {
               typeof item.fileSize === "number"
                 ? item.fileSize
                 : -1,
-            managed_download: capture.managed_download_started === true
+            managed_download: capture.managed_download_started === true,
+            intercepted_requests: capture.intercepted_requests || 0
           };
         }
 
@@ -128,13 +191,53 @@ async function waitForDownloadCapture(timeoutMilliseconds) {
   };
 }
 
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message, sender) => {
   if (!message || typeof message.type !== "string") {
     return undefined;
   }
 
   if (message.type === "salix_start_managed_download") {
-    return startManagedDownload(String(message.url || ""));
+    const capture = {
+      started_at: Date.now(),
+      download_id: null,
+      source_url: "",
+      managed_download_started: false,
+      intercept_enabled: false,
+      intercepted_requests: 0,
+      intercepted_url: "",
+      tab_id:
+        sender && sender.tab && Number.isInteger(sender.tab.id)
+          ? sender.tab.id
+          : -1,
+      error: ""
+    };
+
+    activeDownloadCapture = capture;
+    void startManagedDownloadForCapture(
+      capture,
+      String(message.url || "")
+    );
+
+    return Promise.resolve({ ok: true });
+  }
+
+  if (message.type === "salix_arm_download_request_capture") {
+    activeDownloadCapture = {
+      started_at: Date.now(),
+      download_id: null,
+      source_url: "",
+      managed_download_started: false,
+      intercept_enabled: true,
+      intercepted_requests: 0,
+      intercepted_url: "",
+      tab_id:
+        sender && sender.tab && Number.isInteger(sender.tab.id)
+          ? sender.tab.id
+          : -1,
+      error: ""
+    };
+
+    return Promise.resolve({ ok: true });
   }
 
   if (message.type === "salix_wait_download_capture") {
