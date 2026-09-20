@@ -1,10 +1,11 @@
 {
   "manifest_version": 2,
   "name": "SalixWeb32 Chat Relay",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Relays text and bounded file attachments between the current ChatGPT conversation and the local SalixWeb32 companion without Marionette/WebDriver.",
   "permissions": [
     "tabs",
+    "downloads",
     "http://127.0.0.1:8766/*",
     "https://chatgpt.com/*",
     "https://www.chatgpt.com/*"
