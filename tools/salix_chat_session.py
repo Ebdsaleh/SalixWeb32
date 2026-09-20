@@ -69,6 +69,46 @@ def _sanitize_timing(value: Any) -> dict[str, int]:
     return timing
 
 
+ATTACHMENT_DEBUG_INTEGER_KEYS = (
+    "scan_passes",
+    "candidates_seen",
+    "sandbox_candidates",
+    "download_capture_attempts",
+    "download_capture_successes",
+    "direct_fetch_attempts",
+    "direct_fetch_successes",
+    "attachments_collected",
+)
+
+
+def _sanitize_attachment_debug(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+
+    debug: dict[str, Any] = {}
+
+    scan_root = value.get("scan_root")
+    if isinstance(scan_root, str):
+        debug["scan_root"] = scan_root[:128]
+
+    for key in ATTACHMENT_DEBUG_INTEGER_KEYS:
+        raw = value.get(key)
+        if isinstance(raw, bool):
+            continue
+        if isinstance(raw, int) and 0 <= raw <= 10000:
+            debug[key] = raw
+
+    errors = value.get("errors")
+    if isinstance(errors, list):
+        debug["errors"] = [
+            str(item)[:240]
+            for item in errors[:8]
+            if isinstance(item, (str, int, float))
+        ]
+
+    return debug
+
+
 def _safe_attachment_name(value: str) -> str:
     value = value.replace("\\", "/").split("/")[-1].strip()
     value = value.replace("\r", "_").replace("\n", "_")
@@ -679,6 +719,19 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                     )
                     return
                 response_text = value
+
+                attachment_debug = _sanitize_attachment_debug(
+                    request.get("attachment_debug")
+                )
+
+                if attachment_debug:
+                    print(
+                        "[chat-session] attachment capture "
+                        + " ".join(
+                            f"{key}={attachment_debug[key]!r}"
+                            for key in sorted(attachment_debug)
+                        )
+                    )
 
                 try:
                     response_attachments = (
