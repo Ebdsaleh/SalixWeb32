@@ -94,12 +94,13 @@ companion rejects probe payloads that attempt to enable either field.
 
 The content-free probe remains a regression/diagnostic path.
 
-`/v1/conversation/message` is the current text-only browser-relay path. The bridge
-forwards the framed Salix request to `salix_chat_session.py` over localhost. That
-broker queues the request for the LibreWolf relay WebExtension, which uses the ChatGPT
-conversation currently open in the user's normal browser process and returns the rendered
-assistant response text. The bridge reframes that text as ordinary
-`SALIX-CONVERSATION/1` semantic events for the native P4 client.
+`/v1/conversation/message` is the browser-relay content path. The validated baseline
+carries text only; the current dev candidate also carries bounded attachment file bytes.
+The bridge forwards the framed Salix request to `salix_chat_session.py` over localhost.
+That broker queues the request for the LibreWolf relay WebExtension, which uses the
+ChatGPT conversation currently open in the user's normal browser process. Returned
+assistant text becomes `text_delta` events and returned files become semantic
+`attachment` events for the native P4 client.
 
 See `docs/BROWSER_PROBE.md` for the Browser Probe workflow and limits.
 
@@ -176,7 +177,7 @@ conversation_relay=enabled
 conversation_protocol=SALIX-CONVERSATION/1
 conversation_mode=browser_relay
 conversation_text_forwarding=enabled
-conversation_attachment_forwarding=disabled
+conversation_attachment_forwarding=enabled
 conversation_credential_forwarding=disabled
 conversation_session_forwarding=disabled
 conversation_transport_security=trusted_lan
@@ -195,14 +196,14 @@ development LAN.
 Browser Probe remains non-authenticated and continues to redact sensitive response
 headers.
 
-The browser-relay baseline intentionally permits **message text only** over this LAN
-because that is the capability being proven. It still does not forward:
+The validated baseline permitted message text only. The current dev candidate permits
+message text plus explicitly bounded attachment file bytes (8 files, 2 MB each, 4 MB
+total) after capability negotiation. It still does not forward:
 
 - ChatGPT credentials or MFA material,
 - authorization headers,
 - browser cookies,
 - browser/session storage,
-- attachment paths or file contents,
 - service tokens.
 
 Authentication and session ownership remain entirely inside normal LibreWolf on the
@@ -255,10 +256,10 @@ path:
 The semantic probe is therefore validated end-to-end on the real Server 2003/Pentium 4
 target.
 
-The text-only LibreWolf browser relay is now validated end-to-end on the real
-Server 2003/Pentium 4 target. That path deliberately permits draft/response text on the
-trusted development LAN while continuing to keep attachments, credentials, cookies, and
-browser session material out of the Salix protocol.
+The text-only LibreWolf browser relay is validated end-to-end on the real
+Server 2003/Pentium 4 target. The active dev candidate extends that path with bounded
+file attachments in both directions; that extension still requires target validation.
+Credentials, cookies, and browser session material remain outside the Salix protocol.
 
 ## Current limits
 
@@ -276,9 +277,10 @@ These limits keep the bridge understandable while SalixWeb32 learns which modern
 web/service capabilities are actually required.
 
 The bridge now has both the content-free semantic Conversation probe and the validated
-text-only browser-relay path. The browser relay currently waits for a completed rendered
-assistant response before returning it to the P4; true generation-time streaming is a
-later tranche. On the native side, completed response events are drained as one available
+text-only browser-relay path. The dev candidate adds bounded file transport while
+retaining the same probe and security boundary. The browser relay currently waits for a
+completed rendered assistant response before returning it to the P4; true generation-time
+streaming is a later tranche. On the native side, completed response events are drained as one available
 batch and coalesced into one Conversation presentation update, avoiding artificial
 per-delta pacing on the P4.
 
