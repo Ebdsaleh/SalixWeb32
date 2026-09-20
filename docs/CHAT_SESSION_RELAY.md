@@ -92,7 +92,7 @@ root. Future true streaming can still present once per newly arrived batch.
 
 ## File-relay candidate
 
-The active reverse-file candidate uses WebExtension version `0.2.5`.
+The active reverse-file candidate uses WebExtension version `0.2.6`.
 
 Outgoing Salix files are transferred as bounded attachment descriptors through the
 trusted development LAN, localhost broker, and extension. The content script reconstructs
@@ -113,7 +113,7 @@ First-pass limits:
 ```
 
 The temporary extension must be reloaded after pulling this candidate because its
-manifest/background version is now `0.2.5`. Version `0.2.1` validated the final
+manifest/background version is now `0.2.6`. Version `0.2.1` validated the final
 ChatGPT composer submission after attachment upload. Version `0.2.2` added browser-owned
 capture of returned ChatGPT `sandbox:` file links. Version `0.2.3` broadened discovery
 and proved that the returned file UI could be reached, but it entered LibreWolf's
@@ -121,6 +121,12 @@ interactive Save As flow. Version `0.2.4` still triggered the interactive Save A
 page's Download control first. Version `0.2.5` instead extracts the HTTP(S) URL exposed
 by the preview Download control and starts a background `saveAs:false` download directly,
 without clicking the Download UI or supplying a filename.
+
+The first `0.2.5` retest proved that the explicit Download control exposes no usable URL
+in the rendered DOM. Version `0.2.6` therefore uses a temporary blocking `webRequest`
+listener during returned-file capture: it allows the JavaScript Download action to reveal
+the real signed file-content request, cancels that request before interactive Save As,
+and replays the captured URL as the managed `saveAs:false` download.
 
 The modern smoke helper can now exercise an outgoing file without the P4:
 
