@@ -85,6 +85,9 @@ ATTACHMENT_DEBUG_INTEGER_KEYS = (
     "preview_open_attempts",
     "preview_download_controls",
     "preview_close_successes",
+    "semantic_names_seen",
+    "duplicate_candidates_skipped",
+    "duplicate_attachments_skipped",
     "attachments_collected",
 )
 
@@ -135,6 +138,7 @@ def _normalize_attachments(value: Any) -> list[dict[str, str]]:
 
     attachments: list[dict[str, str]] = []
     total_bytes = 0
+    seen_payloads: set[tuple[str, bytes]] = set()
 
     for item in value:
         if not isinstance(item, dict):
@@ -163,9 +167,17 @@ def _normalize_attachments(value: Any) -> list[dict[str, str]]:
         if total_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
             raise ValueError("attachments exceed 4 MB total limit")
 
+        safe_name = _safe_attachment_name(name)
+        duplicate_key = (safe_name.lower(), raw)
+
+        if duplicate_key in seen_payloads:
+            continue
+
+        seen_payloads.add(duplicate_key)
+
         attachments.append(
             {
-                "name": _safe_attachment_name(name),
+                "name": safe_name,
                 "mime_type": mime_type[:128],
                 "data_base64": encoded,
             }
@@ -235,11 +247,10 @@ def _normalize_extension_response_attachments(
 
             encoded = base64.b64encode(raw).decode("ascii")
 
-            if (
-                mime_type == "application/octet-stream" and
-                path.name
-            ):
-                guessed = mimetypes.guess_type(path.name)[0]
+            if mime_type == "application/octet-stream":
+                guessed = mimetypes.guess_type(name)[0]
+                if not guessed and path.name:
+                    guessed = mimetypes.guess_type(path.name)[0]
                 if guessed:
                     mime_type = guessed
         else:
