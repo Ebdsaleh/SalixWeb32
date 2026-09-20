@@ -2,9 +2,109 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.2.1";
+const EXTENSION_VERSION = "0.2.2";
 
 let commandBusy = false;
+let activeDownloadCapture = null;
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+browser.downloads.onCreated.addListener((download) => {
+  if (
+    activeDownloadCapture &&
+    activeDownloadCapture.download_id === null
+  ) {
+    activeDownloadCapture.download_id = download.id;
+  }
+});
+
+async function waitForDownloadCapture(timeoutMilliseconds) {
+  const capture = activeDownloadCapture;
+  if (!capture) {
+    return {
+      ok: false,
+      error: "No assistant download capture is active."
+    };
+  }
+
+  const deadline = Date.now() + timeoutMilliseconds;
+
+  while (Date.now() < deadline) {
+    if (capture.download_id !== null) {
+      const matches = await browser.downloads.search({
+        id: capture.download_id
+      });
+
+      const item = matches.length ? matches[0] : null;
+      if (item) {
+        if (item.state === "complete") {
+          activeDownloadCapture = null;
+          return {
+            ok: true,
+            download_id: item.id,
+            filename: item.filename || "",
+            mime_type: item.mime || "application/octet-stream",
+            file_size:
+              typeof item.fileSize === "number"
+                ? item.fileSize
+                : -1
+          };
+        }
+
+        if (item.state === "interrupted") {
+          activeDownloadCapture = null;
+          return {
+            ok: false,
+            error: item.error || "Assistant file download was interrupted."
+          };
+        }
+      }
+    }
+
+    await sleep(100);
+  }
+
+  activeDownloadCapture = null;
+  return {
+    ok: false,
+    error: "Timed out waiting for assistant file download."
+  };
+}
+
+browser.runtime.onMessage.addListener((message) => {
+  if (!message || typeof message.type !== "string") {
+    return undefined;
+  }
+
+  if (message.type === "salix_prepare_download_capture") {
+    activeDownloadCapture = {
+      started_at: Date.now(),
+      download_id: null
+    };
+
+    return Promise.resolve({ ok: true });
+  }
+
+  if (message.type === "salix_wait_download_capture") {
+    const requestedTimeout = Number(message.timeout_ms);
+    const timeoutMilliseconds = (
+      Number.isFinite(requestedTimeout) &&
+      requestedTimeout >= 1000 &&
+      requestedTimeout <= 60000
+    ) ? Math.round(requestedTimeout) : 30000;
+
+    return waitForDownloadCapture(timeoutMilliseconds);
+  }
+
+  if (message.type === "salix_cancel_download_capture") {
+    activeDownloadCapture = null;
+    return Promise.resolve({ ok: true });
+  }
+
+  return undefined;
+});
 
 async function findChatTab() {
   const tabs = await browser.tabs.query({
@@ -187,13 +287,36 @@ async function processCommand() {
 
       timing.background_total_ms = backgroundTotalMs;
 
+      const resultAttachments = result.attachments || [];
+
       await postJson("/v1/result", {
         protocol: EXTENSION_PROTOCOL,
         request_id: command.request_id,
         text: result.text,
-        attachments: result.attachments || [],
+        attachments: resultAttachments,
         timing: timing
       });
+
+      for (const attachment of resultAttachments) {
+        const downloadId = (
+          attachment &&
+          Number.isInteger(attachment.download_id)
+        ) ? attachment.download_id : null;
+
+        if (downloadId !== null) {
+          try {
+            await browser.downloads.removeFile(downloadId);
+          } catch (_exception) {
+            // Cleanup is best-effort; the relay result has already been accepted.
+          }
+
+          try {
+            await browser.downloads.erase({ id: downloadId });
+          } catch (_exception) {
+            // Keep cleanup failures non-fatal.
+          }
+        }
+      }
     } catch (exception) {
       await postFailure(
         command.request_id,
