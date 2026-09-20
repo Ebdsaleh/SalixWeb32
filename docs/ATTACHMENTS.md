@@ -299,9 +299,11 @@ returned attachment -> Remote:
 Image attachments continue to use the existing thumbnail/Preview/Open behavior. Generic
 and text files retain an Open path through the platform `DesktopServices` provider.
 
-The LibreWolf relay extension for this tranche is version `0.2.0`. Because it is still
+The LibreWolf relay extension for this tranche is version `0.2.1`. Because it is still
 loaded as a temporary development extension, it must be reloaded after pulling this
-candidate before file-relay validation.
+candidate before file-relay validation. Version `0.2.1` additionally performs a
+verified Send-control handoff after file upload so an injected attachment is not left
+waiting in the browser composer.
 
 ## Win32 image services
 
