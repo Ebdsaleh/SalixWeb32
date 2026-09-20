@@ -80,7 +80,9 @@ The Markdown presentation currently recognizes:
 - inline strong text using `**text**` or `__text__`,
 - inline emphasis using `*text*` or `_text_`,
 - inline code using backticks,
-- backslash escaping for following Markdown punctuation.
+- backslash escaping only for following Markdown punctuation; literal backslashes before
+  ordinary characters remain visible, including Windows paths such as
+  `C:\Documents and Settings\...\Received`.
 
 List prefixes remain visible canonical text. This keeps lists readable when copied and works naturally with the composer list model.
 
@@ -209,4 +211,7 @@ Before marking the current Markdown/block tranche target-validated:
 10. Verify long prose wraps while long code lines use the code-block horizontal scrollbar.
 11. Select/copy rendered prose and code independently.
 12. Send enough mixed Markdown messages to exercise conversation scrolling and resizing.
-13. Repeat validation under Windows Server 2003 SP2 and MiniXP.
+13. On Windows Server 2003, render a Windows path containing multiple backslashes and
+    confirm every literal path separator remains visible.
+14. MiniXP is not an active acceptance target; revisit compatibility after the Server
+    2003 feature set is complete and the MiniXP environment is usable again.
