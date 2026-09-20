@@ -500,6 +500,62 @@ function textMentionsAttachmentName(value) {
   );
 }
 
+function attachmentNamesInText(value) {
+  const names = [];
+  const pattern =
+    /\b[^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip)\b/gi;
+  const text = String(value || "");
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const name = sanitizeAttachmentName(match[0]);
+
+    if (name && !names.includes(name)) {
+      names.push(name);
+    }
+  }
+
+  return names;
+}
+
+function attachmentNameFromElement(element) {
+  if (!element) {
+    return "";
+  }
+
+  const directValues = [
+    element.getAttribute("download"),
+    element.getAttribute("aria-label"),
+    element.getAttribute("title"),
+    element.textContent
+  ];
+
+  for (const value of directValues) {
+    const names = attachmentNamesInText(value);
+    if (names.length) {
+      return names[0];
+    }
+  }
+
+  let current = element.parentElement;
+  let depth = 0;
+
+  while (current && depth < 6) {
+    const names = attachmentNamesInText(
+      current.textContent || ""
+    );
+
+    if (names.length) {
+      return names[0];
+    }
+
+    current = current.parentElement;
+    depth += 1;
+  }
+
+  return "";
+}
+
 function sanitizeAttachmentName(value) {
   const cleaned = String(value || "")
     .replace(/[\\/]+/g, "/")
@@ -797,7 +853,8 @@ function attachmentCandidateUrls(element) {
 async function finishManagedCapture(
   element,
   captured,
-  debug
+  debug,
+  preferredName
 ) {
   if (
     !captured ||
@@ -839,6 +896,7 @@ async function finishManagedCapture(
 
   return {
     name: sanitizeAttachmentName(
+      preferredName ||
       downloadName ||
       (looksLikeAttachmentName(label) ? label : "") ||
       hrefName ||
@@ -856,7 +914,8 @@ async function finishManagedCapture(
 
 async function captureManagedDownload(
   element,
-  debug
+  debug,
+  preferredName
 ) {
   const urls = downloadControlUrls(element);
 
@@ -887,7 +946,8 @@ async function captureManagedDownload(
     const attachment = await finishManagedCapture(
       element,
       captured,
-      debug
+      debug,
+      preferredName
     );
 
     if (attachment) {
@@ -921,14 +981,19 @@ async function captureManagedDownload(
     return finishManagedCapture(
       element,
       captured,
-      debug
+      debug,
+      preferredName
     );
   }
 
   return null;
 }
 
-async function downloadAssistantAttachment(element, debug) {
+async function downloadAssistantAttachment(
+  element,
+  debug,
+  preferredName
+) {
   const href = elementAttachmentHref(element);
   const explicitDownload = elementIsExplicitDownloadControl(element);
   const urls = attachmentCandidateUrls(element);
@@ -983,6 +1048,7 @@ async function downloadAssistantAttachment(element, debug) {
 
       return {
         name: sanitizeAttachmentName(
+          preferredName ||
           dispositionName ||
           downloadName ||
           (looksLikeAttachmentName(label) ? label : "") ||
@@ -999,7 +1065,11 @@ async function downloadAssistantAttachment(element, debug) {
   }
 
   if (explicitDownload) {
-    const captured = await captureManagedDownload(element, debug);
+    const captured = await captureManagedDownload(
+      element,
+      debug,
+      preferredName
+    );
     if (captured) {
       return captured;
     }
@@ -1014,7 +1084,8 @@ async function downloadAssistantAttachment(element, debug) {
     if (previewDownload) {
       const captured = await captureManagedDownload(
         previewDownload,
-        debug
+        debug,
+        preferredName
       );
 
       closeAttachmentPreview(previewDownload, debug);
@@ -1046,6 +1117,9 @@ async function collectAssistantAttachments(responseText) {
     preview_open_attempts: 0,
     preview_download_controls: 0,
     preview_close_successes: 0,
+    semantic_names_seen: 0,
+    duplicate_candidates_skipped: 0,
+    duplicate_attachments_skipped: 0,
     attachments_collected: 0,
     errors: []
   };
@@ -1087,31 +1161,72 @@ async function collectAssistantAttachments(responseText) {
   ).length;
 
   const attachments = [];
-  const seen = new Set();
+  const seenCandidates = new Set();
+  const seenAttachmentNames = new Set();
+  const responseNames = attachmentNamesInText(responseText);
+  let responseNameIndex = 0;
+
+  debug.semantic_names_seen = responseNames.length;
 
   for (const element of elements) {
     if (attachments.length >= MAX_ATTACHMENT_COUNT) {
       break;
     }
 
-    const key =
+    let preferredName = attachmentNameFromElement(element);
+
+    if (!preferredName && responseNameIndex < responseNames.length) {
+      preferredName = responseNames[responseNameIndex];
+    }
+
+    const structuralKey =
       elementAttachmentHref(element) + "|" +
       (element.textContent || "") + "|" +
       (element.getAttribute("aria-label") || "") + "|" +
       (element.getAttribute("title") || "");
 
-    if (seen.has(key)) {
+    const semanticKey = preferredName
+      ? "name:" + preferredName.toLowerCase()
+      : "control:" + structuralKey;
+
+    if (seenCandidates.has(semanticKey)) {
+      debug.duplicate_candidates_skipped += 1;
       continue;
     }
-    seen.add(key);
+    seenCandidates.add(semanticKey);
 
     const attachment = await downloadAssistantAttachment(
       element,
-      debug
+      debug,
+      preferredName
     );
 
     if (attachment) {
+      const normalizedName = String(
+        attachment.name || ""
+      ).toLowerCase();
+
+      if (
+        normalizedName &&
+        seenAttachmentNames.has(normalizedName)
+      ) {
+        debug.duplicate_attachments_skipped += 1;
+        continue;
+      }
+
+      if (normalizedName) {
+        seenAttachmentNames.add(normalizedName);
+      }
+
       attachments.push(attachment);
+
+      if (
+        preferredName &&
+        responseNameIndex < responseNames.length &&
+        preferredName === responseNames[responseNameIndex]
+      ) {
+        responseNameIndex += 1;
+      }
     }
   }
 
