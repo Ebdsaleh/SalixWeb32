@@ -118,7 +118,8 @@ async function waitForDownloadCapture(timeoutMilliseconds) {
             file_size:
               typeof item.fileSize === "number"
                 ? item.fileSize
-                : -1
+                : -1,
+            managed_download: capture.managed_download_started === true
           };
         }
 
