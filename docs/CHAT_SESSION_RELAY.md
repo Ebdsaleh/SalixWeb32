@@ -126,6 +126,10 @@ python tools\test_chat_relay.py --message "Attachment smoke test" --file path\to
 The helper uses the same bounded `SALIX-CONVERSATION/1` framing as the native backend
 and prints any returned semantic attachment events.
 
+The `0.2.1` modern smoke pass is validated: a small text file was attached through the
+helper, appeared in the visible ChatGPT composer, and was submitted automatically without
+a manual Send click. The file arrived successfully in the ChatGPT conversation.
+
 ## Modern-machine setup
 
 Start LibreWolf **normally** using the profile you already use for ChatGPT.
