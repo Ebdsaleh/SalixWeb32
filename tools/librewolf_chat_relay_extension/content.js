@@ -4,8 +4,9 @@ const RESPONSE_TIMEOUT_MS = 180000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
 const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
-const ATTACHMENT_NAMELESS_SETTLE_MS = 8000;
+const ATTACHMENT_IMAGE_SETTLE_MS = 8000;
 const ATTACHMENT_READY_STABLE_MS = 1500;
+const SUBMIT_ATTACHMENT_VERIFY_MS = 5000;
 const ATTACHMENT_DISCOVERY_TIMEOUT_MS = 5000;
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024;
@@ -267,50 +268,162 @@ function userMessageCount() {
   }).length;
 }
 
-async function submitComposer(composer, originalText) {
+function submitStateSummary(composer) {
+  const liveComposer = findComposer() || composer;
+  const sendButton = findSendButton(liveComposer);
+  const form = liveComposer
+    ? liveComposer.closest("form")
+    : null;
+  const fileInput = findFileInput();
+
+  const testId = sendButton
+    ? (sendButton.getAttribute("data-testid") || "")
+    : "";
+  const aria = sendButton
+    ? (sendButton.getAttribute("aria-label") || "")
+    : "";
+  const type = sendButton
+    ? (sendButton.getAttribute("type") || "")
+    : "";
+
+  return [
+    "composer=" + (liveComposer ? "yes" : "no"),
+    "text_bytes=" + (
+      liveComposer
+        ? new TextEncoder().encode(
+            composerText(liveComposer)
+          ).length
+        : 0
+    ),
+    "send=" + (sendButton ? "yes" : "no"),
+    "send_testid=" + JSON.stringify(testId),
+    "send_aria=" + JSON.stringify(aria),
+    "send_type=" + JSON.stringify(type),
+    "form=" + (form ? "yes" : "no"),
+    "file_input_count=" + (
+      fileInput && fileInput.files
+        ? fileInput.files.length
+        : -1
+    ),
+    "generation_active=" + (
+      generationActive() ? "yes" : "no"
+    ),
+    "user_messages=" + userMessageCount()
+  ].join(" ");
+}
+
+async function waitForSubmitAcceptance(
+  beforeUserCount,
+  originalText,
+  verifyMilliseconds
+) {
+  const deadline = Date.now() + verifyMilliseconds;
+
+  while (Date.now() < deadline) {
+    if (userMessageCount() > beforeUserCount) {
+      return true;
+    }
+
+    if (generationActive()) {
+      return true;
+    }
+
+    const currentComposer = findComposer();
+    if (
+      currentComposer &&
+      originalText &&
+      composerText(currentComposer).trim() !== originalText.trim()
+    ) {
+      return true;
+    }
+
+    await sleep(100);
+  }
+
+  return false;
+}
+
+async function submitComposer(
+  composer,
+  originalText,
+  attachmentCount
+) {
   const beforeUserCount = userMessageCount();
-  const submitDeadline = Date.now() + 15000;
+  const submitDeadline = Date.now() + 20000;
+  const verifyMilliseconds = attachmentCount > 0
+    ? SUBMIT_ATTACHMENT_VERIFY_MS
+    : 1500;
   let clickAttempted = false;
+  let requestSubmitAttempted = false;
 
   while (Date.now() < submitDeadline) {
     const liveComposer = findComposer() || composer;
     const sendButton = findSendButton(liveComposer);
 
-    if (sendButton) {
-      sendButton.focus();
-      sendButton.click();
-      clickAttempted = true;
-
-      const verificationDeadline = Date.now() + 1500;
-
-      while (Date.now() < verificationDeadline) {
-        if (userMessageCount() > beforeUserCount) {
-          return;
-        }
-
-        const currentComposer = findComposer();
-        if (
-          currentComposer &&
-          originalText &&
-          composerText(currentComposer).trim() !== originalText.trim()
-        ) {
-          return;
-        }
-
-        await sleep(100);
-      }
-    } else {
+    if (!sendButton) {
       await sleep(100);
+      continue;
     }
+
+    sendButton.focus();
+    sendButton.click();
+    clickAttempted = true;
+
+    if (
+      await waitForSubmitAcceptance(
+        beforeUserCount,
+        originalText,
+        verifyMilliseconds
+      )
+    ) {
+      return;
+    }
+
+    const currentComposer = findComposer() || liveComposer;
+    const form = currentComposer
+      ? currentComposer.closest("form")
+      : null;
+    const currentSend = findSendButton(currentComposer);
+
+    if (
+      !requestSubmitAttempted &&
+      form &&
+      currentSend &&
+      typeof form.requestSubmit === "function"
+    ) {
+      requestSubmitAttempted = true;
+
+      try {
+        form.requestSubmit(currentSend);
+      } catch (_exception) {
+        // Fall through to the normal retry loop.
+      }
+
+      if (
+        await waitForSubmitAcceptance(
+          beforeUserCount,
+          originalText,
+          verifyMilliseconds
+        )
+      ) {
+        return;
+      }
+    }
+
+    await sleep(250);
   }
 
   throw new Error(
-    clickAttempted
-      ? "ChatGPT Send control did not accept the relay submission."
-      : "ChatGPT Send control was not available after attachment upload."
+    (
+      clickAttempted
+        ? "ChatGPT Send control did not accept the relay submission."
+        : "ChatGPT Send control was not available after attachment upload."
+    ) +
+    " submit_state={" +
+    submitStateSummary(composer) +
+    "}"
   );
 }
-
 function findFileInput() {
   const inputs = Array.from(
     document.querySelectorAll("input[type='file']")
@@ -467,6 +580,9 @@ async function injectAttachments(composer, attachments) {
   }
 
   const started = Date.now();
+  const hasImage = files.some((file) =>
+    /^image\//i.test(file.type || "")
+  );
   let sendReadySince = 0;
 
   while (Date.now() - started < ATTACHMENT_UPLOAD_TIMEOUT_MS) {
@@ -480,10 +596,6 @@ async function injectAttachments(composer, attachments) {
     );
 
     if (sendButton) {
-      if (namesVisible) {
-        return;
-      }
-
       if (!sendReadySince) {
         sendReadySince = Date.now();
       }
@@ -492,7 +604,25 @@ async function injectAttachments(composer, attachments) {
       const readyStable = Date.now() - sendReadySince;
 
       if (
-        elapsed >= ATTACHMENT_NAMELESS_SETTLE_MS &&
+        !hasImage &&
+        namesVisible &&
+        readyStable >= 250
+      ) {
+        return;
+      }
+
+      if (
+        hasImage &&
+        elapsed >= ATTACHMENT_IMAGE_SETTLE_MS &&
+        readyStable >= ATTACHMENT_READY_STABLE_MS
+      ) {
+        return;
+      }
+
+      if (
+        !hasImage &&
+        !namesVisible &&
+        elapsed >= ATTACHMENT_IMAGE_SETTLE_MS &&
         readyStable >= ATTACHMENT_READY_STABLE_MS
       ) {
         return;
@@ -1288,7 +1418,11 @@ async function submitMessage(text, attachments) {
 
   await sleep(250);
 
-  await submitComposer(composer, text);
+  await submitComposer(
+    composer,
+    text,
+    Array.isArray(attachments) ? attachments.length : 0
+  );
 
   const submittedAt = performance.now();
   const deadline = Date.now() + RESPONSE_TIMEOUT_MS;
