@@ -235,15 +235,37 @@ void MessageToolbar::set_code_mode_changed_handler(
     code_mode_changed_context = new_context;
 }
 
-void MessageToolbar::set_attachment_count(int attachment_count) {
-    if (attachment_count <= 0) {
-        attachment_status_label.set_text("");
-        return;
+void MessageToolbar::set_attachment_status(
+    int attachment_count,
+    int maximum_attachment_count,
+    const char* notice
+) {
+    if (attachment_count < 0) {
+        attachment_count = 0;
+    }
+    if (maximum_attachment_count < 1) {
+        maximum_attachment_count = 1;
     }
 
-    char status_text[64];
-    sprintf(status_text, "Files: %d", attachment_count);
-    attachment_status_label.set_text(status_text);
+    char count_text[64];
+    sprintf(
+        count_text,
+        "Files: %d / %d",
+        attachment_count,
+        maximum_attachment_count
+    );
+
+    std::string status_text(count_text);
+
+    if (notice != 0 && notice[0] != '\0') {
+        status_text += " | ";
+        status_text += notice;
+    }
+
+    attachment_status_label.set_text(status_text.c_str());
+    attach_button.set_enabled(
+        attachment_count < maximum_attachment_count
+    );
 }
 
 void MessageToolbar::set_list_style(ListPanel::ListStyle new_list_style) {
