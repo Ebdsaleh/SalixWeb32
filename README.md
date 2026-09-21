@@ -176,6 +176,11 @@ automatic Send; returned images preserve filename/MIME, suppress duplicate brows
 candidates, store one file under `Received`, render inline, and support native Preview
 plus external Open on the real Server 2003 target.
 
+The next native candidate moves the existing attachment bounds into a shared
+`ConversationAttachmentPolicy` used by both composer and transport. The composer now
+shows `Files: N / 8`, disables its attachment button at capacity, and preflights the
+8-file / 2 MB-per-file / 4 MB-total limits before Send. Target validation is pending.
+
 The relay still waits for the rendered assistant response to stabilize before the broker
 returns the completed response to Salix, so browser-side generation/stabilization remains
 a latency target. Native post-response drip-feeding is no longer part of that delay:
