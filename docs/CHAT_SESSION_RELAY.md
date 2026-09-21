@@ -151,6 +151,10 @@ after the MIME-aware settle window, returned one assistant attachment, suppresse
 duplicate browser candidate, and completed `POST /v1/message` successfully. The bridge
 then returned one attachment with HTTP 200 to the P4.
 
+Target-side follow-up video validation confirmed the returned PNG's native Salix Preview
+and external Open paths. The ordinary PNG file relay is now fully validated end-to-end on
+the Server 2003 target.
+
 The `0.2.8` retest exposed that visible image filenames still took the old immediate
 named-file path, so its settle change could be bypassed. Version `0.2.9` keys the settle
 decision from attachment MIME type instead: `image/*` always waits through the image
