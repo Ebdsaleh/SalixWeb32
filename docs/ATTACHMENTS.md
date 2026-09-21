@@ -449,8 +449,14 @@ candidates to one semantic attachment, and arrived back under
 The evidence-bundle copy matched the assistant-returned source byte-for-byte. The native
 conversation rendered the returned image inline with the expected proportions.
 
-Final image-presentation promotion remains gated only on explicit target evidence for the
-returned file's Salix Preview and external Open actions.
+Final image-presentation validation is now green. A real-P4 video capture confirmed that
+the returned PNG opens in the native Salix Preview and through the external/default image
+viewer, with the expected proportions in both paths.
+
+The ordinary PNG attachment path is therefore validated end-to-end in both directions:
+native send, browser submission, assistant return, duplicate suppression, filename/MIME
+preservation, Received storage, byte-for-byte integrity, inline thumbnail, Preview, and
+Open.
 
 ## Win32 image services
 
