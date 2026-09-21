@@ -1417,4 +1417,34 @@ a regression in the validated file path. Evidence bundles larger than 8 files mu
 split across messages unless the bounded policy is deliberately revised in a future
 tranche.
 
+### Single-PNG outgoing submission observation — 0.2.8 pending
+
+The first bounded PNG round-trip request did **not** reach reverse-image validation.
+Companion logs identify the failed request as:
+
+```text
+[chat-session] request id=1 text_bytes=87 attachments=1
+[chat-session] request id=1 failed: RuntimeError: Error: ChatGPT Send control did not accept the relay submission.
+```
+
+The bridge translated that broker failure into HTTP 503 for the P4 request. In the same
+log set, a five-attachment request containing images succeeded with approximately
+`browser_submit_ms=7650`, while the extension's unnamed-attachment fallback had allowed
+submission readiness after only 2500 ms.
+
+The `0.2.8` candidate therefore:
+- keeps named-file readiness behavior unchanged,
+- requires filename-less/image-thumbnail uploads to reach at least an 8-second settle
+  point,
+- additionally requires the Send control to remain usable for 1.5 seconds,
+- makes no native C++ changes,
+- leaves the validated `0.2.7` reverse-file capture logic unchanged.
+
+Acceptance for the retest:
+- no HTTP 503 from outgoing PNG submission,
+- request appears in ChatGPT with the PNG attached,
+- assistant can return the bounded PNG as a normal file,
+- only then evaluate P4 `files 1`, preserved `.png` filename, Received storage,
+  inline thumbnail, Preview, Open, and aspect ratio.
+
 MiniXP is not part of this tranche's acceptance gate.
