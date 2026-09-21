@@ -135,6 +135,26 @@ message_completed
 request_failed
 ```
 
+The next Conversation-liveness tranche is planned to add semantic request/provider status
+without exposing provider DOM objects. It separates:
+
+```text
+request transport:
+    transmitting / verified / provider_accepted / failed
+
+provider generation:
+    idle / generating / stabilizing / completed /
+    cancelled / provider_failed / connection_lost
+
+provider composer:
+    unavailable / ready / submitting / followup_ready
+```
+
+This distinction matters because a provider can still be generating while its composer is
+already available for another user message. A follow-up is therefore another immutable
+`ConversationRequest` with its own request ID and receipt verification, not a mutation
+of the original request.
+
 The service backend returns semantic content rather than remote UI state. Provider DOM
 objects, browser automation objects, Python implementation objects, and provider-specific
 response types do not cross this boundary.
@@ -153,15 +173,26 @@ true streaming remains incremental because only newly arrived events can be drai
 owns a **separate Win32 request executor/HTTP transport instance** from Browser Probe.
 This avoids Browser and Conversation single-flight/lifecycle contention while allowing
 both to reach the same companion host/port. The original content-free probe remains a
-diagnostic endpoint. The validated baseline is text-only; the current dev candidate adds
-bounded attachment framing behind `RemoteConversationBackend` and emits semantic
-`attachment` events without exposing browser upload mechanics to the application.
+diagnostic endpoint. Bounded text/generic/image attachment framing is now validated
+end-to-end behind `RemoteConversationBackend`, which emits semantic `attachment` events
+without exposing browser upload mechanics to the application. The active native candidate
+adds composer-side preflight UX while keeping the same relay bounds.
 
 Before accepting a real Conversation request, `RemoteConversationBackend` asynchronously
 checks `GET /v1/health`. The companion must advertise the exact
 `SALIX-CONVERSATION/1` browser-relay policy and report the localhost LibreWolf session
 ready. Backend readiness is therefore negotiated rather than inferred from generic TCP
 reachability or Browser Probe success.
+
+The planned liveness extension takes this one step further. Readiness and an active
+request's health will be reported independently: bridge reachability, companion outbound
+connectivity, WebExtension heartbeat, provider generation state, and provider composer
+state are distinct observations. Provider-specific Send/Stop/Follow-up/error UI signals
+remain inside the browser adapter and are translated into provider-neutral Conversation
+status.
+
+Long-running generation will not be failed merely because a short wall-clock timer
+expired while these liveness signals remain healthy.
 
 `ApplicationRuntime` explicitly initializes, updates, and shuts down the optional
 `ConversationServiceHost` alongside the optional `WebPlatformHost`. Event consumption
