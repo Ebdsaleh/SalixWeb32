@@ -381,6 +381,8 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [x] bounded text/generic/image file transfer through Conversation backend (outgoing
   and reverse paths green at 8 files / 2 MB each / 4 MB total; generated-image-card
   capture remains a separate provider/browser-adapter item)
+- [~] composer attachment-cap UX (shared policy + `N / 8` capacity + early
+  count/per-file/aggregate rejection implemented; real-P4 validation pending)
 - [x] copy/paste large diagnostic text through the native clipboard path
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
