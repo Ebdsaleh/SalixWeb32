@@ -397,6 +397,29 @@ A later attempt to send a larger evidence bundle in one message was correctly re
 the client at the 8-attachment boundary; this is expected policy enforcement rather than
 a transfer failure.
 
+### Image-upload single-file race — 0.2.8 candidate
+
+A later bounded PNG round-trip test exposed a browser-side submission race before reverse
+image capture could be tested. The P4 request contained one PNG attachment and the local
+browser relay returned HTTP 503. Companion logs localized the failure to the outgoing
+composer step:
+
+```text
+request id=1 text_bytes=87 attachments=1
+request id=1 failed: RuntimeError: Error: ChatGPT Send control did not accept the relay submission.
+```
+
+The same log set also showed that a five-attachment request containing images submitted
+successfully and spent about 7.65 seconds in browser submission. The current uploader had
+allowed filename-less attachment previews to advance after only 2.5 seconds whenever an
+enabled Send control existed. A single image thumbnail can omit the filename from visible
+composer text, so this fallback could click Send while image processing was still active.
+
+WebExtension `0.2.8` keeps the validated named-file path unchanged but requires
+filename-less/image-thumbnail uploads to remain Send-ready for a stable settle window
+after at least 8 seconds before automatic submission. This is a browser-only candidate;
+no native P4 rebuild is required.
+
 ## Win32 image services
 
 The current platform implementation uses:
