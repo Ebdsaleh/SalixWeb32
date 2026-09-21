@@ -458,6 +458,37 @@ native send, browser submission, assistant return, duplicate suppression, filena
 preservation, Received storage, byte-for-byte integrity, inline thumbnail, Preview, and
 Open.
 
+## Composer attachment-policy preflight candidate
+
+The next native tranche improves the UX around the already-validated relay bounds without
+changing those bounds.
+
+A header-only `ConversationAttachmentPolicy` now owns the shared numeric contract:
+
+- maximum 8 top-level attachments,
+- maximum 2 MB per attachment,
+- maximum 4 MB aggregate attachment data.
+
+Both `MessageComposer` and `RemoteConversationBackend` consume this policy. The backend
+retains its validation as defense in depth, while the composer now rejects invalid
+selections before a draft is submitted.
+
+Native composer behavior in the candidate:
+
+- the toolbar always shows `Files: N / 8`, including `Files: 0 / 8`,
+- the `+` attachment button disables when the queue reaches 8 items,
+- removing a chip immediately re-enables attachment selection,
+- a ninth selected file is not queued and the existing eight remain untouched,
+- files over 2 MB are rejected before Send,
+- selections that would exceed 4 MB total are rejected before Send,
+- unreadable files are rejected before Send,
+- partial multi-selection remains useful: valid files are queued and rejected files are
+  omitted,
+- a compact toolbar notice explains the applicable limit when a selection is rejected.
+
+The exact relay policy is unchanged; this tranche moves failure discovery from
+post-submit transport rejection to the composer boundary.
+
 ## Win32 image services
 
 The current platform implementation uses:
