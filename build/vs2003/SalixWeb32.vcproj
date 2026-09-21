@@ -187,6 +187,7 @@
 			<File RelativePath="..\..\src\app\MessageInputStrip.h"/>
 			<File RelativePath="..\..\src\app\MessageToolbar.h"/>
 			<File RelativePath="..\..\src\app\StatusView.h"/>
+			<File RelativePath="..\..\src\conversation\ConversationAttachmentPolicy.h"/>
 			<File RelativePath="..\..\src\conversation\ConversationEvent.h"/>
 			<File RelativePath="..\..\src\conversation\ConversationRequest.h"/>
 			<File RelativePath="..\..\src\conversation\ConversationSecurityProfile.h"/>
