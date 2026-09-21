@@ -89,7 +89,11 @@ class MessageToolbar : public Panel {
             void* new_context
         );
 
-        void set_attachment_count(int attachment_count);
+        void set_attachment_status(
+            int attachment_count,
+            int maximum_attachment_count,
+            const char* notice
+        );
         void set_list_style(ListPanel::ListStyle new_list_style);
         ListPanel::ListStyle get_list_style() const;
 
