@@ -1575,7 +1575,58 @@ The oversized file did not enter the pending queue and did not reach Send.
 
 A separate bounded companion request with three attachments subsequently completed with
 HTTP 200, confirming that the new native preflight did not regress normal attachment
-relay. Remaining target checks before promotion are the 8-file capacity state, re-enable
-after removal, partial multi-select above capacity, and 4 MB aggregate rejection.
+relay.
+
+A later P4 screenshot also confirmed the capacity presentation can reach:
+
+```text
+Files: 8 / 8
+```
+
+The remaining attachment-policy target checks before promotion are explicit button-disable
+behavior at 8, re-enable after removal, partial multi-select above capacity, and 4 MB
+aggregate rejection.
+
+### Long-running Conversation failure / liveness design trigger
+
+A later native Conversation request visibly produced only a partial/short result before
+the request failed. The P4 diagnostic captured:
+
+```text
+P4 failed after 181672 ms
+```
+
+The report did not contain `native batch ... -> ... updates` for that request, so the
+transaction did not reach the normal `message_completed` path. This does not support a
+ConversationView character-count or line-count truncation diagnosis.
+
+The current browser relay has a 180-second WebExtension response deadline and the localhost
+chat-session broker also defaults to 180 seconds. The approximately 181.7-second native
+failure is therefore treated as evidence that the synchronous relay lifetime can expire
+while the visible provider is still working.
+
+The planned replacement is request-liveness tracking rather than simply increasing the
+timeout. Target acceptance for that future tranche must cover:
+
+1. P4 request byte count + SHA-256 receipt verification by the bridge.
+2. Immediate acknowledgement that the complete request reached the bridge.
+3. Distinct provider acceptance after the browser shows the user turn was accepted.
+4. Independent bridge, outbound-connectivity, and WebExtension heartbeat state.
+5. Independent provider-generation and provider-composer state.
+6. A response that remains in `generating` for longer than 180 seconds without becoming
+   HTTP 503 while liveness remains healthy.
+7. Native composer re-enablement when the provider reports `followup_ready` even though
+   generation is still active.
+8. A normal text + bounded-attachment follow-up sent during the active generation.
+9. Explicit browser Stop/cancel mapping to `cancelled`, not timeout.
+10. Provider error/retry UI mapping to `provider_failed`, not timeout.
+11. Loss of bridge/Internet/extension heartbeat mapping to a recoverable/disconnected
+    state before final failure.
+12. Monotonic status sequence handling so delayed status packets cannot regress state.
+13. Completion still preserves canonical response text and the validated native batching
+    behavior.
+
+The separate Browser Probe's 512 KiB capture truncation remains intentional diagnostic
+behavior and is not a Conversation response-size limit.
 
 MiniXP remains outside the acceptance gate.
