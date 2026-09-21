@@ -92,7 +92,7 @@ root. Future true streaming can still present once per newly arrived batch.
 
 ## File-relay candidate
 
-The validated reverse-file baseline remains WebExtension `0.2.7`; the active browser-only image-submit candidate is `0.2.9`.
+WebExtension `0.2.9` is the validated companion baseline for bounded text/generic/image relay on the Server 2003 target.
 
 Outgoing Salix files are transferred as bounded attachment descriptors through the
 trusted development LAN, localhost broker, and extension. The content script reconstructs
