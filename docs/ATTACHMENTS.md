@@ -489,6 +489,15 @@ Native composer behavior in the candidate:
 The exact relay policy is unchanged; this tranche moves failure discovery from
 post-submit transport rejection to the composer boundary.
 
+The planned Conversation follow-up workflow reuses this exact attachment path. A follow-up
+is another ordinary `ConversationRequest` with its own request ID, text, byte count,
+SHA-256 receipt verification, and the same 8-file / 2 MB-per-file / 4 MB-total policy.
+There is no separate follow-up attachment implementation.
+
+When the browser adapter reports that the provider is still generating but its composer is
+`followup_ready`, Salix may re-enable the same native composer and submit the next draft
+through the existing bounded attachment machinery.
+
 ## Win32 image services
 
 The current platform implementation uses:
