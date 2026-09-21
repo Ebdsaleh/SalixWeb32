@@ -8,14 +8,22 @@
 class ConversationAttachmentPolicy {
     public:
         enum {
-            maximum_attachment_count = 8
+            maximum_attachment_count = 8,
+            maximum_attachment_megabytes = 2,
+            maximum_total_attachment_megabytes = 4
         };
 
         static unsigned long maximum_attachment_bytes() {
-            return 2UL * 1024UL * 1024UL;
+            return
+                (unsigned long)maximum_attachment_megabytes *
+                1024UL *
+                1024UL;
         }
 
         static unsigned long maximum_total_attachment_bytes() {
-            return 4UL * 1024UL * 1024UL;
+            return
+                (unsigned long)maximum_total_attachment_megabytes *
+                1024UL *
+                1024UL;
         }
 };
