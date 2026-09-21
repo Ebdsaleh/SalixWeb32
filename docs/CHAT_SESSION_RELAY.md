@@ -146,6 +146,11 @@ surfaced to the P4 as the bridge's generic HTTP 503 browser-relay failure. Versi
 `0.2.8` extends only the filename-less image-upload settle period before automatic Send.
 It does not change the validated returned-file interception path.
 
+The subsequent `0.2.9` target retest succeeded. The extension submitted the single PNG
+after the MIME-aware settle window, returned one assistant attachment, suppressed the
+duplicate browser candidate, and completed `POST /v1/message` successfully. The bridge
+then returned one attachment with HTTP 200 to the P4.
+
 The `0.2.8` retest exposed that visible image filenames still took the old immediate
 named-file path, so its settle change could be bypassed. Version `0.2.9` keys the settle
 decision from attachment MIME type instead: `image/*` always waits through the image
