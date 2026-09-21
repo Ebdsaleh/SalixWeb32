@@ -387,6 +387,22 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
   browser relay currently returns a completed response then releases semantic deltas)
+- [ ] request-liveness protocol: byte count + SHA-256 receipt verification + immediate
+  bridge acknowledgement before provider generation wait
+- [ ] split live Conversation state into request transport, provider generation, and
+  provider composer dimensions
+- [ ] report bridge health, companion outbound connectivity, WebExtension heartbeat,
+  provider generation state, and composer readiness independently
+- [ ] remove the present 180-second generation deadline as the normal failure condition;
+  keep bounded submission-acceptance/recovery deadlines instead
+- [ ] map explicit browser cancellation, provider error surfaces, and connection loss to
+  distinct provider-neutral Conversation outcomes
+- [ ] expose `followup_ready` while generation is still active and reuse the ordinary
+  Salix text + bounded-attachment Send path for follow-up requests
+- [ ] correlate multiple immutable request IDs with one active provider generation/context
+  group without mutating previously verified messages
+- [ ] add monotonic status sequence numbers so stale relay status cannot regress native
+  request/generation state
 - [ ] conversation-thread selection from Salix
 - [ ] session persistence
 - [x] diagnostics panel and native screenshot/report capture
@@ -547,12 +563,14 @@ See `docs/FILE_LOCATIONS.md`.
 ## Current near-term priority
 
 1. keep the real P4 / Server 2003 R2 build clean under VC7.1,
-2. complete the active Server 2003 R2 validation of Standard and Portable persistent
-   file locations,
-3. harden response extraction and failure diagnostics against ordinary page changes,
-4. optimize relay latency without weakening the current boundaries,
-5. add explicit conversation-thread selection after one-current-thread relay is green,
-6. validate the bounded bidirectional file-relay candidate on Server 2003 R2,
+2. finish the active attachment-cap UX validation without changing the validated relay
+   bounds,
+3. replace the fixed 180-second browser/session generation deadline with verified request
+   receipt and live liveness/workflow telemetry,
+4. expose provider generation and composer state separately so Salix can mirror
+   `followup_ready` while the provider is still generating,
+5. harden response extraction and failure diagnostics against ordinary page changes,
+6. add explicit conversation-thread selection after the current-thread relay is green,
 7. move from completed-response framing to true incremental response transport,
 8. continue using the companion as a reference/scaffold while replacing its capabilities
    with NT5-native implementations where practical,
