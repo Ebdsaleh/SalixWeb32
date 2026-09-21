@@ -942,7 +942,13 @@ bool RemoteConversationBackend::submit_request(
         attachment_count < 0 ||
         (unsigned long)attachment_count > ConversationAttachmentPolicy::maximum_attachment_count
     ) {
-        status_text = "browser relay supports at most 8 attachments";
+        char limit_text[96];
+        sprintf(
+            limit_text,
+            "browser relay supports at most %d attachments",
+            ConversationAttachmentPolicy::maximum_attachment_count
+        );
+        status_text = limit_text;
         return false;
     }
 
@@ -968,8 +974,14 @@ bool RemoteConversationBackend::submit_request(
             get_attachment_mime_type(attachment.name);
 
         if (!read_attachment_file(path, attachment.data)) {
-            status_text =
-                "attachment could not be read or exceeds 2 MB";
+            char limit_text[128];
+            sprintf(
+                limit_text,
+                "attachment could not be read or exceeds %d MB",
+                ConversationAttachmentPolicy::
+                    maximum_attachment_megabytes
+            );
+            status_text = limit_text;
             return false;
         }
 
@@ -980,8 +992,14 @@ bool RemoteConversationBackend::submit_request(
             total_attachment_bytes >
             ConversationAttachmentPolicy::maximum_total_attachment_bytes()
         ) {
-            status_text =
-                "attachments exceed 4 MB total relay limit";
+            char limit_text[128];
+            sprintf(
+                limit_text,
+                "attachments exceed %d MB total relay limit",
+                ConversationAttachmentPolicy::
+                    maximum_total_attachment_megabytes
+            );
+            status_text = limit_text;
             return false;
         }
 
