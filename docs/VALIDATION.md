@@ -1563,4 +1563,19 @@ Build acceptance on the real P4:
 12. Send a valid bounded attachment message and confirm the already-validated relay still
     succeeds normally.
 
+Partial real-P4 validation is now green for the per-file-size boundary. A selected
+`image_preview_test.mp4` reported by the Windows file dialog as approximately 9.62 MB
+was rejected immediately by the native composer. The toolbar remained at:
+
+```text
+Files: 0 / 8 | rejected: file exceeds 2 MB
+```
+
+The oversized file did not enter the pending queue and did not reach Send.
+
+A separate bounded companion request with three attachments subsequently completed with
+HTTP 200, confirming that the new native preflight did not regress normal attachment
+relay. Remaining target checks before promotion are the 8-file capacity state, re-enable
+after removal, partial multi-select above capacity, and 4 MB aggregate rejection.
+
 MiniXP remains outside the acceptance gate.
