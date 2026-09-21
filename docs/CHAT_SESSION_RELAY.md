@@ -92,7 +92,7 @@ root. Future true streaming can still present once per newly arrived batch.
 
 ## File-relay candidate
 
-The validated reverse-file baseline remains WebExtension `0.2.7`; the active browser-only upload-readiness candidate is `0.2.8`.
+The validated reverse-file baseline remains WebExtension `0.2.7`; the active browser-only image-submit candidate is `0.2.9`.
 
 Outgoing Salix files are transferred as bounded attachment descriptors through the
 trusted development LAN, localhost broker, and extension. The content script reconstructs
@@ -145,6 +145,13 @@ reported `ChatGPT Send control did not accept the relay submission`; this was th
 surfaced to the P4 as the bridge's generic HTTP 503 browser-relay failure. Version
 `0.2.8` extends only the filename-less image-upload settle period before automatic Send.
 It does not change the validated returned-file interception path.
+
+The `0.2.8` retest exposed that visible image filenames still took the old immediate
+named-file path, so its settle change could be bypassed. Version `0.2.9` keys the settle
+decision from attachment MIME type instead: `image/*` always waits through the image
+settle window. Submit verification is also extended for attachment requests, generation
+activity is accepted as submit evidence, and one `form.requestSubmit()` fallback plus
+diagnostic submit-state snapshot is available if the normal click does not take.
 
 The modern smoke helper can now exercise an outgoing file without the P4:
 
