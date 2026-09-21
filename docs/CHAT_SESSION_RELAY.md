@@ -306,6 +306,123 @@ assistant text.
 These selectors are isolated inside the extension so normal ChatGPT markup changes do
 not require changes to the VC7.1 application.
 
+## Planned live browser-workflow telemetry
+
+The current relay treats the browser as a request/response endpoint and uses a fixed
+response deadline. The next planned tranche narrows the behavioral distance between the
+native Salix composer and the visible browser by exposing provider workflow state while a
+request is active.
+
+The extension will report two independent browser-facing states in addition to transport
+receipt:
+
+```text
+provider generation:
+    idle
+    generating
+    stabilizing
+    completed
+    cancelled
+    provider_failed
+    connection_lost
+
+provider composer:
+    unavailable
+    ready
+    submitting
+    followup_ready
+```
+
+The browser adapter should infer these states from several live DOM/accessibility signals
+rather than one literal selector or one piece of placeholder text. Relevant observations
+include:
+
+- whether the supported ChatGPT composer is visible and editable,
+- whether the composer is empty after submission,
+- whether a Send or Stop-generation control is available,
+- whether generation controls indicate active work,
+- whether the composer placeholder/ARIA state suggests a follow-up,
+- whether the submitted user turn appeared,
+- whether the assistant turn is still changing,
+- whether provider error/retry UI is visible,
+- whether the user explicitly stopped the active browser generation.
+
+The extension already has generation-control detection; the planned tranche turns that
+kind of observation into explicit telemetry instead of using it only as an internal
+completion helper.
+
+Pixel or canvas inspection is not the default strategy when semantic DOM/accessibility
+state is available. If a future provider exposes a critical state only through rendered
+pixels, that belongs in a provider-specific visual adapter below the same semantic
+contract.
+
+### Follow-up behavior
+
+ChatGPT can expose a usable composer while the current assistant generation is still
+active. This must not be mistaken for completion.
+
+The extension will report:
+
+```text
+generation = generating
+composer   = followup_ready
+```
+
+Salix may then re-enable its native input immediately. The next ordinary Salix message is
+sent through the same text + bounded-attachment pipeline as any other message; no special
+"follow-up" command is required.
+
+Each follow-up remains its own immutable Salix request with its own request ID and receipt
+verification. The provider adapter may associate several accepted requests with one
+active generation/context group until the provider finishes or is cancelled.
+
+### Planned receipt acknowledgement
+
+Before waiting for provider generation, the P4 and bridge will establish that the complete
+request reached the companion. Planned receipt metadata includes:
+
+```text
+request_id
+payload_bytes
+payload_sha256
+verified
+```
+
+The digest is SHA-256 over the canonical request payload. This proves complete bridge
+receipt; provider acceptance is reported separately after the browser UI confirms that
+the submitted user turn was accepted.
+
+### Planned liveness sources
+
+The relay will distinguish:
+
+- P4 -> bridge health,
+- companion outbound Internet/provider reachability,
+- WebExtension heartbeat,
+- ChatGPT tab/composer readiness,
+- provider generation state,
+- provider composer state.
+
+These checks run outside the native UI thread. ICMP ping may be exposed as optional
+diagnostic information but is not the authoritative health check.
+
+Live status reports are planned to carry monotonic sequence numbers so delayed packets
+cannot regress the native client from a newer state to an older one.
+
+### Planned timeout semantics
+
+A long-running model response is not itself a failure. The planned policy keeps a bounded
+submission-acceptance deadline but removes the present short fixed generation deadline as
+the normal failure condition.
+
+While the bridge, extension, and provider workflow remain observably alive, Salix should
+continue waiting whether generation takes seconds or many minutes.
+
+Explicit browser cancellation, provider error UI, extension loss, bridge loss, and
+Internet/provider reachability loss become separate semantic outcomes. HTTP 503 should
+represent genuine companion/service unavailability rather than merely a long-running
+generation.
+
 ## Development-extension lifecycle
 
 The initial relay uses a **temporary** WebExtension installation to prove the architecture
@@ -331,6 +448,13 @@ If no ChatGPT composer is available, the broker reports
 If page interaction fails after a request begins, the extension returns a failure to the
 localhost broker, which propagates through `salix_bridge.py` into the existing
 Conversation failure event path.
+
+The current implementation still has a 180-second WebExtension/session response deadline.
+Real target evidence has now shown a P4 request failing after approximately 181.7 seconds,
+which is consistent with that synchronous deadline. This is tracked as a relay-liveness
+limitation, not as a ConversationView character or line limit. The planned stateful
+liveness design above replaces that fixed generation deadline rather than merely making
+the number larger.
 
 The ordinary LibreWolf window remains visible throughout, so browser-side failures can be
 inspected directly.
@@ -430,12 +554,12 @@ assistant response returned through `SALIX-CONVERSATION/1` semantic events and r
 inside the native Conversation view. The VC7.1 target build was clean with zero errors
 and zero warnings.
 
-The validated baseline remains completed-response-oriented. The current dev candidate
-extends that path with bounded file attachments in both directions; this file path still
-requires target validation. Browser-side generation/stabilization latency remains a
-follow-up optimization target, while native completed-response batching is already
-validated on the real P4. True generation-time streaming remains a separate later
-tranche.
+The validated baseline remains completed-response-oriented. Bounded ordinary
+text/generic/image file relay is now target-green in both directions, while the active
+native candidate adds composer-side attachment preflight UX. Browser-side
+generation/stabilization latency and long-running request liveness remain follow-up
+targets, while native completed-response batching is already validated on the real P4.
+True generation-time streaming remains a separate later tranche.
 
 The UTF-8 framework / UTF-16 Win32 boundary and glyph-aware fallback are also validated
 on the real P4, including Unicode clipboard and relay round-trip coverage.
