@@ -1537,4 +1537,30 @@ Server 2003 target.
 The generated-image-card browser shape remains a separate future provider-adapter case;
 this result validates an ordinary returned PNG file attachment only.
 
-MiniXP is not part of this tranche's acceptance gate.
+### Composer attachment-cap UX candidate — target validation pending
+
+This native candidate does not change the validated 8-file / 2 MB-per-file / 4 MB-total
+conversation contract. It introduces shared `ConversationAttachmentPolicy` limits and
+moves the first validation boundary into `MessageComposer`.
+
+Build acceptance on the real P4:
+
+1. Clean/Rebuild `Debug|Win32` under Visual Studio .NET 2003.
+2. Confirm **0 errors / 0 warnings**.
+3. Launch SalixWeb32 and confirm the empty composer reads `Files: 0 / 8`.
+4. Add one small file and confirm `Files: 1 / 8`.
+5. Queue eight small files and confirm `Files: 8 / 8`.
+6. Confirm the toolbar `+` attachment button is disabled at 8.
+7. Remove one attachment and confirm `Files: 7 / 8` and `+` becomes usable again.
+8. Starting below capacity, multi-select enough files to exceed eight total; confirm only
+   the available slots are filled and the existing/accepted queue is preserved.
+9. Confirm the toolbar reports the 8-file limit rather than allowing a later Send-time
+   relay failure.
+10. Select a file larger than 2 MB; confirm it is not queued and the toolbar reports the
+    per-file limit.
+11. Queue small files whose aggregate would exceed 4 MB; confirm the overflowing file is
+    not queued and the toolbar reports the aggregate limit.
+12. Send a valid bounded attachment message and confirm the already-validated relay still
+    succeeds normally.
+
+MiniXP remains outside the acceptance gate.
