@@ -378,7 +378,8 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [x] text input -> provider-neutral `ConversationRequest` handoff
 - [~] attachments (semantic local model, image presentation, native P4 text/generic
   outgoing transfer and returned text-file relay validated; single-PNG browser auto-send
-  race has a MIME-aware 0.2.9 retest candidate)
+  race fixed in 0.2.9; ordinary PNG round-trip transport green, returned Preview/Open
+  target checks pending)
 - [x] bounded text/generic file transfer through Conversation backend (outgoing and
   reverse paths green at 8 files / 2 MB each / 4 MB total; ordinary returned-PNG
   validation remains pending behind the single-image submission retest)
