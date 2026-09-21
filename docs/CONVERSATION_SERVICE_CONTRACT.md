@@ -152,6 +152,150 @@ not the service contract:
 A future backend may internally use an API, browser session, translator, native TLS, or
 another implementation. Those details stop at the backend boundary.
 
+## Planned request-liveness and provider-workflow extension
+
+This section records the next planned Conversation lifecycle tranche. It is a design
+contract only; the current implementation still uses the completed-response relay and its
+existing fixed browser/session response deadline.
+
+The goal is to stop treating elapsed generation time as a proxy for failure. A provider
+may legitimately work for many minutes. Salix should continue waiting while the actual
+transport, companion, browser adapter, and provider workflow remain observably alive.
+
+The planned model deliberately separates three independent state dimensions.
+
+### Request transport state
+
+Each outgoing message remains an immutable Salix request with its own request ID:
+
+```text
+queued
+transmitting
+verified
+provider_accepted
+failed
+```
+
+The P4 will compute a SHA-256 digest over the canonical request payload together with its
+byte count. The bridge will verify the received payload before acknowledging it. Receipt
+metadata is planned to include at least:
+
+```text
+request_id
+payload_bytes
+payload_sha256
+verified
+```
+
+This acknowledgement proves that the bridge received the complete Salix payload. It does
+not claim that a model server internally consumed the request; provider acceptance remains
+a separate browser/provider observation.
+
+### Provider generation state
+
+Provider work is tracked independently from message transport:
+
+```text
+idle
+generating
+stabilizing
+completed
+cancelled
+provider_failed
+connection_lost
+```
+
+A long-running `generating` state is healthy when liveness signals remain present.
+Cancellation, a provider error surface, and loss of connectivity are therefore distinct
+results instead of all becoming a generic timeout.
+
+### Provider composer state
+
+The browser/provider composer also has an independent state:
+
+```text
+unavailable
+ready
+submitting
+followup_ready
+```
+
+This is required because ChatGPT can continue generating while its composer becomes
+available for a follow-up. In that condition the correct semantic state is:
+
+```text
+generation = generating
+composer   = followup_ready
+```
+
+The Salix composer may then become usable again without implying that the current
+generation has completed.
+
+### Follow-up requests
+
+A follow-up is not a mutation of the already-verified request. It is another ordinary
+`ConversationRequest` with its own request ID, byte count, SHA-256 digest, text, and
+bounded attachments.
+
+Provider adapters may correlate several accepted requests with one active provider
+generation:
+
+```text
+generation 17
+    request 42  initial message
+    request 43  follow-up
+    request 44  follow-up
+```
+
+The application does not need a separate provider-specific "Send Follow-Up" operation.
+When the adapter reports `followup_ready`, the next ordinary Salix Send uses the same
+text/attachment submission machinery and is classified by the adapter as a follow-up to
+the active generation.
+
+### Liveness inputs
+
+The planned remote adapter will combine independent liveness signals rather than rely on
+one Send/Stop selector:
+
+- P4 -> bridge health through the actual Salix bridge path,
+- companion outbound connectivity health,
+- recent WebExtension heartbeat,
+- supported ChatGPT tab/composer visibility,
+- composer editable/empty state,
+- Send/Stop/generation-control state,
+- provider error/retry surfaces,
+- observed user cancellation of the active browser generation,
+- assistant response mutation/stabilization state.
+
+ICMP ping may be useful as optional diagnostics, but it is not authoritative because the
+application depends on the bridge and provider paths rather than ICMP reachability.
+
+Provider-specific DOM/accessibility observations stay inside the web-session adapter. The
+generic Conversation framework receives only semantic lifecycle state.
+
+### Status ordering
+
+Live status reports will carry a monotonic sequence number for each active request or
+generation. Stale packets must not move Salix backward from a newer state such as
+`completed` to an older state such as `generating`.
+
+### Timeout policy
+
+The planned policy distinguishes short operation deadlines from generation lifetime:
+
+- submission acceptance retains a bounded deadline because an unaccepted Send is a real
+  failure,
+- a healthy provider `generating` state has no ordinary short wall-clock timeout,
+- lost bridge, Internet/provider reachability, or extension heartbeat enters a recovery
+  state with a grace interval,
+- explicit browser cancellation maps to `cancelled`,
+- an observed provider error maps to `provider_failed`,
+- HTTP 503 is reserved for genuine companion/service unavailability rather than "the
+  model has been working for a long time."
+
+The currently observed ~180-second failure boundary is therefore considered a limitation
+of the present synchronous relay, not a desired Conversation-service semantic.
+
 ## Main-thread presentation discipline
 
 The conversation contract follows the same rule as the web/network path:
