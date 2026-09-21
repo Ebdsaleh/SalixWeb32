@@ -4,6 +4,7 @@
 // Description: Implements the complete messenger composer.
 // =================================================================================
 
+#include <stdio.h>
 #include <string.h>
 
 #include "MessageComposer.h"
@@ -11,8 +12,55 @@
 #include "framework/TextFormat.h"
 #include "framework/MimeData.h"
 #include "framework/UIEvent.h"
+#include "conversation/ConversationAttachmentPolicy.h"
 
 namespace {
+    bool get_file_size(
+        const std::string& path,
+        unsigned long& file_size
+    ) {
+        file_size = 0;
+
+        if (path.empty()) {
+            return false;
+        }
+
+        FILE* file = fopen(path.c_str(), "rb");
+        if (file == 0) {
+            return false;
+        }
+
+        bool valid = false;
+
+        if (fseek(file, 0, SEEK_END) == 0) {
+            long length = ftell(file);
+
+            if (length >= 0) {
+                file_size = (unsigned long)length;
+                valid = true;
+            }
+        }
+
+        fclose(file);
+        return valid;
+    }
+
+    unsigned long calculate_attachment_bytes(
+        const std::vector<std::string>& paths
+    ) {
+        unsigned long total = 0;
+
+        for (int index = 0; index < (int)paths.size(); ++index) {
+            unsigned long file_size = 0;
+
+            if (get_file_size(paths[index], file_size)) {
+                total += file_size;
+            }
+        }
+
+        return total;
+    }
+
     TextFormat get_portable_format(const TextFormat& source_format) {
         TextFormat format = source_format;
         format.code_style = TextFormat::code_none;
@@ -585,9 +633,94 @@ void MessageComposer::build_draft(MessageDraft& draft) const {
 void MessageComposer::add_attachments(
     const std::vector<std::string>& paths
 ) {
+    const int maximum_count =
+        ConversationAttachmentPolicy::maximum_attachment_count;
+    const unsigned long maximum_file_bytes =
+        ConversationAttachmentPolicy::maximum_attachment_bytes();
+    const unsigned long maximum_total_bytes =
+        ConversationAttachmentPolicy::maximum_total_attachment_bytes();
+
+    unsigned long total_bytes =
+        calculate_attachment_bytes(attachment_paths);
+
+    int rejected_count = 0;
+    int rejected_file_size = 0;
+    int rejected_total_size = 0;
+    int rejected_unreadable = 0;
+
+    attachment_notice.clear();
+
     for (int index = 0; index < (int)paths.size(); ++index) {
-        if (!paths[index].empty()) {
-            attachment_paths.push_back(paths[index]);
+        if (paths[index].empty()) {
+            continue;
+        }
+
+        if ((int)attachment_paths.size() >= maximum_count) {
+            ++rejected_count;
+            continue;
+        }
+
+        unsigned long file_size = 0;
+        if (!get_file_size(paths[index], file_size)) {
+            ++rejected_unreadable;
+            continue;
+        }
+
+        if (file_size > maximum_file_bytes) {
+            ++rejected_file_size;
+            continue;
+        }
+
+        if (
+            total_bytes > maximum_total_bytes ||
+            file_size > maximum_total_bytes - total_bytes
+        ) {
+            ++rejected_total_size;
+            continue;
+        }
+
+        attachment_paths.push_back(paths[index]);
+        total_bytes += file_size;
+    }
+
+    if (
+        rejected_count > 0 ||
+        rejected_file_size > 0 ||
+        rejected_total_size > 0 ||
+        rejected_unreadable > 0
+    ) {
+        if (
+            rejected_count > 0 &&
+            rejected_file_size == 0 &&
+            rejected_total_size == 0 &&
+            rejected_unreadable == 0
+        ) {
+            set_attachment_notice("limit reached: 8 files");
+        } else if (
+            rejected_file_size > 0 &&
+            rejected_count == 0 &&
+            rejected_total_size == 0 &&
+            rejected_unreadable == 0
+        ) {
+            set_attachment_notice("rejected: file exceeds 2 MB");
+        } else if (
+            rejected_total_size > 0 &&
+            rejected_count == 0 &&
+            rejected_file_size == 0 &&
+            rejected_unreadable == 0
+        ) {
+            set_attachment_notice("rejected: 4 MB total limit");
+        } else if (
+            rejected_unreadable > 0 &&
+            rejected_count == 0 &&
+            rejected_file_size == 0 &&
+            rejected_total_size == 0
+        ) {
+            set_attachment_notice("rejected: file could not be read");
+        } else {
+            set_attachment_notice(
+                "some rejected: 8 files, 2 MB each, 4 MB total"
+            );
         }
     }
 
@@ -600,19 +733,25 @@ void MessageComposer::remove_attachment(int index) {
     }
 
     attachment_paths.erase(attachment_paths.begin() + index);
+    attachment_notice.clear();
     sync_attachment_state();
 }
 
 void MessageComposer::clear_attachments() {
     pending_attachment_remove_index = -1;
     attachment_paths.clear();
+    attachment_notice.clear();
     sync_attachment_state();
 }
 
 void MessageComposer::sync_attachment_state() {
     int attachment_count = (int)attachment_paths.size();
 
-    message_toolbar.set_attachment_count(attachment_count);
+    message_toolbar.set_attachment_status(
+        attachment_count,
+        ConversationAttachmentPolicy::maximum_attachment_count,
+        attachment_notice.c_str()
+    );
     message_input_strip.set_allow_empty_submit(attachment_count > 0);
     attachment_tray.set_paths(attachment_paths);
     attachment_tray.set_visible(attachment_count > 0);
@@ -625,6 +764,12 @@ void MessageComposer::sync_attachment_state() {
             get_height()
         );
     }
+}
+
+void MessageComposer::set_attachment_notice(
+    const char* notice
+) {
+    attachment_notice = notice == 0 ? "" : notice;
 }
 
 void MessageComposer::sync_list_state() {
