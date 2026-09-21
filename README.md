@@ -187,6 +187,17 @@ a latency target. Native post-response drip-feeding is no longer part of that de
 Salix drains all semantic events already available from a completed response and
 coalesces them into one Conversation presentation update.
 
+A long-running target request has now exposed a separate relay-liveness limitation: the
+current WebExtension/session path has a roughly 180-second fixed response deadline even
+though interactive model work may legitimately continue much longer. The planned fix is
+stateful liveness rather than a larger arbitrary timeout. Salix will verify complete
+request receipt with byte count + SHA-256, track bridge/browser/provider health, and keep
+request transport, provider generation, and provider-composer state separate. In
+particular, the provider may remain `generating` while its composer becomes
+`followup_ready`; Salix can then re-enable its normal composer and send another ordinary
+text + bounded-attachment request as a follow-up without treating the active generation
+as complete. These changes are documented design work and are not yet implemented.
+
 End-to-end relay timing is now instrumented and validated on the real P4. The first
 captured target baseline measured about 19.4 seconds on the modern relay versus
 57.5 seconds to native `message_completed`, exposing roughly 38.1 seconds of artificial
