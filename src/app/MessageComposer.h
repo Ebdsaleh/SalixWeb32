@@ -118,12 +118,14 @@ class MessageComposer : public Panel {
         void remove_attachment(int index);
         void clear_attachments();
         void sync_attachment_state();
+        void set_attachment_notice(const char* notice);
         void sync_list_state();
 
         MessageInputStrip message_input_strip;
         AttachmentTray attachment_tray;
         MessageToolbar message_toolbar;
         std::vector<std::string> attachment_paths;
+        std::string attachment_notice;
         int pending_attachment_remove_index;
 
         SubmitHandler submit_handler;
