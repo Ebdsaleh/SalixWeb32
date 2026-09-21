@@ -695,21 +695,41 @@ void MessageComposer::add_attachments(
             rejected_total_size == 0 &&
             rejected_unreadable == 0
         ) {
-            set_attachment_notice("limit reached: 8 files");
+            char notice[96];
+            sprintf(
+                notice,
+                "limit reached: %d files",
+                ConversationAttachmentPolicy::maximum_attachment_count
+            );
+            set_attachment_notice(notice);
         } else if (
             rejected_file_size > 0 &&
             rejected_count == 0 &&
             rejected_total_size == 0 &&
             rejected_unreadable == 0
         ) {
-            set_attachment_notice("rejected: file exceeds 2 MB");
+            char notice[96];
+            sprintf(
+                notice,
+                "rejected: file exceeds %d MB",
+                ConversationAttachmentPolicy::
+                    maximum_attachment_megabytes
+            );
+            set_attachment_notice(notice);
         } else if (
             rejected_total_size > 0 &&
             rejected_count == 0 &&
             rejected_file_size == 0 &&
             rejected_unreadable == 0
         ) {
-            set_attachment_notice("rejected: 4 MB total limit");
+            char notice[96];
+            sprintf(
+                notice,
+                "rejected: %d MB total limit",
+                ConversationAttachmentPolicy::
+                    maximum_total_attachment_megabytes
+            );
+            set_attachment_notice(notice);
         } else if (
             rejected_unreadable > 0 &&
             rejected_count == 0 &&
@@ -718,9 +738,17 @@ void MessageComposer::add_attachments(
         ) {
             set_attachment_notice("rejected: file could not be read");
         } else {
-            set_attachment_notice(
-                "some rejected: 8 files, 2 MB each, 4 MB total"
+            char notice[128];
+            sprintf(
+                notice,
+                "some rejected: %d files, %d MB each, %d MB total",
+                ConversationAttachmentPolicy::maximum_attachment_count,
+                ConversationAttachmentPolicy::
+                    maximum_attachment_megabytes,
+                ConversationAttachmentPolicy::
+                    maximum_total_attachment_megabytes
             );
+            set_attachment_notice(notice);
         }
     }
 
