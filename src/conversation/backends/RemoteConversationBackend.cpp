@@ -13,14 +13,12 @@
 #include "web/network/NetworkRequest.h"
 #include "web/network/NetworkRequestExecutor.h"
 #include "web/network/NetworkResponse.h"
+#include "conversation/ConversationAttachmentPolicy.h"
 
 namespace {
     const char* bridge_protocol = "SALIX-BRIDGE/1";
     const char* conversation_protocol = "SALIX-CONVERSATION/1";
     const char* attachment_protocol = "SALIX-ATTACHMENT/1";
-    const unsigned long maximum_attachment_count = 8;
-    const unsigned long maximum_attachment_bytes = 2UL * 1024UL * 1024UL;
-    const unsigned long maximum_total_attachment_bytes = 4UL * 1024UL * 1024UL;
 
     struct OutgoingAttachment {
         std::string name;
@@ -162,7 +160,7 @@ namespace {
         long length = ftell(file);
         if (
             length < 0 ||
-            (unsigned long)length > maximum_attachment_bytes
+            (unsigned long)length > ConversationAttachmentPolicy::maximum_attachment_bytes()
         ) {
             fclose(file);
             return false;
@@ -380,7 +378,7 @@ namespace {
             size_end == 0 ||
             *size_end != '\0' ||
             expected_size != (unsigned long)data.size() ||
-            expected_size > maximum_attachment_bytes
+            expected_size > ConversationAttachmentPolicy::maximum_attachment_bytes()
         ) {
             return false;
         }
@@ -942,7 +940,7 @@ bool RemoteConversationBackend::submit_request(
 
     if (
         attachment_count < 0 ||
-        (unsigned long)attachment_count > maximum_attachment_count
+        (unsigned long)attachment_count > ConversationAttachmentPolicy::maximum_attachment_count
     ) {
         status_text = "browser relay supports at most 8 attachments";
         return false;
@@ -980,7 +978,7 @@ bool RemoteConversationBackend::submit_request(
 
         if (
             total_attachment_bytes >
-            maximum_total_attachment_bytes
+            ConversationAttachmentPolicy::maximum_total_attachment_bytes()
         ) {
             status_text =
                 "attachments exceed 4 MB total relay limit";
