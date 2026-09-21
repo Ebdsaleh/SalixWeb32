@@ -441,6 +441,17 @@ Version `0.2.9` makes readiness MIME-aware rather than visibility-only:
 
 No native C++ changes are part of `0.2.9`.
 
+The `0.2.9` P4 retest is transport-green for an ordinary returned PNG. A single
+1024x683 / 263,102-byte PNG submitted automatically from the P4, reached ChatGPT without
+HTTP 503, was returned through the assistant-file path, collapsed from two browser
+candidates to one semantic attachment, and arrived back under
+`%APPDATA%\SalixWeb32\Received\SalixWeb32_remote_image_return_test.png`.
+The evidence-bundle copy matched the assistant-returned source byte-for-byte. The native
+conversation rendered the returned image inline with the expected proportions.
+
+Final image-presentation promotion remains gated only on explicit target evidence for the
+returned file's Salix Preview and external Open actions.
+
 ## Win32 image services
 
 The current platform implementation uses:
