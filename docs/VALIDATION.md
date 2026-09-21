@@ -1447,4 +1447,34 @@ Acceptance for the retest:
 - only then evaluate P4 `files 1`, preserved `.png` filename, Received storage,
   inline thumbnail, Preview, Open, and aspect ratio.
 
+### Single-PNG outgoing submission observation — 0.2.8 rejected / 0.2.9 pending
+
+The fresh-client `0.2.8` retest still failed after the P4 successfully staged and
+displayed the local PNG. Companion logs again showed:
+
+```text
+[chat-session] request id=1 text_bytes=88 attachments=1
+[chat-session] request id=1 failed: RuntimeError: Error: ChatGPT Send control did not accept the relay submission.
+```
+
+The bridge surfaced the corresponding conversation request as HTTP 503. The independent
+Browser Probe initialized cleanly and returned HTTP 200, so fresh Salix startup and the
+unauthenticated probe path were not the cause.
+
+Code review found the `0.2.8` defect: `injectAttachments()` returned immediately when
+all attachment filenames were visible, before consulting the new filename-less
+8-second settle path. A single PNG whose filename appeared quickly could therefore retain
+the original race.
+
+The `0.2.9` candidate:
+- determines image settling from MIME type rather than filename visibility,
+- forces all `image/*` uploads through the 8-second / 1.5-second stable-Send gate,
+- retains the fast path for validated named non-image files,
+- observes attachment submit acceptance for up to 5 seconds,
+- treats active generation as positive submission evidence,
+- attempts one `form.requestSubmit()` fallback after an unaccepted normal click,
+- includes a compact `submit_state={...}` diagnostic in any final submission failure.
+
+No native P4 rebuild is required. The same bounded PNG and request text should be reused.
+
 MiniXP is not part of this tranche's acceptance gate.
