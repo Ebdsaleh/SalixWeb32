@@ -1477,4 +1477,59 @@ The `0.2.9` candidate:
 
 No native P4 rebuild is required. The same bounded PNG and request text should be reused.
 
+### Single-PNG round-trip observation — 0.2.9 transport green
+
+The `0.2.9` target retest cleared the browser submission race and completed a full
+ordinary-PNG transport cycle.
+
+Aurora companion telemetry reported:
+
+```text
+request id=1 text_bytes=88 attachments=1
+attachment capture attachments_collected=1
+candidates_seen=2
+duplicate_candidates_skipped=1
+intercept_capture_attempts=1
+intercept_capture_successes=1
+intercepted_requests=1
+managed_download_successes=1
+request id=1 response_bytes=587 attachments=1
+POST /v1/message ... 200
+```
+
+The bridge reported:
+
+```text
+browser relay request id=1 text_bytes=88 attachments=1
+browser relay response id=1 text_bytes=587 attachments=1
+POST /v1/conversation/message ... 200
+```
+
+The real P4 then rendered the returned remote PNG inline and stored exactly one
+`SalixWeb32_remote_image_return_test.png` under the application-owned `Received`
+directory. The returned PNG captured in the evidence bundle was 263,102 bytes and
+byte-for-byte identical to the file sent by the assistant (matching SHA-256), proving
+binary round-trip integrity as well as semantic filename preservation.
+
+Validated in this pass:
+
+- P4 single-PNG automatic browser submission: green,
+- no HTTP 503: green,
+- assistant ordinary PNG capture: green,
+- duplicate browser candidate suppression: green,
+- reverse PNG semantic event transport: green,
+- native Received storage: green,
+- preserved `.png` filename: green,
+- byte-for-byte returned PNG integrity: green,
+- inline remote thumbnail rendering: green,
+- visible aspect ratio appears correct in the conversation surface.
+
+Still pending explicit target evidence before final tranche promotion:
+
+- native Salix Preview action on the returned PNG,
+- external/default-application Open action on the returned PNG.
+
+The generated-image-card browser shape remains a separate future provider-adapter case;
+this result validates an ordinary returned PNG file attachment only.
+
 MiniXP is not part of this tranche's acceptance gate.
