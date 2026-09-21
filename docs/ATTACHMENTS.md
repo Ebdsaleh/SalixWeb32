@@ -420,6 +420,27 @@ filename-less/image-thumbnail uploads to remain Send-ready for a stable settle w
 after at least 8 seconds before automatic submission. This is a browser-only candidate;
 no native P4 rebuild is required.
 
+The `0.2.8` target retest still failed with the same Send-control error. The reason was
+found in the implementation rather than the transport: if an image filename became
+visible in the composer, the readiness loop returned immediately through the named-file
+fast path, bypassing the new 8-second image settle entirely.
+
+Version `0.2.9` makes readiness MIME-aware rather than visibility-only:
+
+- any `image/*` attachment always receives the image settle window even if its filename
+  is already visible,
+- non-image named attachments retain the validated fast path,
+- attachment submission acceptance is observed for up to 5 seconds after each submit
+  attempt,
+- assistant generation becoming active also counts as proof that submission was accepted,
+- one conservative `form.requestSubmit()` fallback is attempted if a normal button click
+  does not produce accepted-submit evidence,
+- a failed request now includes a compact submit-state snapshot (composer presence/text
+  length, Send button identity, form presence, file-input count, generation state, and
+  user-message count).
+
+No native C++ changes are part of `0.2.9`.
+
 ## Win32 image services
 
 The current platform implementation uses:
