@@ -1524,10 +1524,15 @@ Validated in this pass:
 - inline remote thumbnail rendering: green,
 - visible aspect ratio appears correct in the conversation surface.
 
-Still pending explicit target evidence before final tranche promotion:
+Final presentation validation is now green. A real-P4 video capture confirms:
 
-- native Salix Preview action on the returned PNG,
-- external/default-application Open action on the returned PNG.
+- right-click / attachment action opens the returned PNG in Salix's native Preview,
+- the native Preview renders the image correctly,
+- the external/default-application Open action launches the Windows image viewer,
+- the same returned PNG remains visually proportionate in both presentation paths.
+
+This completes the ordinary PNG bidirectional tranche on the real Pentium 4 / Windows
+Server 2003 target.
 
 The generated-image-card browser shape remains a separate future provider-adapter case;
 this result validates an ordinary returned PNG file attachment only.
