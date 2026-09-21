@@ -376,11 +376,12 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 
 - [x] conversation display with semantic local/remote message updates
 - [x] text input -> provider-neutral `ConversationRequest` handoff
-- [x] attachments (semantic local model, image presentation, native P4 outgoing
-  transfer, and returned text-file relay validated)
+- [~] attachments (semantic local model, image presentation, native P4 text/generic
+  outgoing transfer and returned text-file relay validated; single-PNG browser auto-send
+  race has a 0.2.8 retest candidate)
 - [x] bounded text/generic file transfer through Conversation backend (outgoing and
-  reverse paths green at 8 files / 2 MB each / 4 MB total; image-return edge cases remain
-  a separate presentation-validation item)
+  reverse paths green at 8 files / 2 MB each / 4 MB total; ordinary returned-PNG
+  validation remains pending behind the single-image submission retest)
 - [x] copy/paste large diagnostic text through the native clipboard path
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
