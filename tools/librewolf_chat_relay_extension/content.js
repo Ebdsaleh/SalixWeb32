@@ -4,6 +4,8 @@ const RESPONSE_TIMEOUT_MS = 180000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
 const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
+const ATTACHMENT_NAMELESS_SETTLE_MS = 8000;
+const ATTACHMENT_READY_STABLE_MS = 1500;
 const ATTACHMENT_DISCOVERY_TIMEOUT_MS = 5000;
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024;
@@ -465,9 +467,11 @@ async function injectAttachments(composer, attachments) {
   }
 
   const started = Date.now();
+  let sendReadySince = 0;
 
   while (Date.now() - started < ATTACHMENT_UPLOAD_TIMEOUT_MS) {
-    const sendButton = findSendButton(composer);
+    const liveComposer = findComposer() || composer;
+    const sendButton = findSendButton(liveComposer);
     const pageText = document.body
       ? (document.body.innerText || "")
       : "";
@@ -475,17 +479,34 @@ async function injectAttachments(composer, attachments) {
       pageText.indexOf(file.name) >= 0
     );
 
-    if (
-      sendButton &&
-      (namesVisible || Date.now() - started >= 2500)
-    ) {
-      return;
+    if (sendButton) {
+      if (namesVisible) {
+        return;
+      }
+
+      if (!sendReadySince) {
+        sendReadySince = Date.now();
+      }
+
+      const elapsed = Date.now() - started;
+      const readyStable = Date.now() - sendReadySince;
+
+      if (
+        elapsed >= ATTACHMENT_NAMELESS_SETTLE_MS &&
+        readyStable >= ATTACHMENT_READY_STABLE_MS
+      ) {
+        return;
+      }
+    } else {
+      sendReadySince = 0;
     }
 
     await sleep(RESPONSE_POLL_MS);
   }
 
-  throw new Error("Timed out waiting for ChatGPT file upload to become ready.");
+  throw new Error(
+    "Timed out waiting for ChatGPT file upload to become ready."
+  );
 }
 
 function looksLikeAttachmentName(value) {
