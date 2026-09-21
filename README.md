@@ -170,10 +170,10 @@ Pentium 4 / Windows Server 2003 target. Salix can package text/image/generic fil
 `ConversationServiceBackend` boundary, while assistant-returned files come back as
 semantic attachment events and are stored under the active Salix data root. The first
 target-validation bounds are 8 files, 2 MB per file, and 4 MB total; credentials and
-browser session state remain disabled. LibreWolf extension `0.2.7` is the validated companion baseline for this tranche:
-outgoing file relay, returned-file request interception, duplicate suppression, semantic
-filename/extension preservation, native `Received` storage, and default-application Open
-for returned text files are all green.
+browser session state remain disabled. LibreWolf extension `0.2.7` remains the validated
+companion baseline for bidirectional text/generic files. The active `0.2.8` candidate
+changes only browser-side upload readiness for image-thumbnail attachments: filename-less
+image previews receive a longer stable settle window before automatic Send.
 
 The relay still waits for the rendered assistant response to stabilize before the broker
 returns the completed response to Salix, so browser-side generation/stabilization remains
