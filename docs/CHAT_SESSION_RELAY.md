@@ -92,7 +92,7 @@ root. Future true streaming can still present once per newly arrived batch.
 
 ## File-relay candidate
 
-The active reverse-file candidate uses WebExtension version `0.2.7`.
+The validated reverse-file baseline remains WebExtension `0.2.7`; the active browser-only upload-readiness candidate is `0.2.8`.
 
 Outgoing Salix files are transferred as bounded attachment descriptors through the
 trusted development LAN, localhost broker, and extension. The content script reconstructs
@@ -139,6 +139,12 @@ The `0.2.7` retest is green: the extension collected one attachment from two can
 controls, skipped the duplicate candidate, the bridge returned one attachment, and the
 P4 stored one correctly named `.txt` file that opened normally in Notepad. This closes
 the basic bidirectional text-file relay validation on the Server 2003 target.
+
+A later single-PNG send failed before assistant response capture. The localhost broker
+reported `ChatGPT Send control did not accept the relay submission`; this was then
+surfaced to the P4 as the bridge's generic HTTP 503 browser-relay failure. Version
+`0.2.8` extends only the filename-less image-upload settle period before automatic Send.
+It does not change the validated returned-file interception path.
 
 The modern smoke helper can now exercise an outgoing file without the P4:
 
