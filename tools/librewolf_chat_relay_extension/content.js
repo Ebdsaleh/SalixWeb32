@@ -12,6 +12,7 @@ const relayTrace = {
   generation_active: false,
   rendered_anchor_found: false,
   rendered_delta_bytes: 0,
+  thread_delta_bytes: 0,
   stable_ms: 0,
   error: ""
 };
@@ -32,6 +33,8 @@ function relayTraceSnapshot() {
       !!relayTrace.rendered_anchor_found,
     rendered_delta_bytes:
       Number(relayTrace.rendered_delta_bytes) || 0,
+    thread_delta_bytes:
+      Number(relayTrace.thread_delta_bytes) || 0,
     stable_ms: Number(relayTrace.stable_ms) || 0,
     error: String(relayTrace.error || "")
   };
@@ -139,6 +142,117 @@ function normalizeRelayText(text) {
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
     .trim();
+}
+
+function renderedConversationText() {
+  const root =
+    document.querySelector("#thread") ||
+    document.querySelector("main") ||
+    document.body;
+
+  if (!root) {
+    return "";
+  }
+
+  const clone = root.cloneNode(true);
+
+  clone.querySelectorAll(
+    [
+      "form",
+      "textarea",
+      "input",
+      "button",
+      "svg",
+      "nav",
+      "header",
+      "[aria-hidden='true']",
+      "[data-testid='composer-footer-actions']",
+      "[data-composer-surface]"
+    ].join(", ")
+  ).forEach((node) => node.remove());
+
+  return normalizeRelayText(
+    clone.textContent || ""
+  );
+}
+
+function insertedTextDelta(beforeText, afterText) {
+  const before = normalizeRelayText(beforeText);
+  const after = normalizeRelayText(afterText);
+
+  if (!after || after === before) {
+    return "";
+  }
+
+  let prefix = 0;
+  const prefixLimit = Math.min(before.length, after.length);
+
+  while (
+    prefix < prefixLimit &&
+    before.charAt(prefix) === after.charAt(prefix)
+  ) {
+    prefix += 1;
+  }
+
+  let beforeEnd = before.length - 1;
+  let afterEnd = after.length - 1;
+
+  while (
+    beforeEnd >= prefix &&
+    afterEnd >= prefix &&
+    before.charAt(beforeEnd) === after.charAt(afterEnd)
+  ) {
+    beforeEnd -= 1;
+    afterEnd -= 1;
+  }
+
+  if (afterEnd < prefix) {
+    return "";
+  }
+
+  return normalizeRelayText(
+    after.slice(prefix, afterEnd + 1)
+  );
+}
+
+function renderedConversationResponseDelta(
+  baselineText,
+  currentText,
+  submittedText
+) {
+  let delta = insertedTextDelta(
+    baselineText,
+    currentText
+  );
+  const submitted = normalizeRelayText(submittedText);
+
+  if (!delta || !submitted) {
+    return delta;
+  }
+
+  if (delta === submitted) {
+    return "";
+  }
+
+  if (delta.startsWith(submitted)) {
+    return normalizeRelayText(
+      delta.slice(submitted.length)
+    );
+  }
+
+  const submittedIndex = delta.indexOf(submitted);
+
+  // The new user turn should be at, or very near, the beginning of the
+  // inserted text. Allow a small amount of provider chrome before it, but do
+  // not delete an incidental copy of the user's text from the assistant reply.
+  if (submittedIndex >= 0 && submittedIndex <= 128) {
+    return normalizeRelayText(
+      delta.slice(0, submittedIndex) +
+      delta.slice(submittedIndex + submitted.length)
+    );
+  }
+
+  return delta;
 }
 
 function findRenderedSubmittedMessage(text) {
@@ -1597,6 +1711,7 @@ async function submitMessage(text, attachments) {
     generation_active: generationActive(),
     rendered_anchor_found: false,
     rendered_delta_bytes: 0,
+    thread_delta_bytes: 0,
     stable_ms: 0,
     error: ""
   });
@@ -1618,6 +1733,10 @@ async function submitMessage(text, attachments) {
     state: "composer_found"
   });
 
+  // Capture the rendered thread before submission. This fallback baseline is
+  // intentionally taken before the new user turn exists, so a very fast
+  // assistant reply cannot be absorbed into a later post-submit baseline.
+  const renderedConversationBaseline = renderedConversationText();
   const before = assistantSnapshots();
   const beforeCount = before.length;
   const beforeLast = before.length ? before[before.length - 1] : "";
@@ -1665,6 +1784,7 @@ async function submitMessage(text, attachments) {
     const snapshots = assistantSnapshots();
     let candidate = "";
     let renderedDelta = "";
+    let threadDelta = "";
 
     updateRelayTrace({
       state: "waiting_response",
@@ -1692,10 +1812,26 @@ async function submitMessage(text, attachments) {
       candidate = renderedDelta;
     }
 
+    // Selector-independent last resort: compare the complete rendered thread
+    // against a baseline captured before Submit, then remove the inserted user
+    // turn. Unlike the 0.3.5 anchor baseline, this path cannot lose a fast
+    // completed response by baselining it after it has already rendered.
+    if (!candidate && text) {
+      threadDelta = renderedConversationResponseDelta(
+        renderedConversationBaseline,
+        renderedConversationText(),
+        text
+      );
+      candidate = threadDelta;
+    }
+
     updateRelayTrace({
       rendered_anchor_found: !!renderedAnchor,
       rendered_delta_bytes: new TextEncoder().encode(
         renderedDelta || ""
+      ).length,
+      thread_delta_bytes: new TextEncoder().encode(
+        threadDelta || ""
       ).length,
       candidate_bytes: new TextEncoder().encode(
         candidate || ""
