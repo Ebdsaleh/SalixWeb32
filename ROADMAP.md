@@ -569,8 +569,8 @@ See `docs/FILE_LOCATIONS.md`.
 1. keep the real P4 / Server 2003 R2 build clean under VC7.1,
 2. finish the active attachment-cap UX validation without changing the validated relay
    bounds,
-3. validate the 0.3.0 completed-response lifecycle fix on the real P4, including
-   long-generation and browser-side follow-up correlation,
+3. validate the 0.3.2 completed-response lifecycle fix on the real P4, including
+   normal return, long-generation, and browser-side follow-up correlation,
 4. replace synchronous long-wait compatibility with verified request receipt and live
    liveness/workflow telemetry,
 5. expose provider generation and composer state separately so Salix can mirror
