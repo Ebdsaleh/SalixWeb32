@@ -1644,8 +1644,8 @@ the localhost chat-session broker also defaulted to 180 seconds. The approximate
 181.5-181.7-second native failures are therefore treated as evidence that the synchronous
 relay lifetime could expire while the visible provider was still working.
 
-The active 0.3.0 candidate removes that short normal boundary and adds heartbeat-aware
-waiting plus assistant-turn correlation. The planned full replacement remains
+The active 0.3.2 candidate retains the heartbeat-aware long wait and adds a completed
+assistant-turn action anchor after 0.3.0 and 0.3.1 both failed to return a visibly completed browser response. The planned full replacement remains
 request-liveness tracking rather than simply increasing the timeout. Target acceptance
 for that future tranche must cover:
 
