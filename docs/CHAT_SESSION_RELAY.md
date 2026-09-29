@@ -306,6 +306,50 @@ assistant text.
 These selectors are isolated inside the extension so normal ChatGPT markup changes do
 not require changes to the VC7.1 application.
 
+## WebExtension 0.3.0 long-response/follow-up correlation candidate
+
+A September 29, 2026 P4 retest reproduced a failure where the user message reached the
+authenticated ChatGPT thread but the native client received no completed response. The
+companion logs showed:
+
+```text
+request id=1 failed: TimeoutError: timed out waiting for LibreWolf extension response
+POST /v1/message ... 502
+POST /v1/conversation/message ... 503
+```
+
+while the P4 diagnostic remained `request in flight` and later recorded failure at about
+181.5 seconds. The failure was therefore inside the browser-response lifecycle, not P4 LAN
+reachability or ConversationView rendering.
+
+WebExtension `0.3.0` is the active candidate that addresses this specific failure mode.
+
+Changes:
+
+- a submission made while ChatGPT is already generating no longer treats the pre-existing
+  Stop/generation control as proof that the new Salix follow-up was accepted,
+- the extension tracks the assistant turn associated with the Salix submission by
+  assistant-turn ordinal instead of repeatedly taking the page's latest assistant text,
+- a tracked response may complete when it is stable and the provider becomes idle,
+- a tracked response may also complete when a later assistant turn exists, which proves
+  the tracked turn closed even if the page is globally generating again,
+- returned attachment discovery is rooted in the tracked assistant turn instead of the
+  newest assistant turn,
+- the extension no longer converts a safety-timeout partial response into a successful
+  completed message,
+- the ordinary 180-second response deadline is removed; the content-script safety ceiling
+  is four hours,
+- the localhost broker now treats recent WebExtension heartbeat as the primary liveness
+  signal while waiting and fails earlier only if that heartbeat is lost for 30 seconds,
+- the bridge and native Conversation HTTP transport safety ceilings are extended beyond
+  the inner browser/broker safety ceilings,
+- diagnostic logging reports response completion as `provider_idle` or
+  `newer_assistant_turn`.
+
+This remains a completed-response compatibility tranche. It does not yet implement the
+full asynchronous request/status protocol or native follow-up-ready composer described
+below.
+
 ## Planned live browser-workflow telemetry
 
 The current relay treats the browser as a request/response endpoint and uses a fixed
