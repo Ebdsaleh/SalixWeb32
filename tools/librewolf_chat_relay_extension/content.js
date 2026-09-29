@@ -101,6 +101,124 @@ function assistantSnapshots() {
     .filter(Boolean);
 }
 
+function normalizeRelayText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .trim();
+}
+
+function findRenderedSubmittedMessage(text) {
+  const wanted = normalizeRelayText(text);
+
+  if (!wanted) {
+    return null;
+  }
+
+  const root =
+    document.querySelector("#thread") ||
+    document.querySelector("main") ||
+    document.body;
+
+  if (!root) {
+    return null;
+  }
+
+  const candidates = Array.from(
+    root.querySelectorAll(
+      "[data-message-author-role='user'], " +
+      "[data-testid^='conversation-turn-'], " +
+      "article, p, div"
+    )
+  );
+
+  let best = null;
+
+  for (const candidate of candidates) {
+    const candidateText = normalizeRelayText(
+      cleanNodeText(candidate)
+    );
+
+    if (candidateText !== wanted) {
+      continue;
+    }
+
+    if (
+      !best ||
+      candidate.childElementCount < best.childElementCount
+    ) {
+      best = candidate;
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  // Climb through wrappers that contain only the submitted message. This
+  // leaves the range start immediately after the user turn without depending
+  // on ChatGPT's role/turn class names.
+  let anchor = best;
+
+  while (
+    anchor.parentElement &&
+    anchor.parentElement !== root &&
+    normalizeRelayText(cleanNodeText(anchor.parentElement)) === wanted
+  ) {
+    anchor = anchor.parentElement;
+  }
+
+  return {
+    root: root,
+    anchor: anchor
+  };
+}
+
+function renderedTextAfterSubmittedMessage(anchorInfo) {
+  if (
+    !anchorInfo ||
+    !anchorInfo.root ||
+    !anchorInfo.anchor ||
+    !anchorInfo.root.contains(anchorInfo.anchor)
+  ) {
+    return "";
+  }
+
+  const range = document.createRange();
+
+  try {
+    range.setStartAfter(anchorInfo.anchor);
+    range.setEnd(
+      anchorInfo.root,
+      anchorInfo.root.childNodes.length
+    );
+  } catch (_exception) {
+    return "";
+  }
+
+  const fragment = range.cloneContents();
+
+  fragment.querySelectorAll(
+    [
+      "form",
+      "textarea",
+      "input",
+      "button",
+      "svg",
+      "nav",
+      "header",
+      "[aria-hidden='true']",
+      "[data-testid='composer-footer-actions']",
+      "[data-composer-surface]"
+    ].join(", ")
+  ).forEach((node) => node.remove());
+
+  return normalizeRelayText(
+    fragment.textContent || ""
+  );
+}
+
 function generationActive() {
   const selectors = [
     "button[data-testid='stop-button']",
@@ -1452,8 +1570,12 @@ async function submitMessage(text, attachments) {
   let lastChange = Date.now();
   let observedResponse = false;
   let firstResponseAt = 0;
+  let renderedAnchor = null;
 
   while (Date.now() < deadline) {
+    if (!renderedAnchor && text) {
+      renderedAnchor = findRenderedSubmittedMessage(text);
+    }
     const snapshots = assistantSnapshots();
     let candidate = "";
 
@@ -1465,6 +1587,12 @@ async function submitMessage(text, attachments) {
       if (last !== beforeLast) {
         candidate = last;
       }
+    }
+
+    if (!candidate && renderedAnchor) {
+      candidate = renderedTextAfterSubmittedMessage(
+        renderedAnchor
+      );
     }
 
     if (candidate) {
