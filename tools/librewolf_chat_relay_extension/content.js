@@ -219,6 +219,29 @@ function renderedTextAfterSubmittedMessage(anchorInfo) {
   );
 }
 
+function renderedResponseDelta(currentText, baselineText) {
+  const current = normalizeRelayText(currentText);
+  const baseline = normalizeRelayText(baselineText);
+
+  if (!current || current === baseline) {
+    return "";
+  }
+
+  if (baseline && current.endsWith(baseline)) {
+    return normalizeRelayText(
+      current.slice(0, current.length - baseline.length)
+    );
+  }
+
+  if (baseline && current.startsWith(baseline)) {
+    return normalizeRelayText(
+      current.slice(baseline.length)
+    );
+  }
+
+  return current;
+}
+
 function generationActive() {
   const selectors = [
     "button[data-testid='stop-button']",
@@ -1571,10 +1594,17 @@ async function submitMessage(text, attachments) {
   let observedResponse = false;
   let firstResponseAt = 0;
   let renderedAnchor = null;
+  let renderedBaseline = "";
 
   while (Date.now() < deadline) {
     if (!renderedAnchor && text) {
       renderedAnchor = findRenderedSubmittedMessage(text);
+
+      if (renderedAnchor) {
+        renderedBaseline = renderedTextAfterSubmittedMessage(
+          renderedAnchor
+        );
+      }
     }
     const snapshots = assistantSnapshots();
     let candidate = "";
@@ -1590,8 +1620,9 @@ async function submitMessage(text, attachments) {
     }
 
     if (!candidate && renderedAnchor) {
-      candidate = renderedTextAfterSubmittedMessage(
-        renderedAnchor
+      candidate = renderedResponseDelta(
+        renderedTextAfterSubmittedMessage(renderedAnchor),
+        renderedBaseline
       );
     }
 
