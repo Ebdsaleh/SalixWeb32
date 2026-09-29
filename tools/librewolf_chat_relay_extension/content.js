@@ -15,12 +15,22 @@ const relayTrace = {
   thread_delta_bytes: 0,
   candidate_source: "",
   thread_progress_rejected: false,
+  command_received_utc: "",
+  submitted_utc: "",
+  first_candidate_utc: "",
+  last_candidate_change_utc: "",
+  completion_ready_utc: "",
+  completed_utc: "",
   stable_ms: 0,
   error: ""
 };
 
 function updateRelayTrace(values) {
   Object.assign(relayTrace, values || {});
+}
+
+function utcNow() {
+  return new Date().toISOString();
 }
 
 function relayTraceSnapshot() {
@@ -41,6 +51,18 @@ function relayTraceSnapshot() {
       String(relayTrace.candidate_source || ""),
     thread_progress_rejected:
       !!relayTrace.thread_progress_rejected,
+    command_received_utc:
+      String(relayTrace.command_received_utc || ""),
+    submitted_utc:
+      String(relayTrace.submitted_utc || ""),
+    first_candidate_utc:
+      String(relayTrace.first_candidate_utc || ""),
+    last_candidate_change_utc:
+      String(relayTrace.last_candidate_change_utc || ""),
+    completion_ready_utc:
+      String(relayTrace.completion_ready_utc || ""),
+    completed_utc:
+      String(relayTrace.completed_utc || ""),
     stable_ms: Number(relayTrace.stable_ms) || 0,
     error: String(relayTrace.error || "")
   };
@@ -1756,6 +1778,12 @@ async function submitMessage(text, attachments) {
     thread_delta_bytes: 0,
     candidate_source: "",
     thread_progress_rejected: false,
+    command_received_utc: utcNow(),
+    submitted_utc: "",
+    first_candidate_utc: "",
+    last_candidate_change_utc: "",
+    completion_ready_utc: "",
+    completed_utc: "",
     stable_ms: 0,
     error: ""
   });
@@ -1803,6 +1831,7 @@ async function submitMessage(text, attachments) {
 
   updateRelayTrace({
     state: "submitted",
+    submitted_utc: utcNow(),
     generation_active: generationActive()
   });
 
@@ -1901,6 +1930,9 @@ async function submitMessage(text, attachments) {
     if (candidate) {
       if (!observedResponse) {
         firstResponseAt = performance.now();
+        updateRelayTrace({
+          first_candidate_utc: utcNow()
+        });
       }
 
       observedResponse = true;
@@ -1908,6 +1940,9 @@ async function submitMessage(text, attachments) {
       if (candidate !== responseText) {
         responseText = candidate;
         lastChange = Date.now();
+        updateRelayTrace({
+          last_candidate_change_utc: utcNow()
+        });
       }
     }
 
@@ -1919,6 +1954,7 @@ async function submitMessage(text, attachments) {
     ) {
       updateRelayTrace({
         state: "completion_ready",
+        completion_ready_utc: utcNow(),
         candidate_bytes: new TextEncoder().encode(
           responseText
         ).length,
@@ -1953,6 +1989,7 @@ async function submitMessage(text, attachments) {
 
       updateRelayTrace({
         state: "completed",
+        completed_utc: utcNow(),
         generation_active: false
       });
 
