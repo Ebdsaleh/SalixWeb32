@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.3.2";
+const EXTENSION_VERSION = "0.3.3";
 
 let commandBusy = false;
 let activeDownloadCapture = null;
@@ -294,12 +294,6 @@ async function postJson(path, body) {
 
 async function sendHeartbeat() {
   let composerReady = false;
-  let generationActive = false;
-  let assistantTurnCount = 0;
-  let userTurnCount = 0;
-  let latestAssistantBytes = 0;
-  let latestAssistantActions = false;
-  let composerPlaceholder = "";
   let currentUrl = "";
   let title = "";
   let error = "";
@@ -316,23 +310,6 @@ async function sendHeartbeat() {
       });
 
       composerReady = !!(status && status.composer_ready);
-      generationActive = !!(status && status.generation_active);
-      assistantTurnCount = Number.isInteger(
-        status && status.assistant_turn_count
-      ) ? status.assistant_turn_count : 0;
-      userTurnCount = Number.isInteger(
-        status && status.user_turn_count
-      ) ? status.user_turn_count : 0;
-      latestAssistantBytes = Number.isInteger(
-        status && status.latest_assistant_bytes
-      ) ? status.latest_assistant_bytes : 0;
-      latestAssistantActions = !!(
-        status && status.latest_assistant_actions
-      );
-      composerPlaceholder = (
-        status && typeof status.composer_placeholder === "string"
-      ) ? status.composer_placeholder : "";
-
       if (status && status.error) {
         error = String(status.error);
       }
@@ -348,12 +325,6 @@ async function sendHeartbeat() {
       protocol: EXTENSION_PROTOCOL,
       extension_version: EXTENSION_VERSION,
       composer_ready: composerReady,
-      generation_active: generationActive,
-      assistant_turn_count: assistantTurnCount,
-      user_turn_count: userTurnCount,
-      latest_assistant_bytes: latestAssistantBytes,
-      latest_assistant_actions: latestAssistantActions,
-      composer_placeholder: composerPlaceholder,
       current_url: currentUrl,
       title: title,
       error: error
@@ -481,10 +452,6 @@ async function processCommand() {
             result.attachment_debug &&
             typeof result.attachment_debug === "object"
           ) ? result.attachment_debug : {},
-        completion_reason:
-          typeof result.completion_reason === "string"
-            ? result.completion_reason
-            : "",
         timing: timing
       });
 
