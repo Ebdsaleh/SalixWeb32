@@ -308,6 +308,97 @@ function assistantTurnHasCompletionActions(turn) {
   );
 }
 
+function assistantCompletionActionButtons() {
+  const selectors = [
+    "[data-testid='copy-turn-action-button']",
+    "button[aria-label='Copy']",
+    "button[aria-label^='Copy response']",
+    "button[title='Copy']"
+  ];
+
+  const buttons = [];
+
+  for (const selector of selectors) {
+    for (const button of document.querySelectorAll(selector)) {
+      if (!buttons.includes(button)) {
+        buttons.push(button);
+      }
+    }
+  }
+
+  return buttons.filter((button) => {
+    const label = (
+      button.getAttribute("aria-label") ||
+      button.getAttribute("title") ||
+      ""
+    ).toLowerCase();
+
+    // Exclude code-block copy controls when a generic Copy selector matches.
+    if (
+      label.indexOf("copy code") >= 0 ||
+      label.indexOf("copy link") >= 0
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function assistantTurnFromCompletionAction(button) {
+  if (!button) {
+    return null;
+  }
+
+  const roleNode = button.closest(
+    "[data-message-author-role='assistant']"
+  );
+
+  if (roleNode) {
+    return (
+      roleNode.closest("article[data-testid^='conversation-turn-']") ||
+      roleNode.closest("article") ||
+      roleNode
+    );
+  }
+
+  const article = button.closest("article");
+  if (article) {
+    return article;
+  }
+
+  let current = button.parentElement;
+  let depth = 0;
+
+  while (current && depth < 10) {
+    if (
+      current.querySelector &&
+      (
+        current.querySelector(".markdown") ||
+        current.querySelector(
+          "[data-message-author-role='assistant']"
+        )
+      )
+    ) {
+      return current;
+    }
+
+    current = current.parentElement;
+    depth += 1;
+  }
+
+  return null;
+}
+
+function assistantTextFromCompletionAction(button) {
+  const turn = assistantTurnFromCompletionAction(button);
+  if (!turn) {
+    return "";
+  }
+
+  return assistantNodeText(turn);
+}
+
 function generationActive() {
   const selectors = [
     "button[data-testid='stop-button']",
@@ -1639,6 +1730,8 @@ async function submitMessage(text, attachments) {
       )
     : "";
   const beforeUserCount = userMessageCount();
+  const beforeCompletionActionCount =
+    assistantCompletionActionButtons().length;
 
   if (text) {
     setComposerText(composer, text);
@@ -1671,6 +1764,34 @@ async function submitMessage(text, attachments) {
   let firstResponseAt = 0;
 
   while (Date.now() < deadline) {
+    const completionActions =
+      assistantCompletionActionButtons();
+
+    if (
+      completionActions.length > beforeCompletionActionCount
+    ) {
+      const newAction =
+        completionActions[beforeCompletionActionCount] ||
+        completionActions[completionActions.length - 1];
+      const completedTurn =
+        assistantTurnFromCompletionAction(newAction);
+      const completedText =
+        assistantTextFromCompletionAction(newAction);
+
+      if (completedTurn && completedText) {
+        responseNode = completedTurn;
+        responseKey = turnStableKey(completedTurn);
+        responseText = completedText;
+
+        if (!observedResponse) {
+          firstResponseAt = performance.now();
+          observedResponse = true;
+        }
+
+        lastChange = Date.now() - RESPONSE_STABLE_MS;
+      }
+    }
+
     if (!submittedUserTurn) {
       submittedUserTurn = findSubmittedUserTurn(
         beforeUserCount,
@@ -1796,7 +1917,12 @@ async function submitMessage(text, attachments) {
       );
 
       let completionReason = "provider_idle";
-      if (laterTurn) {
+      if (
+        assistantCompletionActionButtons().length >
+        beforeCompletionActionCount
+      ) {
+        completionReason = "new_assistant_action";
+      } else if (laterTurn) {
         completionReason = "later_conversation_turn";
       } else if (completionActions) {
         completionReason = "assistant_turn_actions";
