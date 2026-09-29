@@ -388,8 +388,9 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
   browser relay currently returns a completed response then releases semantic deltas)
 - [~] harden completed-response browser lifecycle for long generations/follow-ups
-  (WebExtension 0.3.1 candidate hardens current ChatGPT turn discovery and correlates the
-  submitted user turn with its following assistant response; P4 validation pending)
+  (WebExtension 0.3.2 candidate adds the completed assistant action surface as an
+  independent response anchor after 0.3.1 still left a completed reply in-flight; P4
+  validation pending)
 - [ ] request-liveness protocol: byte count + SHA-256 receipt verification + immediate
   bridge acknowledgement before provider generation wait
 - [ ] split live Conversation state into request transport, provider generation, and
