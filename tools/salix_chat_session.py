@@ -779,6 +779,17 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                     request.get("attachment_debug")
                 )
 
+                completion_reason = request.get("completion_reason", "")
+                if not isinstance(completion_reason, str):
+                    completion_reason = ""
+                completion_reason = completion_reason[:64]
+
+                if completion_reason:
+                    print(
+                        "[chat-session] response completion "
+                        f"reason={completion_reason}"
+                    )
+
                 if attachment_debug:
                     print(
                         "[chat-session] attachment capture "
