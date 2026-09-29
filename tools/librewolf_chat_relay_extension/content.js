@@ -59,33 +59,253 @@ function cleanNodeText(node) {
   return (clone.innerText || clone.textContent || "").trim();
 }
 
-function assistantNodes() {
-  const roleNodes = Array.from(
-    document.querySelectorAll("[data-message-author-role='assistant']")
-  ).filter(visible);
-
-  if (roleNodes.length) {
-    return roleNodes;
-  }
-
-  return Array.from(
-    document.querySelectorAll("article[data-testid^='conversation-turn-']")
-  ).filter((turn) => !!turn.querySelector(".markdown"));
-}
-
-function assistantNodeText(node) {
-  if (!node) {
+function turnRole(turn) {
+  if (!turn) {
     return "";
   }
 
-  const markdown = node.querySelector(".markdown");
-  return cleanNodeText(markdown || node);
+  const directRole = (
+    turn.getAttribute("data-message-author-role") || ""
+  ).toLowerCase();
+
+  if (directRole === "assistant" || directRole === "user") {
+    return directRole;
+  }
+
+  const roleNode = turn.querySelector(
+    "[data-message-author-role='assistant'], " +
+    "[data-message-author-role='user']"
+  );
+
+  if (roleNode) {
+    const role = (
+      roleNode.getAttribute("data-message-author-role") || ""
+    ).toLowerCase();
+
+    if (role === "assistant" || role === "user") {
+      return role;
+    }
+  }
+
+  // Older ChatGPT layouts exposed assistant Markdown without an explicit
+  // author-role attribute on the article.
+  if (turn.querySelector(".markdown")) {
+    return "assistant";
+  }
+
+  return "";
+}
+
+function conversationTurnNodes() {
+  const explicitTurns = Array.from(
+    document.querySelectorAll(
+      "article[data-testid^='conversation-turn-']"
+    )
+  ).filter((turn) => !!turnRole(turn));
+
+  if (explicitTurns.length) {
+    return explicitTurns;
+  }
+
+  // Current ChatGPT layouts can place data-message-author-role on a
+  // display:contents wrapper. Do not require that wrapper itself to have a
+  // non-zero bounding rectangle; use its closest stable turn container.
+  const roleNodes = Array.from(
+    document.querySelectorAll(
+      "[data-message-author-role='assistant'], " +
+      "[data-message-author-role='user']"
+    )
+  );
+
+  const turns = [];
+
+  for (const roleNode of roleNodes) {
+    const turn =
+      roleNode.closest("article[data-testid^='conversation-turn-']") ||
+      roleNode.closest("article") ||
+      roleNode;
+
+    if (!turns.includes(turn)) {
+      turns.push(turn);
+    }
+  }
+
+  return turns;
+}
+
+function turnText(turn, role) {
+  if (!turn) {
+    return "";
+  }
+
+  const roleSelector =
+    role === "user"
+      ? "[data-message-author-role='user']"
+      : "[data-message-author-role='assistant']";
+
+  const roleNode =
+    turn.matches && turn.matches(roleSelector)
+      ? turn
+      : turn.querySelector(roleSelector);
+
+  const markdown = turn.querySelector(".markdown");
+
+  return cleanNodeText(
+    role === "assistant"
+      ? (markdown || roleNode || turn)
+      : (roleNode || turn)
+  );
+}
+
+function assistantNodes() {
+  return conversationTurnNodes().filter(
+    (turn) => turnRole(turn) === "assistant"
+  );
+}
+
+function userNodes() {
+  return conversationTurnNodes().filter(
+    (turn) => turnRole(turn) === "user"
+  );
+}
+
+function assistantNodeText(node) {
+  return turnText(node, "assistant");
 }
 
 function assistantSnapshots() {
   return assistantNodes()
     .map((node) => assistantNodeText(node))
     .filter(Boolean);
+}
+
+function turnStableKey(turn) {
+  if (!turn) {
+    return "";
+  }
+
+  const values = [
+    turn.getAttribute("data-testid"),
+    turn.getAttribute("data-message-id"),
+    turn.getAttribute("id")
+  ];
+
+  for (const value of values) {
+    if (typeof value === "string" && value) {
+      return value;
+    }
+  }
+
+  const roleNode = turn.querySelector(
+    "[data-message-author-role='assistant'], " +
+    "[data-message-author-role='user']"
+  );
+
+  if (roleNode) {
+    const roleValues = [
+      roleNode.getAttribute("data-message-id"),
+      roleNode.getAttribute("id")
+    ];
+
+    for (const value of roleValues) {
+      if (typeof value === "string" && value) {
+        return value;
+      }
+    }
+  }
+
+  return "";
+}
+
+function findSubmittedUserTurn(
+  beforeUserCount,
+  originalText
+) {
+  const users = userNodes();
+
+  if (users.length > beforeUserCount) {
+    return users[users.length - 1];
+  }
+
+  const wanted = String(originalText || "").trim();
+
+  for (let index = users.length - 1; index >= 0; --index) {
+    const text = turnText(users[index], "user").trim();
+
+    if (!wanted || text === wanted || text.indexOf(wanted) >= 0) {
+      return users[index];
+    }
+  }
+
+  return users.length ? users[users.length - 1] : null;
+}
+
+function findAssistantTurnAfter(userTurn) {
+  if (!userTurn) {
+    return null;
+  }
+
+  const turns = conversationTurnNodes();
+  const userKey = turnStableKey(userTurn);
+  let userIndex = turns.indexOf(userTurn);
+
+  if (userIndex < 0 && userKey) {
+    userIndex = turns.findIndex(
+      (turn) => turnStableKey(turn) === userKey
+    );
+  }
+
+  if (userIndex < 0) {
+    return null;
+  }
+
+  for (let index = userIndex + 1; index < turns.length; ++index) {
+    if (turnRole(turns[index]) === "assistant") {
+      return turns[index];
+    }
+  }
+
+  return null;
+}
+
+function turnHasLaterConversationTurn(turn) {
+  if (!turn) {
+    return false;
+  }
+
+  const turns = conversationTurnNodes();
+  const key = turnStableKey(turn);
+  let index = turns.indexOf(turn);
+
+  if (index < 0 && key) {
+    index = turns.findIndex(
+      (candidate) => turnStableKey(candidate) === key
+    );
+  }
+
+  return index >= 0 && index + 1 < turns.length;
+}
+
+function assistantTurnHasCompletionActions(turn) {
+  if (!turn) {
+    return false;
+  }
+
+  const root =
+    turn.closest("article[data-testid^='conversation-turn-']") ||
+    turn.closest("article") ||
+    turn;
+
+  const selectors = [
+    "[data-testid='copy-turn-action-button']",
+    "button[aria-label='Copy']",
+    "button[aria-label^='Copy response']",
+    "button[title='Copy']"
+  ];
+
+  return selectors.some(
+    (selector) => !!root.querySelector(selector)
+  );
 }
 
 function generationActive() {
@@ -261,20 +481,7 @@ function composerText(composer) {
 }
 
 function userMessageCount() {
-  const roleNodes = Array.from(
-    document.querySelectorAll("[data-message-author-role='user']")
-  ).filter(visible);
-
-  if (roleNodes.length) {
-    return roleNodes.length;
-  }
-
-  return Array.from(
-    document.querySelectorAll("article[data-testid^='conversation-turn-']")
-  ).filter((turn) => {
-    const role = turn.querySelector("[data-message-author-role='user']");
-    return !!role;
-  }).length;
+  return userNodes().length;
 }
 
 function submitStateSummary(composer) {
