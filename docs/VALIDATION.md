@@ -1587,6 +1587,45 @@ The remaining attachment-policy target checks before promotion are explicit butt
 behavior at 8, re-enable after removal, partial multi-select above capacity, and 4 MB
 aggregate rejection.
 
+### WebExtension 0.3.0 response lifecycle candidate — target validation pending
+
+The September 29 P4 reproduction proved that a Salix request can reach the visible
+ChatGPT thread while the old 0.2.9 browser lifecycle still fails to return a completed
+response. Companion evidence showed the browser command was delivered, followed roughly
+180 seconds later by broker timeout/HTTP 502 and bridge HTTP 503. A stale browser-side
+failure then attempted to arrive after the broker had already abandoned the request.
+
+Candidate acceptance:
+
+1. Pull the exact `test` candidate and rebuild `Debug|Win32` under VC7.1 with
+   zero errors / zero warnings.
+2. Restart `salix_chat_session.py` and `salix_bridge.py --host 0.0.0.0 --port 8765`.
+3. Reload the temporary LibreWolf extension and confirm version `0.3.0`.
+4. Reload/open the target ChatGPT thread and confirm bridge health reports
+   `conversation_browser_session=ready`.
+5. Send a normal short message from the P4 and confirm one completed response returns to
+   Salix.
+6. Confirm broker output contains:
+   `response completion reason=provider_idle`.
+7. Send another P4 request and, before its browser-side response is returned to Salix,
+   submit a normal browser-side follow-up that creates a later assistant turn.
+8. Confirm the earlier Salix request still completes and the broker may report:
+   `response completion reason=newer_assistant_turn`.
+9. Confirm the returned text belongs to the tracked earlier assistant turn rather than the
+   newest page response.
+10. If the tracked response contains a returned file, confirm attachment discovery remains
+    scoped to that tracked assistant turn.
+11. Confirm no partial response is reported as successful merely because a safety ceiling
+    expires.
+12. Leave an active generation running beyond 180 seconds and confirm the broker/P4 do not
+    fail at the old ~181-second boundary while WebExtension heartbeats remain healthy.
+13. Stop/reload the extension during an active request and confirm the broker fails after
+    the heartbeat-loss grace period rather than waiting for the long safety ceiling.
+14. Re-run the validated ordinary bounded attachment smoke test.
+
+This candidate does not yet make the native Salix composer follow-up-ready while one
+request is active; that remains part of the planned asynchronous liveness/status tranche.
+
 ### Long-running Conversation failure / liveness design trigger
 
 A later native Conversation request visibly produced only a partial/short result before
