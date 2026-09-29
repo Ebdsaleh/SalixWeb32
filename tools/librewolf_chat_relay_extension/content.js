@@ -1,9 +1,7 @@
 "use strict";
 
-// A long-running model response can legitimately take tens of minutes. This is
-// only a final safety ceiling for an abandoned content-script command; ordinary
-// completion is driven by the tracked assistant turn, not elapsed time.
-const RESPONSE_SAFETY_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+// Keep the validated 0.2.9 response detector unchanged; only extend its final wait ceiling.
+const RESPONSE_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
 const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
@@ -59,344 +57,27 @@ function cleanNodeText(node) {
   return (clone.innerText || clone.textContent || "").trim();
 }
 
-function turnRole(turn) {
-  if (!turn) {
-    return "";
-  }
-
-  const directRole = (
-    turn.getAttribute("data-message-author-role") || ""
-  ).toLowerCase();
-
-  if (directRole === "assistant" || directRole === "user") {
-    return directRole;
-  }
-
-  const roleNode = turn.querySelector(
-    "[data-message-author-role='assistant'], " +
-    "[data-message-author-role='user']"
-  );
-
-  if (roleNode) {
-    const role = (
-      roleNode.getAttribute("data-message-author-role") || ""
-    ).toLowerCase();
-
-    if (role === "assistant" || role === "user") {
-      return role;
-    }
-  }
-
-  // Older ChatGPT layouts exposed assistant Markdown without an explicit
-  // author-role attribute on the article.
-  if (turn.querySelector(".markdown")) {
-    return "assistant";
-  }
-
-  return "";
-}
-
-function conversationTurnNodes() {
-  const explicitTurns = Array.from(
-    document.querySelectorAll(
-      "article[data-testid^='conversation-turn-']"
-    )
-  ).filter((turn) => !!turnRole(turn));
-
-  if (explicitTurns.length) {
-    return explicitTurns;
-  }
-
-  // Current ChatGPT layouts can place data-message-author-role on a
-  // display:contents wrapper. Do not require that wrapper itself to have a
-  // non-zero bounding rectangle; use its closest stable turn container.
-  const roleNodes = Array.from(
-    document.querySelectorAll(
-      "[data-message-author-role='assistant'], " +
-      "[data-message-author-role='user']"
-    )
-  );
-
-  const turns = [];
-
-  for (const roleNode of roleNodes) {
-    const turn =
-      roleNode.closest("article[data-testid^='conversation-turn-']") ||
-      roleNode.closest("article") ||
-      roleNode;
-
-    if (!turns.includes(turn)) {
-      turns.push(turn);
-    }
-  }
-
-  return turns;
-}
-
-function turnText(turn, role) {
-  if (!turn) {
-    return "";
-  }
-
-  const roleSelector =
-    role === "user"
-      ? "[data-message-author-role='user']"
-      : "[data-message-author-role='assistant']";
-
-  const roleNode =
-    turn.matches && turn.matches(roleSelector)
-      ? turn
-      : turn.querySelector(roleSelector);
-
-  const markdown = turn.querySelector(".markdown");
-
-  return cleanNodeText(
-    role === "assistant"
-      ? (markdown || roleNode || turn)
-      : (roleNode || turn)
-  );
-}
-
 function assistantNodes() {
-  return conversationTurnNodes().filter(
-    (turn) => turnRole(turn) === "assistant"
-  );
-}
+  const roleNodes = Array.from(
+    document.querySelectorAll("[data-message-author-role='assistant']")
+  ).filter(visible);
 
-function userNodes() {
-  return conversationTurnNodes().filter(
-    (turn) => turnRole(turn) === "user"
-  );
-}
+  if (roleNodes.length) {
+    return roleNodes;
+  }
 
-function assistantNodeText(node) {
-  return turnText(node, "assistant");
+  return Array.from(
+    document.querySelectorAll("article[data-testid^='conversation-turn-']")
+  ).filter((turn) => !!turn.querySelector(".markdown"));
 }
 
 function assistantSnapshots() {
   return assistantNodes()
-    .map((node) => assistantNodeText(node))
+    .map((node) => {
+      const markdown = node.querySelector(".markdown");
+      return cleanNodeText(markdown || node);
+    })
     .filter(Boolean);
-}
-
-function turnStableKey(turn) {
-  if (!turn) {
-    return "";
-  }
-
-  const values = [
-    turn.getAttribute("data-testid"),
-    turn.getAttribute("data-message-id"),
-    turn.getAttribute("id")
-  ];
-
-  for (const value of values) {
-    if (typeof value === "string" && value) {
-      return value;
-    }
-  }
-
-  const roleNode = turn.querySelector(
-    "[data-message-author-role='assistant'], " +
-    "[data-message-author-role='user']"
-  );
-
-  if (roleNode) {
-    const roleValues = [
-      roleNode.getAttribute("data-message-id"),
-      roleNode.getAttribute("id")
-    ];
-
-    for (const value of roleValues) {
-      if (typeof value === "string" && value) {
-        return value;
-      }
-    }
-  }
-
-  return "";
-}
-
-function findSubmittedUserTurn(
-  beforeUserCount,
-  originalText
-) {
-  const users = userNodes();
-
-  if (users.length > beforeUserCount) {
-    return users[users.length - 1];
-  }
-
-  const wanted = String(originalText || "").trim();
-
-  for (let index = users.length - 1; index >= 0; --index) {
-    const text = turnText(users[index], "user").trim();
-
-    if (!wanted || text === wanted || text.indexOf(wanted) >= 0) {
-      return users[index];
-    }
-  }
-
-  return users.length ? users[users.length - 1] : null;
-}
-
-function findAssistantTurnAfter(userTurn) {
-  if (!userTurn) {
-    return null;
-  }
-
-  const turns = conversationTurnNodes();
-  const userKey = turnStableKey(userTurn);
-  let userIndex = turns.indexOf(userTurn);
-
-  if (userIndex < 0 && userKey) {
-    userIndex = turns.findIndex(
-      (turn) => turnStableKey(turn) === userKey
-    );
-  }
-
-  if (userIndex < 0) {
-    return null;
-  }
-
-  for (let index = userIndex + 1; index < turns.length; ++index) {
-    if (turnRole(turns[index]) === "assistant") {
-      return turns[index];
-    }
-  }
-
-  return null;
-}
-
-function turnHasLaterConversationTurn(turn) {
-  if (!turn) {
-    return false;
-  }
-
-  const turns = conversationTurnNodes();
-  const key = turnStableKey(turn);
-  let index = turns.indexOf(turn);
-
-  if (index < 0 && key) {
-    index = turns.findIndex(
-      (candidate) => turnStableKey(candidate) === key
-    );
-  }
-
-  return index >= 0 && index + 1 < turns.length;
-}
-
-function assistantTurnHasCompletionActions(turn) {
-  if (!turn) {
-    return false;
-  }
-
-  const root =
-    turn.closest("article[data-testid^='conversation-turn-']") ||
-    turn.closest("article") ||
-    turn;
-
-  const selectors = [
-    "[data-testid='copy-turn-action-button']",
-    "button[aria-label='Copy']",
-    "button[aria-label^='Copy response']",
-    "button[title='Copy']"
-  ];
-
-  return selectors.some(
-    (selector) => !!root.querySelector(selector)
-  );
-}
-
-function assistantCompletionActionButtons() {
-  const selectors = [
-    "[data-testid='copy-turn-action-button']",
-    "button[aria-label='Copy']",
-    "button[aria-label^='Copy response']",
-    "button[title='Copy']"
-  ];
-
-  const buttons = [];
-
-  for (const selector of selectors) {
-    for (const button of document.querySelectorAll(selector)) {
-      if (!buttons.includes(button)) {
-        buttons.push(button);
-      }
-    }
-  }
-
-  return buttons.filter((button) => {
-    const label = (
-      button.getAttribute("aria-label") ||
-      button.getAttribute("title") ||
-      ""
-    ).toLowerCase();
-
-    // Exclude code-block copy controls when a generic Copy selector matches.
-    if (
-      label.indexOf("copy code") >= 0 ||
-      label.indexOf("copy link") >= 0
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function assistantTurnFromCompletionAction(button) {
-  if (!button) {
-    return null;
-  }
-
-  const roleNode = button.closest(
-    "[data-message-author-role='assistant']"
-  );
-
-  if (roleNode) {
-    return (
-      roleNode.closest("article[data-testid^='conversation-turn-']") ||
-      roleNode.closest("article") ||
-      roleNode
-    );
-  }
-
-  const article = button.closest("article");
-  if (article) {
-    return article;
-  }
-
-  let current = button.parentElement;
-  let depth = 0;
-
-  while (current && depth < 10) {
-    if (
-      current.querySelector &&
-      (
-        current.querySelector(".markdown") ||
-        current.querySelector(
-          "[data-message-author-role='assistant']"
-        )
-      )
-    ) {
-      return current;
-    }
-
-    current = current.parentElement;
-    depth += 1;
-  }
-
-  return null;
-}
-
-function assistantTextFromCompletionAction(button) {
-  const turn = assistantTurnFromCompletionAction(button);
-  if (!turn) {
-    return "";
-  }
-
-  return assistantNodeText(turn);
 }
 
 function generationActive() {
@@ -572,7 +253,20 @@ function composerText(composer) {
 }
 
 function userMessageCount() {
-  return userNodes().length;
+  const roleNodes = Array.from(
+    document.querySelectorAll("[data-message-author-role='user']")
+  ).filter(visible);
+
+  if (roleNodes.length) {
+    return roleNodes.length;
+  }
+
+  return Array.from(
+    document.querySelectorAll("article[data-testid^='conversation-turn-']")
+  ).filter((turn) => {
+    const role = turn.querySelector("[data-message-author-role='user']");
+    return !!role;
+  }).length;
 }
 
 function submitStateSummary(composer) {
@@ -622,8 +316,7 @@ function submitStateSummary(composer) {
 async function waitForSubmitAcceptance(
   beforeUserCount,
   originalText,
-  verifyMilliseconds,
-  generationWasActive
+  verifyMilliseconds
 ) {
   const deadline = Date.now() + verifyMilliseconds;
 
@@ -632,11 +325,7 @@ async function waitForSubmitAcceptance(
       return true;
     }
 
-    // A transition into generation is useful acceptance evidence only when
-    // generation was idle before this submission. During ChatGPT's follow-up
-    // state generation may already be active, so the pre-existing Stop control
-    // must not be mistaken for proof that the new Salix message was accepted.
-    if (!generationWasActive && generationActive()) {
+    if (generationActive()) {
       return true;
     }
 
@@ -661,7 +350,6 @@ async function submitComposer(
   attachmentCount
 ) {
   const beforeUserCount = userMessageCount();
-  const generationWasActive = generationActive();
   const submitDeadline = Date.now() + 20000;
   const verifyMilliseconds = attachmentCount > 0
     ? SUBMIT_ATTACHMENT_VERIFY_MS
@@ -686,8 +374,7 @@ async function submitComposer(
       await waitForSubmitAcceptance(
         beforeUserCount,
         originalText,
-        verifyMilliseconds,
-        generationWasActive
+        verifyMilliseconds
       )
     ) {
       return;
@@ -717,8 +404,7 @@ async function submitComposer(
         await waitForSubmitAcceptance(
           beforeUserCount,
           originalText,
-          verifyMilliseconds,
-          generationWasActive
+          verifyMilliseconds
         )
       ) {
         return;
@@ -1170,16 +856,13 @@ async function openAttachmentPreview(element, debug) {
   return null;
 }
 
-function assistantAttachmentRoot(responseNode) {
-  let node = responseNode || null;
-
-  if (!node) {
-    const nodes = assistantNodes();
-    if (!nodes.length) {
-      return null;
-    }
-    node = nodes[nodes.length - 1];
+function assistantAttachmentRoot() {
+  const nodes = assistantNodes();
+  if (!nodes.length) {
+    return null;
   }
+
+  const node = nodes[nodes.length - 1];
 
   return (
     node.closest("article[data-testid^='conversation-turn-']") ||
@@ -1568,7 +1251,7 @@ async function downloadAssistantAttachment(
   return null;
 }
 
-async function collectAssistantAttachments(responseText, responseNode) {
+async function collectAssistantAttachments(responseText) {
   const debug = {
     scan_root: "none",
     scan_passes: 0,
@@ -1602,7 +1285,7 @@ async function collectAssistantAttachments(responseText, responseNode) {
   let root = null;
 
   do {
-    root = assistantAttachmentRoot(responseNode);
+    root = assistantAttachmentRoot();
     debug.scan_passes += 1;
 
     if (root) {
@@ -1722,16 +1405,9 @@ async function submitMessage(text, attachments) {
     );
   }
 
-  const beforeAssistantNodes = assistantNodes();
-  const beforeAssistantCount = beforeAssistantNodes.length;
-  const beforeLastAssistantText = beforeAssistantCount
-    ? assistantNodeText(
-        beforeAssistantNodes[beforeAssistantCount - 1]
-      )
-    : "";
-  const beforeUserCount = userMessageCount();
-  const beforeCompletionActionCount =
-    assistantCompletionActionButtons().length;
+  const before = assistantSnapshots();
+  const beforeCount = before.length;
+  const beforeLast = before.length ? before[before.length - 1] : "";
 
   if (text) {
     setComposerText(composer, text);
@@ -1750,148 +1426,50 @@ async function submitMessage(text, attachments) {
   );
 
   const submittedAt = performance.now();
-  const deadline = Date.now() + RESPONSE_SAFETY_TIMEOUT_MS;
-  let submittedUserTurn = findSubmittedUserTurn(
-    beforeUserCount,
-    text
-  );
-  let submittedUserKey = turnStableKey(submittedUserTurn);
-  let responseNode = null;
-  let responseKey = "";
+  const deadline = Date.now() + RESPONSE_TIMEOUT_MS;
   let responseText = "";
   let lastChange = Date.now();
   let observedResponse = false;
   let firstResponseAt = 0;
 
   while (Date.now() < deadline) {
-    const completionActionButtons =
-      assistantCompletionActionButtons();
+    const snapshots = assistantSnapshots();
+    let candidate = "";
+
+    if (snapshots.length > beforeCount) {
+      candidate = snapshots[snapshots.length - 1];
+    } else if (snapshots.length) {
+      const last = snapshots[snapshots.length - 1];
+
+      if (last !== beforeLast) {
+        candidate = last;
+      }
+    }
+
+    if (candidate) {
+      if (!observedResponse) {
+        firstResponseAt = performance.now();
+      }
+
+      observedResponse = true;
+
+      if (candidate !== responseText) {
+        responseText = candidate;
+        lastChange = Date.now();
+      }
+    }
 
     if (
-      completionActionButtons.length > beforeCompletionActionCount
-    ) {
-      const newAction =
-        completionActionButtons[beforeCompletionActionCount] ||
-        completionActionButtons[completionActionButtons.length - 1];
-      const completedTurn =
-        assistantTurnFromCompletionAction(newAction);
-      const completedText =
-        assistantTextFromCompletionAction(newAction);
-
-      if (completedTurn && completedText) {
-        responseNode = completedTurn;
-        responseKey = turnStableKey(completedTurn);
-        responseText = completedText;
-
-        if (!observedResponse) {
-          firstResponseAt = performance.now();
-          observedResponse = true;
-        }
-
-        lastChange = Date.now() - RESPONSE_STABLE_MS;
-      }
-    }
-
-    if (!submittedUserTurn) {
-      submittedUserTurn = findSubmittedUserTurn(
-        beforeUserCount,
-        text
-      );
-      submittedUserKey = turnStableKey(submittedUserTurn);
-    } else if (submittedUserKey) {
-      const currentTurns = conversationTurnNodes();
-      const currentUser = currentTurns.find(
-        (turn) => turnStableKey(turn) === submittedUserKey
-      );
-
-      if (currentUser) {
-        submittedUserTurn = currentUser;
-      }
-    }
-
-    let relatedAssistant = findAssistantTurnAfter(
-      submittedUserTurn
-    );
-
-    if (!relatedAssistant && responseKey) {
-      relatedAssistant = conversationTurnNodes().find(
-        (turn) => turnStableKey(turn) === responseKey
-      ) || null;
-    }
-
-    if (!relatedAssistant) {
-      const nodes = assistantNodes();
-
-      if (nodes.length > beforeAssistantCount) {
-        relatedAssistant =
-          nodes[Math.min(beforeAssistantCount, nodes.length - 1)];
-      } else if (nodes.length) {
-        const last = nodes[nodes.length - 1];
-        const lastText = assistantNodeText(last);
-
-        if (
-          lastText &&
-          lastText !== beforeLastAssistantText
-        ) {
-          relatedAssistant = last;
-        }
-      }
-    }
-
-    if (relatedAssistant) {
-      responseNode = relatedAssistant;
-      const candidateKey = turnStableKey(responseNode);
-      if (candidateKey) {
-        responseKey = candidateKey;
-      }
-
-      const candidate = assistantNodeText(responseNode);
-
-      if (candidate) {
-        if (!observedResponse) {
-          firstResponseAt = performance.now();
-        }
-
-        observedResponse = true;
-
-        if (candidate !== responseText) {
-          responseText = candidate;
-          lastChange = Date.now();
-        }
-      }
-    }
-
-    const responseStable =
       observedResponse &&
       responseText &&
-      Date.now() - lastChange >= RESPONSE_STABLE_MS;
-
-    const laterTurn = turnHasLaterConversationTurn(
-      responseNode
-    );
-    const completionActions =
-      assistantTurnHasCompletionActions(responseNode);
-    const providerIdle = !generationActive();
-
-    if (
-      responseStable &&
-      (
-        providerIdle ||
-        laterTurn ||
-        completionActions
-      )
+      !generationActive() &&
+      Date.now() - lastChange >= RESPONSE_STABLE_MS
     ) {
       const completedAt = performance.now();
       const lastChangeAge = Date.now() - lastChange;
-      const stabilizationMs = Math.max(
-        0,
-        Math.round(lastChangeAge)
-      );
+      const stabilizationMs = Math.max(0, Math.round(lastChangeAge));
       const firstResponseMs = firstResponseAt > 0
-        ? Math.max(
-            0,
-            Math.round(firstResponseAt - submittedAt)
-          )
+        ? Math.max(0, Math.round(firstResponseAt - submittedAt))
         : 0;
       const totalMs = Math.max(
         0,
@@ -1904,35 +1482,18 @@ async function submitMessage(text, attachments) {
       const generationMs = firstResponseAt > 0
         ? Math.max(
             0,
-            totalMs -
-              submitMs -
-              firstResponseMs -
-              stabilizationMs
+            totalMs - submitMs - firstResponseMs - stabilizationMs
           )
         : 0;
 
       const attachmentResult = await collectAssistantAttachments(
-        responseText,
-        responseNode
+        responseText
       );
-
-      let completionReason = "provider_idle";
-      if (
-        assistantCompletionActionButtons().length >
-        beforeCompletionActionCount
-      ) {
-        completionReason = "new_assistant_action";
-      } else if (laterTurn) {
-        completionReason = "later_conversation_turn";
-      } else if (completionActions) {
-        completionReason = "assistant_turn_actions";
-      }
 
       return {
         text: responseText,
         attachments: attachmentResult.attachments,
         attachment_debug: attachmentResult.debug,
-        completion_reason: completionReason,
         timing: {
           browser_submit_ms: submitMs,
           browser_first_response_ms: firstResponseMs,
@@ -1946,10 +1507,40 @@ async function submitMessage(text, attachments) {
     await sleep(RESPONSE_POLL_MS);
   }
 
+  if (responseText) {
+    const completedAt = performance.now();
+    const firstResponseMs = firstResponseAt > 0
+      ? Math.max(0, Math.round(firstResponseAt - submittedAt))
+      : 0;
+
+    const attachmentResult = await collectAssistantAttachments(
+      responseText
+    );
+
+    return {
+      text: responseText,
+      attachments: attachmentResult.attachments,
+      attachment_debug: attachmentResult.debug,
+      timing: {
+        browser_submit_ms: Math.max(
+          0,
+          Math.round(submittedAt - commandStartedAt)
+        ),
+        browser_first_response_ms: firstResponseMs,
+        browser_generation_ms: firstResponseAt > 0
+          ? Math.max(0, Math.round(completedAt - firstResponseAt))
+          : 0,
+        browser_stabilization_ms: 0,
+        browser_total_ms: Math.max(
+          0,
+          Math.round(completedAt - commandStartedAt)
+        )
+      }
+    };
+  }
+
   throw new Error(
-    responseText
-      ? "Safety timeout while waiting for the tracked assistant turn to finish."
-      : "Safety timeout waiting for a rendered assistant response."
+    "Timed out waiting for a rendered assistant response."
   );
 }
 
@@ -1959,32 +1550,8 @@ browser.runtime.onMessage.addListener((message) => {
   }
 
   if (message.type === "salix_status") {
-    const composer = findComposer();
-    const assistants = assistantNodes();
-    const users = userNodes();
-    const latestAssistant = assistants.length
-      ? assistants[assistants.length - 1]
-      : null;
-
     return Promise.resolve({
-      composer_ready: !!composer,
-      generation_active: generationActive(),
-      assistant_turn_count: assistants.length,
-      user_turn_count: users.length,
-      latest_assistant_bytes: latestAssistant
-        ? new TextEncoder().encode(
-            assistantNodeText(latestAssistant)
-          ).length
-        : 0,
-      latest_assistant_actions:
-        assistantTurnHasCompletionActions(latestAssistant),
-      composer_placeholder: composer
-        ? (
-            composer.getAttribute("placeholder") ||
-            composer.getAttribute("aria-label") ||
-            ""
-          )
-        : "",
+      composer_ready: !!findComposer(),
       url: location.href,
       title: document.title
     });
@@ -2011,7 +1578,6 @@ browser.runtime.onMessage.addListener((message) => {
         text: result.text,
         attachments: result.attachments || [],
         attachment_debug: result.attachment_debug || {},
-        completion_reason: result.completion_reason || "",
         timing: result.timing
       }))
       .catch((exception) => ({
