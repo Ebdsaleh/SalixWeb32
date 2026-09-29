@@ -569,17 +569,19 @@ See `docs/FILE_LOCATIONS.md`.
 1. keep the real P4 / Server 2003 R2 build clean under VC7.1,
 2. finish the active attachment-cap UX validation without changing the validated relay
    bounds,
-3. replace the fixed 180-second browser/session generation deadline with verified request
-   receipt and live liveness/workflow telemetry,
-4. expose provider generation and composer state separately so Salix can mirror
+3. validate the 0.3.0 completed-response lifecycle fix on the real P4, including
+   long-generation and browser-side follow-up correlation,
+4. replace synchronous long-wait compatibility with verified request receipt and live
+   liveness/workflow telemetry,
+5. expose provider generation and composer state separately so Salix can mirror
    `followup_ready` while the provider is still generating,
-5. harden response extraction and failure diagnostics against ordinary page changes,
-6. add explicit conversation-thread selection after the current-thread relay is green,
-7. move from completed-response framing to true incremental response transport,
-8. continue using the companion as a reference/scaffold while replacing its capabilities
+6. harden response extraction and failure diagnostics against ordinary page changes,
+7. add explicit conversation-thread selection after the current-thread relay is green,
+8. move from completed-response framing to true incremental response transport,
+9. continue using the companion as a reference/scaffold while replacing its capabilities
    with NT5-native implementations where practical,
-9. keep Browser Probe and the content-free Conversation probe as regression tools,
-10. defer MiniXP compatibility work until the Server 2003 feature set is complete and
+10. keep Browser Probe and the content-free Conversation probe as regression tools,
+11. defer MiniXP compatibility work until the Server 2003 feature set is complete and
     the MiniXP environment is usable again.
 
 # Guiding priority
