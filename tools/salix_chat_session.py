@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -33,6 +34,10 @@ MAX_ATTACHMENTS = 8
 MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024
 MAX_TOTAL_ATTACHMENT_BYTES = 4 * 1024 * 1024
 HEARTBEAT_STALE_SECONDS = 4.0
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _json_bytes(value: dict[str, Any]) -> bytes:
@@ -348,13 +353,22 @@ class RelayState:
                 f"thread_bytes={trace.get('thread_delta_bytes', 0)} "
                 f"source={trace.get('candidate_source', '')!r} "
                 f"progress_rejected={'yes' if trace.get('thread_progress_rejected') else 'no'} "
+                f"command_utc={trace.get('command_received_utc', '')!r} "
+                f"submitted_utc={trace.get('submitted_utc', '')!r} "
+                f"first_candidate_utc={trace.get('first_candidate_utc', '')!r} "
+                f"last_change_utc={trace.get('last_candidate_change_utc', '')!r} "
+                f"ready_utc={trace.get('completion_ready_utc', '')!r} "
+                f"completed_utc={trace.get('completed_utc', '')!r} "
                 f"stable_ms={trace.get('stable_ms', 0)} "
                 f"error={trace.get('error', '')!r}"
             )
 
             if trace_line != self.last_trace_line:
                 self.last_trace_line = trace_line
-                print("[chat-session] relay trace " + trace_line)
+                print(
+                    f"[chat-session] utc={_utc_now()} relay trace "
+                    + trace_line
+                )
 
             self.condition.notify_all()
 
@@ -915,7 +929,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 return
 
             print(
-                f"[chat-session] request id={request_id} "
+                f"[chat-session] utc={_utc_now()} request id={request_id} "
                 f"text_bytes={len(text.encode('utf-8'))} "
                 f"attachments={len(attachments)}"
             )
@@ -931,7 +945,7 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
             except Exception as error:
                 detail = f"{type(error).__name__}: {error}"
                 print(
-                    f"[chat-session] request id={request_id} "
+                    f"[chat-session] utc={_utc_now()} request id={request_id} "
                     f"failed: {detail}"
                 )
                 self._send_json(
@@ -946,12 +960,12 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 return
 
             print(
-                f"[chat-session] request id={request_id} "
+                f"[chat-session] utc={_utc_now()} request id={request_id} "
                 f"response_bytes={len(response_text.encode('utf-8'))} "
                 f"attachments={len(response_attachments)}"
             )
             print(
-                "[chat-session] timing "
+                f"[chat-session] utc={_utc_now()} timing "
                 + " ".join(
                     f"{key}={relay_timing[key]}ms"
                     for key in sorted(relay_timing)
@@ -1002,7 +1016,10 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
         ):
             return
 
-        print(f"[chat-session:{self.client_address[0]}] {rendered}")
+        print(
+            f"[chat-session:{self.client_address[0]}] "
+            f"utc={_utc_now()} {rendered}"
+        )
 
 
 class ChatSessionServer(ThreadingHTTPServer):
