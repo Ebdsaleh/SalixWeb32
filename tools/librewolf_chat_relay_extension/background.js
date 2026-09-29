@@ -294,6 +294,8 @@ async function postJson(path, body) {
 
 async function sendHeartbeat() {
   let composerReady = false;
+  let generationActive = false;
+  let relayTrace = {};
   let currentUrl = "";
   let title = "";
   let error = "";
@@ -310,6 +312,16 @@ async function sendHeartbeat() {
       });
 
       composerReady = !!(status && status.composer_ready);
+      generationActive = !!(
+        status && status.generation_active
+      );
+      relayTrace =
+        status &&
+        status.relay_trace &&
+        typeof status.relay_trace === "object"
+          ? status.relay_trace
+          : {};
+
       if (status && status.error) {
         error = String(status.error);
       }
@@ -325,6 +337,8 @@ async function sendHeartbeat() {
       protocol: EXTENSION_PROTOCOL,
       extension_version: EXTENSION_VERSION,
       composer_ready: composerReady,
+      generation_active: generationActive,
+      relay_trace: relayTrace,
       current_url: currentUrl,
       title: title,
       error: error
