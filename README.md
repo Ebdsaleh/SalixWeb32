@@ -189,14 +189,12 @@ coalesces them into one Conversation presentation update.
 
 A long-running target request exposed a separate relay-liveness limitation: the
 validated 0.2.9 WebExtension/session path could fail around 180 seconds even though
-interactive model work was still healthy. WebExtension 0.3.0 removed the old short deadline but target testing showed that its
-assistant-turn detector could still leave a completed response stuck as `request in
-flight`. WebExtension 0.3.1 still failed to emit `/v1/result` on the real target even after the
-assistant response was visibly complete. WebExtension 0.3.2 is now the active dev/test
-candidate. In addition to user/assistant turn correlation, it snapshots the assistant
-completion-action surface before Send and treats the first new completed assistant action
-bar as an independent response anchor. This avoids depending on the author-role wrapper
-being discoverable in the current ChatGPT DOM. Target validation is pending.
+interactive model work was still healthy. Experimental 0.3.0-0.3.2 browser completion
+changes were rejected after real-P4 testing because they regressed the already-working
+return path. WebExtension 0.3.3 is now the active dev/test candidate and deliberately
+restores the validated 0.2.9 browser relay behavior byte-for-byte except for the extended
+response lifetime. The companion/native timeout chain is likewise the validated baseline
+with only its wait ceilings increased. Target validation is pending.
 
 The planned longer-term fix remains stateful liveness rather than a larger arbitrary
 timeout. Salix will verify complete
