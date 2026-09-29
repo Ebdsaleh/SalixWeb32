@@ -1639,13 +1639,15 @@ The report did not contain `native batch ... -> ... updates` for that request, s
 transaction did not reach the normal `message_completed` path. This does not support a
 ConversationView character-count or line-count truncation diagnosis.
 
-The current browser relay has a 180-second WebExtension response deadline and the localhost
-chat-session broker also defaults to 180 seconds. The approximately 181.7-second native
-failure is therefore treated as evidence that the synchronous relay lifetime can expire
-while the visible provider is still working.
+The validated 0.2.9 browser relay had a 180-second WebExtension response deadline and
+the localhost chat-session broker also defaulted to 180 seconds. The approximately
+181.5-181.7-second native failures are therefore treated as evidence that the synchronous
+relay lifetime could expire while the visible provider was still working.
 
-The planned replacement is request-liveness tracking rather than simply increasing the
-timeout. Target acceptance for that future tranche must cover:
+The active 0.3.0 candidate removes that short normal boundary and adds heartbeat-aware
+waiting plus assistant-turn correlation. The planned full replacement remains
+request-liveness tracking rather than simply increasing the timeout. Target acceptance
+for that future tranche must cover:
 
 1. P4 request byte count + SHA-256 receipt verification by the bridge.
 2. Immediate acknowledgement that the complete request reached the bridge.
