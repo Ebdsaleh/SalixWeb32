@@ -306,49 +306,41 @@ assistant text.
 These selectors are isolated inside the extension so normal ChatGPT markup changes do
 not require changes to the VC7.1 application.
 
-## WebExtension 0.3.2 completed-turn action anchor candidate
+## WebExtension 0.3.3 minimal long-response candidate
 
-A September 29, 2026 P4 retest reproduced a failure where the user message reached the
-authenticated ChatGPT thread but the native client received no completed response. The
-companion logs showed:
+Real-P4 testing established two separate facts:
+
+1. the validated WebExtension 0.2.9 browser relay returned ordinary completed responses
+   correctly,
+2. its synchronous lifetime could fail around 180 seconds while ChatGPT was still
+   working.
+
+Experimental 0.3.0-0.3.2 changes attempted to redesign browser completion detection while
+also solving the timeout. Target testing showed that those changes regressed the known-good
+return path: the browser visibly completed an answer but the extension did not emit
+`/v1/result`, leaving the P4 at `request in flight`.
+
+Those experimental completion changes have been removed from the active candidate.
+
+WebExtension 0.3.3 deliberately restores the validated 0.2.9 browser implementation
+byte-for-byte except for its response wait ceiling. The broker and bridge are likewise
+restored to their validated behavior with only their wait ceilings extended.
+
+The active synchronous safety chain is:
 
 ```text
-request id=1 failed: TimeoutError: timed out waiting for LibreWolf extension response
-POST /v1/message ... 502
-POST /v1/conversation/message ... 503
+WebExtension response wait : 4 hours
+chat-session broker        : 4 hours + 1 minute
+bridge worker              : 4 hours + 2 minutes
+native Conversation HTTP   : 4 hours + 3 minutes
 ```
 
-while the P4 diagnostic remained `request in flight` and later recorded failure at about
-181.5 seconds. The failure was therefore inside the browser-response lifecycle, not P4 LAN
-reachability or ConversationView rendering.
+No new DOM selectors, turn-correlation rules, completion-action heuristics, heartbeat
+failure semantics, or follow-up behavior are part of 0.3.3.
 
-WebExtension `0.3.2` is the active candidate for this failure mode. Versions 0.3.0 and 0.3.1 both reproduced target-side completion problems: 0.3.0 removed the old short deadline but could leave a completed browser reply in flight, and 0.3.1 still failed to emit `/v1/result`. Version 0.3.2 adds a new completed-turn action anchor in addition to turn correlation.
+This tranche exists only to answer one question cleanly: can the already-proven 0.2.9
+return path remain functional when the short 180-second lifetime is removed?
 
-Changes:
-
-- a submission made while ChatGPT is already generating no longer treats the pre-existing
-  Stop/generation control as proof that the new Salix follow-up was accepted,
-- the extension tracks the assistant turn associated with the Salix submission by
-  assistant-turn ordinal instead of repeatedly taking the page's latest assistant text,
-- a tracked response may complete when it is stable and the provider becomes idle,
-- a tracked response may also complete when a later assistant turn exists, which proves
-  the tracked turn closed even if the page is globally generating again,
-- returned attachment discovery is rooted in the tracked assistant turn instead of the
-  newest assistant turn,
-- the extension no longer converts a safety-timeout partial response into a successful
-  completed message,
-- the ordinary 180-second response deadline is removed; the content-script safety ceiling
-  is four hours,
-- the localhost broker now treats recent WebExtension heartbeat as the primary liveness
-  signal while waiting and fails earlier only if that heartbeat is lost for 30 seconds,
-- the bridge and native Conversation HTTP transport safety ceilings are extended beyond
-  the inner browser/broker safety ceilings,
-- diagnostic logging reports response completion as `provider_idle` or
-  `newer_assistant_turn`.
-
-This remains a completed-response compatibility tranche. It does not yet implement the
-full asynchronous request/status protocol or native follow-up-ready composer described
-below.
 
 ## Planned live browser-workflow telemetry
 
@@ -496,10 +488,10 @@ Conversation failure event path.
 The validated 0.2.9 implementation had a 180-second WebExtension/session response
 deadline. Real target evidence showed P4 requests failing after approximately 181.5-181.7
 seconds, consistent with that synchronous deadline. This is tracked as a relay-liveness
-limitation, not as a ConversationView character or line limit. The active 0.3.2 candidate
-retains the long heartbeat-aware wait policy while replacing the browser completion detector; the planned
-stateful liveness design above remains the longer-term replacement for synchronous
-request/response waiting.
+limitation, not as a ConversationView character or line limit. The active 0.3.3 candidate
+keeps the validated completion detector unchanged and extends only the synchronous wait
+ceilings. The planned stateful liveness design above remains the longer-term replacement
+for synchronous request/response waiting.
 
 The ordinary LibreWolf window remains visible throughout, so browser-side failures can be
 inspected directly.
