@@ -313,6 +313,12 @@ class RelayState:
         self.last_heartbeat = 0.0
         self.extension_version = ""
         self.composer_ready = False
+        self.generation_active = False
+        self.assistant_turn_count = 0
+        self.user_turn_count = 0
+        self.latest_assistant_bytes = 0
+        self.latest_assistant_actions = False
+        self.composer_placeholder = ""
         self.current_url = ""
         self.title = ""
         self.last_error = ""
