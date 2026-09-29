@@ -13,6 +13,8 @@ const relayTrace = {
   rendered_anchor_found: false,
   rendered_delta_bytes: 0,
   thread_delta_bytes: 0,
+  candidate_source: "",
+  thread_progress_rejected: false,
   stable_ms: 0,
   error: ""
 };
@@ -35,6 +37,10 @@ function relayTraceSnapshot() {
       Number(relayTrace.rendered_delta_bytes) || 0,
     thread_delta_bytes:
       Number(relayTrace.thread_delta_bytes) || 0,
+    candidate_source:
+      String(relayTrace.candidate_source || ""),
+    thread_progress_rejected:
+      !!relayTrace.thread_progress_rejected,
     stable_ms: Number(relayTrace.stable_ms) || 0,
     error: String(relayTrace.error || "")
   };
@@ -166,6 +172,10 @@ function renderedConversationText() {
       "nav",
       "header",
       "[aria-hidden='true']",
+      "[aria-live]",
+      "[role='status']",
+      "[role='alert']",
+      ".sr-only",
       "[data-testid='composer-footer-actions']",
       "[data-composer-surface]"
     ].join(", ")
@@ -253,6 +263,34 @@ function renderedConversationResponseDelta(
   }
 
   return delta;
+}
+
+function looksLikeProviderProgressText(text) {
+  const normalized = normalizeRelayText(text).toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  // Current ChatGPT exposes transient accessibility/progress copy such as
+  // "You said:ChatGPT is responding" while a response is still being
+  // generated. This text is not an assistant response and must never satisfy
+  // the relay completion detector.
+  if (
+    normalized === "chatgpt is responding" ||
+    normalized === "chatgpt is thinking" ||
+    (
+      normalized.startsWith("you said:") &&
+      (
+        normalized.endsWith("chatgpt is responding") ||
+        normalized.endsWith("chatgpt is thinking")
+      )
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function findRenderedSubmittedMessage(text) {
@@ -355,6 +393,10 @@ function renderedTextAfterSubmittedMessage(anchorInfo) {
       "nav",
       "header",
       "[aria-hidden='true']",
+      "[aria-live]",
+      "[role='status']",
+      "[role='alert']",
+      ".sr-only",
       "[data-testid='composer-footer-actions']",
       "[data-composer-surface]"
     ].join(", ")
@@ -1712,6 +1754,8 @@ async function submitMessage(text, attachments) {
     rendered_anchor_found: false,
     rendered_delta_bytes: 0,
     thread_delta_bytes: 0,
+    candidate_source: "",
+    thread_progress_rejected: false,
     stable_ms: 0,
     error: ""
   });
@@ -1783,8 +1827,10 @@ async function submitMessage(text, attachments) {
     }
     const snapshots = assistantSnapshots();
     let candidate = "";
+    let candidateSource = "";
     let renderedDelta = "";
     let threadDelta = "";
+    let threadProgressRejected = false;
 
     updateRelayTrace({
       state: "waiting_response",
@@ -1796,11 +1842,13 @@ async function submitMessage(text, attachments) {
 
     if (snapshots.length > beforeCount) {
       candidate = snapshots[snapshots.length - 1];
+      candidateSource = candidate ? "assistant_snapshot" : "";
     } else if (snapshots.length) {
       const last = snapshots[snapshots.length - 1];
 
       if (last !== beforeLast) {
         candidate = last;
+        candidateSource = candidate ? "assistant_snapshot" : "";
       }
     }
 
@@ -1810,6 +1858,7 @@ async function submitMessage(text, attachments) {
         renderedBaseline
       );
       candidate = renderedDelta;
+      candidateSource = candidate ? "rendered_anchor" : "";
     }
 
     // Selector-independent last resort: compare the complete rendered thread
@@ -1822,7 +1871,14 @@ async function submitMessage(text, attachments) {
         renderedConversationText(),
         text
       );
+
+      if (looksLikeProviderProgressText(threadDelta)) {
+        threadProgressRejected = true;
+        threadDelta = "";
+      }
+
       candidate = threadDelta;
+      candidateSource = candidate ? "thread_delta" : "";
     }
 
     updateRelayTrace({
@@ -1836,6 +1892,8 @@ async function submitMessage(text, attachments) {
       candidate_bytes: new TextEncoder().encode(
         candidate || ""
       ).length,
+      candidate_source: candidateSource,
+      thread_progress_rejected: threadProgressRejected,
       generation_active: generationActive(),
       stable_ms: Math.max(0, Date.now() - lastChange)
     });
