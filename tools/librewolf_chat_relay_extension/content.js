@@ -1547,6 +1547,9 @@ async function submitMessage(text, attachments) {
         text: responseText,
         attachments: attachmentResult.attachments,
         attachment_debug: attachmentResult.debug,
+        completion_reason: newerAssistantTurn
+          ? "newer_assistant_turn"
+          : "provider_idle",
         timing: {
           browser_submit_ms: submitMs,
           browser_first_response_ms: firstResponseMs,
@@ -1604,6 +1607,7 @@ browser.runtime.onMessage.addListener((message) => {
         text: result.text,
         attachments: result.attachments || [],
         attachment_debug: result.attachment_debug || {},
+        completion_reason: result.completion_reason || "",
         timing: result.timing
       }))
       .catch((exception) => ({
