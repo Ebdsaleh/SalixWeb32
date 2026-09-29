@@ -196,8 +196,7 @@ WebExtension heartbeat as the broker's primary wait-liveness signal, and extends
 outer bridge/native safety ceilings. Target validation is pending.
 
 The planned longer-term fix remains stateful liveness rather than a larger arbitrary
-timeout. The planned fix is
-stateful liveness rather than a larger arbitrary timeout. Salix will verify complete
+timeout. Salix will verify complete
 request receipt with byte count + SHA-256, track bridge/browser/provider health, and keep
 request transport, provider generation, and provider-composer state separate. In
 particular, the provider may remain `generating` while its composer becomes
