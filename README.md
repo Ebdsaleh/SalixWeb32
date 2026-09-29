@@ -189,12 +189,14 @@ coalesces them into one Conversation presentation update.
 
 A long-running target request exposed a separate relay-liveness limitation: the
 validated 0.2.9 WebExtension/session path could fail around 180 seconds even though
-interactive model work was still healthy. Experimental 0.3.0-0.3.2 browser completion
-changes were rejected after real-P4 testing because they regressed the already-working
-return path. WebExtension 0.3.3 is now the active dev/test candidate and deliberately
-restores the validated 0.2.9 browser relay behavior byte-for-byte except for the extended
-response lifetime. The companion/native timeout chain is likewise the validated baseline
-with only its wait ceilings increased. Target validation is pending.
+interactive model work was still healthy. Historical validation shows the first successful native text reply used WebExtension
+0.1.0 at commit `9321882`; the later 0.2.9 baseline also returned completed responses as
+part of the validated PNG round trip. Experimental 0.3.0-0.3.2 browser completion changes
+were rejected after real-P4 testing because they regressed that already-working return
+path. WebExtension 0.3.4 is now the active dev/test candidate: it keeps the validated
+0.2.9 response lifecycle and long wait ceilings, but broadens assistant discovery for the
+current ChatGPT DOM by accepting zero-size author-role wrappers and rendered Markdown
+fallbacks. Target validation is pending.
 
 The planned longer-term fix remains stateful liveness rather than a larger arbitrary
 timeout. Salix will verify complete
