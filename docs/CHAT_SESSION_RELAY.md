@@ -306,7 +306,7 @@ assistant text.
 These selectors are isolated inside the extension so normal ChatGPT markup changes do
 not require changes to the VC7.1 application.
 
-## WebExtension 0.3.1 response-turn correlation candidate
+## WebExtension 0.3.2 completed-turn action anchor candidate
 
 A September 29, 2026 P4 retest reproduced a failure where the user message reached the
 authenticated ChatGPT thread but the native client received no completed response. The
