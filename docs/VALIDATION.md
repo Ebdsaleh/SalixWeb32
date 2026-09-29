@@ -1779,3 +1779,41 @@ Target validation:
 
 Do not promote this candidate to `test` or `main` until the actual assistant reply,
 rather than transient provider chrome, is green on the real Pentium 4.
+
+
+### WebExtension 0.3.8 content-return baseline / 0.3.9 wall-clock diagnostic
+
+The real-P4 0.3.8 test returned the actual assistant reply correctly. The recorded request
+completed in approximately 11.3 seconds end-to-end on the P4, with approximately 9.6
+seconds inside the browser relay. The user nevertheless observed a roughly three-minute
+human-visible gap around the successful return. The existing duration counters cannot
+account for such a gap, so 0.3.8 is preserved unchanged as the content-return baseline.
+
+0.3.9 changes no response-selection, completion, timeout, attachment, bridge framing, or
+native behavior. It adds wall-clock UTC timestamps only:
+
+- browser command received
+- browser submit
+- first candidate
+- last candidate change
+- completion ready
+- browser completed
+- broker trace/log events
+- bridge request/response/log events
+
+The purpose is to correlate browser-visible response timing, extension detection,
+broker completion, bridge completion, and the P4 observation without relying on human
+stopwatch estimates or monotonic timers from different processes.
+
+Target validation:
+
+1. Pull `relay-recovery-0.3.9-timing`.
+2. Reload the temporary extension and confirm version `0.3.9`.
+3. Restart broker and bridge from the same branch.
+4. Restart SalixWeb32 on the P4.
+5. Send one short unique message.
+6. Record the wall-clock time when the assistant reply first becomes visibly complete in
+   LibreWolf and the wall-clock time when it becomes visible in SalixWeb32.
+7. Preserve both Python consoles without trimming.
+8. Do not alter the relay behavior based on the perceived delay until the UTC timestamps
+   identify the missing interval.
