@@ -322,7 +322,7 @@ while the P4 diagnostic remained `request in flight` and later recorded failure 
 181.5 seconds. The failure was therefore inside the browser-response lifecycle, not P4 LAN
 reachability or ConversationView rendering.
 
-WebExtension `0.3.0` is the active candidate that addresses this specific failure mode.
+WebExtension `0.3.2` is the active candidate for this failure mode. Versions 0.3.0 and 0.3.1 both reproduced target-side completion problems: 0.3.0 removed the old short deadline but could leave a completed browser reply in flight, and 0.3.1 still failed to emit `/v1/result`. Version 0.3.2 adds a new completed-turn action anchor in addition to turn correlation.
 
 Changes:
 
