@@ -1587,44 +1587,36 @@ The remaining attachment-policy target checks before promotion are explicit butt
 behavior at 8, re-enable after removal, partial multi-select above capacity, and 4 MB
 aggregate rejection.
 
-### WebExtension 0.3.2 response lifecycle candidate — target validation pending
+### WebExtension 0.3.3 minimal long-response candidate — target validation pending
 
-The September 29 P4 reproduction proved that a Salix request can reach the visible
-ChatGPT thread while the old 0.2.9 browser lifecycle still fails to return a completed
-response. Companion evidence showed the browser command was delivered, followed roughly
-180 seconds later by broker timeout/HTTP 502 and bridge HTTP 503. A stale browser-side
-failure then attempted to arrive after the broker had already abandoned the request.
+The validated 0.2.9 browser relay returned ordinary responses correctly but could fail
+around the 180-second boundary. Experimental 0.3.0-0.3.2 completion-detector changes were
+rejected after real-P4 testing because they regressed the return path and could leave a
+visibly completed browser response stuck as `request in flight`.
+
+0.3.3 removes those experimental browser changes. Its runtime is the validated 0.2.9
+browser/broker/bridge behavior with only the synchronous wait ceilings extended.
 
 Candidate acceptance:
 
-1. Pull the exact `test` candidate and rebuild `Debug|Win32` under VC7.1 with
-   zero errors / zero warnings.
-2. Restart `salix_chat_session.py` and `salix_bridge.py --host 0.0.0.0 --port 8765`.
-3. Reload the temporary LibreWolf extension and confirm version `0.3.2`.
-4. Reload/open the target ChatGPT thread and confirm bridge health reports
+1. Pull the exact `test` candidate.
+2. No new C++ rebuild is required if the already-built long native HTTP timeout candidate
+   is present; otherwise rebuild `Debug|Win32` under VC7.1 with zero errors/warnings.
+3. Restart `salix_chat_session.py` and
+   `salix_bridge.py --host 0.0.0.0 --port 8765`.
+4. Reload the temporary LibreWolf extension and confirm version `0.3.3`.
+5. Reload/open the target ChatGPT thread and confirm bridge health reports
    `conversation_browser_session=ready`.
-5. Send a normal short message from the P4 and confirm one completed response returns to
-   Salix.
-6. Confirm broker output contains:
-   `response completion reason=provider_idle`.
-7. Send another P4 request and, before its browser-side response is returned to Salix,
-   submit a normal browser-side follow-up that creates a later assistant turn.
-8. Confirm the earlier Salix request still completes and the broker may report:
-   `response completion reason=newer_assistant_turn`.
-9. Confirm the returned text belongs to the tracked earlier assistant turn rather than the
-   newest page response.
-10. If the tracked response contains a returned file, confirm attachment discovery remains
-    scoped to that tracked assistant turn.
-11. Confirm no partial response is reported as successful merely because a safety ceiling
-    expires.
-12. Leave an active generation running beyond 180 seconds and confirm the broker/P4 do not
-    fail at the old ~181-second boundary while WebExtension heartbeats remain healthy.
-13. Stop/reload the extension during an active request and confirm the broker fails after
-    the heartbeat-loss grace period rather than waiting for the long safety ceiling.
-14. Re-run the validated ordinary bounded attachment smoke test.
+6. Send one short P4 message and leave the browser untouched until completion.
+7. Confirm the extension posts `/v1/result`, the broker returns HTTP 200, the bridge
+   returns `POST /v1/conversation/message ... 200`, and the P4 receives the reply.
+8. Only after the ordinary return path is green, run a request beyond 180 seconds and
+   confirm it does not fail at the historical ~181-second boundary.
+9. Re-run the validated bounded attachment smoke test.
 
-This candidate does not yet make the native Salix composer follow-up-ready while one
-request is active; that remains part of the planned asynchronous liveness/status tranche.
+Do not add new completion heuristics during this validation. If step 7 fails, collect the
+browser/broker trace before changing the detector again.
+
 
 ### Long-running Conversation failure / liveness design trigger
 
@@ -1644,9 +1636,9 @@ the localhost chat-session broker also defaulted to 180 seconds. The approximate
 181.5-181.7-second native failures are therefore treated as evidence that the synchronous
 relay lifetime could expire while the visible provider was still working.
 
-The active 0.3.2 candidate retains the heartbeat-aware long wait and adds a completed
-assistant-turn action anchor after 0.3.0 and 0.3.1 both failed to return a visibly completed browser response. The planned full replacement remains
-request-liveness tracking rather than simply increasing the timeout. Target acceptance
+The active 0.3.3 candidate restores the validated 0.2.9 completion path and changes only
+the synchronous wait ceilings. The planned full replacement remains request-liveness
+tracking rather than simply increasing the timeout. Target acceptance
 for that future tranche must cover:
 
 1. P4 request byte count + SHA-256 receipt verification by the bridge.
