@@ -1587,7 +1587,7 @@ The remaining attachment-policy target checks before promotion are explicit butt
 behavior at 8, re-enable after removal, partial multi-select above capacity, and 4 MB
 aggregate rejection.
 
-### WebExtension 0.3.0 response lifecycle candidate — target validation pending
+### WebExtension 0.3.1 response lifecycle candidate — target validation pending
 
 The September 29 P4 reproduction proved that a Salix request can reach the visible
 ChatGPT thread while the old 0.2.9 browser lifecycle still fails to return a completed
