@@ -1764,15 +1764,15 @@ async function submitMessage(text, attachments) {
   let firstResponseAt = 0;
 
   while (Date.now() < deadline) {
-    const completionActions =
+    const completionActionButtons =
       assistantCompletionActionButtons();
 
     if (
-      completionActions.length > beforeCompletionActionCount
+      completionActionButtons.length > beforeCompletionActionCount
     ) {
       const newAction =
-        completionActions[beforeCompletionActionCount] ||
-        completionActions[completionActions.length - 1];
+        completionActionButtons[beforeCompletionActionCount] ||
+        completionActionButtons[completionActionButtons.length - 1];
       const completedTurn =
         assistantTurnFromCompletionAction(newAction);
       const completedText =
