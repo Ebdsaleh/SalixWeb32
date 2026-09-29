@@ -496,8 +496,8 @@ Conversation failure event path.
 The validated 0.2.9 implementation had a 180-second WebExtension/session response
 deadline. Real target evidence showed P4 requests failing after approximately 181.5-181.7
 seconds, consistent with that synchronous deadline. This is tracked as a relay-liveness
-limitation, not as a ConversationView character or line limit. The active 0.3.0 candidate
-removes that short normal deadline and makes the broker wait heartbeat-aware; the planned
+limitation, not as a ConversationView character or line limit. The active 0.3.2 candidate
+retains the long heartbeat-aware wait policy while replacing the browser completion detector; the planned
 stateful liveness design above remains the longer-term replacement for synchronous
 request/response waiting.
 
