@@ -187,9 +187,16 @@ a latency target. Native post-response drip-feeding is no longer part of that de
 Salix drains all semantic events already available from a completed response and
 coalesces them into one Conversation presentation update.
 
-A long-running target request has now exposed a separate relay-liveness limitation: the
-current WebExtension/session path has a roughly 180-second fixed response deadline even
-though interactive model work may legitimately continue much longer. The planned fix is
+A long-running target request exposed a separate relay-liveness limitation: the
+validated 0.2.9 WebExtension/session path could fail around 180 seconds even though
+interactive model work was still healthy. WebExtension 0.3.0 is now the active
+dev/test candidate: it tracks the assistant turn associated with the Salix request,
+does not confuse a pre-existing generation state with follow-up acceptance, uses
+WebExtension heartbeat as the broker's primary wait-liveness signal, and extends the
+outer bridge/native safety ceilings. Target validation is pending.
+
+The planned longer-term fix remains stateful liveness rather than a larger arbitrary
+timeout. The planned fix is
 stateful liveness rather than a larger arbitrary timeout. Salix will verify complete
 request receipt with byte count + SHA-256, track bridge/browser/provider health, and keep
 request transport, provider generation, and provider-composer state separate. In
