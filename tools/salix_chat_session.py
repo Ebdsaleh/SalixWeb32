@@ -26,10 +26,7 @@ SESSION_PROTOCOL = "SALIX-CHAT-SESSION/1"
 EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8766
-# This is a final safety ceiling, not an expected model-generation timeout.
-# The extension heartbeat is the primary liveness signal while a response is active.
 DEFAULT_RESPONSE_TIMEOUT_SECONDS = 4 * 60 * 60 + 60
-EXTENSION_RESPONSE_LOSS_GRACE_SECONDS = 30.0
 MAX_MESSAGE_BYTES = 128 * 1024
 MAX_RELAY_JSON_BYTES = 8 * 1024 * 1024
 MAX_ATTACHMENTS = 8
@@ -313,12 +310,6 @@ class RelayState:
         self.last_heartbeat = 0.0
         self.extension_version = ""
         self.composer_ready = False
-        self.generation_active = False
-        self.assistant_turn_count = 0
-        self.user_turn_count = 0
-        self.latest_assistant_bytes = 0
-        self.latest_assistant_actions = False
-        self.composer_placeholder = ""
         self.current_url = ""
         self.title = ""
         self.last_error = ""
@@ -469,37 +460,13 @@ class RelayState:
             deadline = time.monotonic() + self.response_timeout_seconds
 
             while not request.completed:
-                now = time.monotonic()
-                remaining = deadline - now
-
+                remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     self.pending = None
                     self.last_error = (
-                        "response safety ceiling reached while waiting for "
-                        "LibreWolf extension completion"
+                        "timed out waiting for LibreWolf extension response"
                     )
                     raise TimeoutError(self.last_error)
-
-                heartbeat_age = (
-                    now - self.last_heartbeat
-                    if self.last_heartbeat > 0
-                    else None
-                )
-
-                if (
-                    request.delivered and
-                    (
-                        heartbeat_age is None or
-                        heartbeat_age >
-                            EXTENSION_RESPONSE_LOSS_GRACE_SECONDS
-                    )
-                ):
-                    self.pending = None
-                    self.last_error = (
-                        "lost LibreWolf extension heartbeat while waiting "
-                        "for the active response"
-                    )
-                    raise ConnectionError(self.last_error)
 
                 self.condition.wait(timeout=min(remaining, 1.0))
 
@@ -785,17 +752,6 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                     request.get("attachment_debug")
                 )
 
-                completion_reason = request.get("completion_reason", "")
-                if not isinstance(completion_reason, str):
-                    completion_reason = ""
-                completion_reason = completion_reason[:64]
-
-                if completion_reason:
-                    print(
-                        "[chat-session] response completion "
-                        f"reason={completion_reason}"
-                    )
-
                 if attachment_debug:
                     print(
                         "[chat-session] attachment capture "
@@ -1047,10 +1003,7 @@ def main() -> int:
         "--response-timeout",
         type=float,
         default=DEFAULT_RESPONSE_TIMEOUT_SECONDS,
-        help=(
-            "final safety ceiling in seconds for one browser response; "
-            "extension heartbeat loss fails earlier"
-        ),
+        help="maximum seconds to wait for one ChatGPT response",
     )
     args = parser.parse_args()
 
@@ -1086,10 +1039,6 @@ def main() -> int:
     print("LibreWolf must already be running normally.")
     print("Load tools\\librewolf_chat_relay_extension as a temporary add-on.")
     print("When the extension heartbeat sees the ChatGPT composer, relay is ready.")
-    print(
-        "Response wait policy  : heartbeat-aware | safety ceiling "
-        f"{args.response_timeout:.0f}s"
-    )
     print("Press Ctrl+C here to stop the localhost broker.")
 
     try:
