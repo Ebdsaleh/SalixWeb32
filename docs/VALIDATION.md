@@ -1716,3 +1716,66 @@ Target validation:
 
 No promotion to `test` or `main` is allowed until this candidate is green on the real
 Pentium 4.
+
+
+### WebExtension 0.3.7 partial recovery / 0.3.8 progress-text filter — target validation pending
+
+The real-P4 0.3.7 test proved that the downstream return transport is operational again,
+but the selector-independent thread fallback returned transient provider progress text
+instead of the assistant reply.
+
+Observed broker trace:
+
+```text
+request id=1 text_bytes=26 attachments=0
+state=waiting_response snapshots=0 candidate_bytes=30 generation=idle
+anchor=yes rendered_bytes=0 thread_bytes=30
+POST /v1/result ... 200
+request id=1 response_bytes=30 attachments=0
+POST /v1/message ... 200
+```
+
+The real P4 rendered exactly:
+
+```text
+Remote: You said:ChatGPT is responding
+```
+
+The returned payload is exactly 30 UTF-8 bytes, matching the broker's
+`candidate_bytes=30` and `response_bytes=30`. The bridge then returned
+`POST /v1/conversation/message ... 200`, proving extension -> broker -> bridge -> native
+semantic-event transport is healthy.
+
+0.3.8 keeps the 0.3.7 pre-submit fallback but removes accessibility/progress surfaces from
+both rendered-thread extraction paths:
+
+- `[aria-live]`
+- `[role='status']`
+- `[role='alert']`
+- `.sr-only`
+
+It also rejects the observed provider progress strings as a defensive second boundary and
+adds trace fields:
+
+- `source`
+- `progress_rejected`
+
+Target validation:
+
+1. Pull branch `relay-recovery-0.3.8` on the modern companion.
+2. Stop both Python relay processes.
+3. Reload the temporary LibreWolf extension and confirm version `0.3.8`.
+4. Reload the authenticated ChatGPT conversation.
+5. Start `python tools\salix_chat_session.py`.
+6. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+7. Restart SalixWeb32 on the P4.
+8. Send one short unique P4 message and leave LibreWolf untouched.
+9. Reject any result equal to provider progress/status text.
+10. Require the actual assistant response text on the P4 plus HTTP 200 through
+    `/v1/result`, `/v1/message`, and `/v1/conversation/message`.
+11. Preserve the broker relay-trace lines. If `progress_rejected=yes` appears before a
+    later non-empty candidate, the defensive filter is working as intended.
+12. Do not test the >180-second path until ordinary response content is correct.
+
+Do not promote this candidate to `test` or `main` until the actual assistant reply,
+rather than transient provider chrome, is green on the real Pentium 4.
