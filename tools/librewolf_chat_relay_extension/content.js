@@ -1631,15 +1631,14 @@ async function submitMessage(text, attachments) {
     );
   }
 
-  // Track the assistant turn that belongs to this Salix submission by ordinal.
-  // Do not keep following the page's latest assistant text: a browser-side
-  // follow-up can start another generation before this request has been
-  // returned to the P4.
-  const beforeNodes = assistantNodes();
-  const beforeCount = beforeNodes.length;
-  const beforeLastText = beforeCount
-    ? assistantNodeText(beforeNodes[beforeCount - 1])
+  const beforeAssistantNodes = assistantNodes();
+  const beforeAssistantCount = beforeAssistantNodes.length;
+  const beforeLastAssistantText = beforeAssistantCount
+    ? assistantNodeText(
+        beforeAssistantNodes[beforeAssistantCount - 1]
+      )
     : "";
+  const beforeUserCount = userMessageCount();
 
   if (text) {
     setComposerText(composer, text);
@@ -1659,38 +1658,72 @@ async function submitMessage(text, attachments) {
 
   const submittedAt = performance.now();
   const deadline = Date.now() + RESPONSE_SAFETY_TIMEOUT_MS;
-  let responseText = "";
-  let responseOrdinal = -1;
+  let submittedUserTurn = findSubmittedUserTurn(
+    beforeUserCount,
+    text
+  );
+  let submittedUserKey = turnStableKey(submittedUserTurn);
   let responseNode = null;
+  let responseKey = "";
+  let responseText = "";
   let lastChange = Date.now();
   let observedResponse = false;
   let firstResponseAt = 0;
 
   while (Date.now() < deadline) {
-    const nodes = assistantNodes();
+    if (!submittedUserTurn) {
+      submittedUserTurn = findSubmittedUserTurn(
+        beforeUserCount,
+        text
+      );
+      submittedUserKey = turnStableKey(submittedUserTurn);
+    } else if (submittedUserKey) {
+      const currentTurns = conversationTurnNodes();
+      const currentUser = currentTurns.find(
+        (turn) => turnStableKey(turn) === submittedUserKey
+      );
 
-    if (responseOrdinal < 0) {
-      if (nodes.length > beforeCount) {
-        // The first assistant turn created after the Salix submission belongs
-        // to this request even if later browser follow-ups create more turns.
-        responseOrdinal = beforeCount;
+      if (currentUser) {
+        submittedUserTurn = currentUser;
+      }
+    }
+
+    let relatedAssistant = findAssistantTurnAfter(
+      submittedUserTurn
+    );
+
+    if (!relatedAssistant && responseKey) {
+      relatedAssistant = conversationTurnNodes().find(
+        (turn) => turnStableKey(turn) === responseKey
+      ) || null;
+    }
+
+    if (!relatedAssistant) {
+      const nodes = assistantNodes();
+
+      if (nodes.length > beforeAssistantCount) {
+        relatedAssistant =
+          nodes[Math.min(beforeAssistantCount, nodes.length - 1)];
       } else if (nodes.length) {
-        // ChatGPT may continue an already-present assistant turn when a Salix
-        // message is submitted during an active generation/follow-up window.
-        const lastOrdinal = nodes.length - 1;
-        const lastText = assistantNodeText(nodes[lastOrdinal]);
+        const last = nodes[nodes.length - 1];
+        const lastText = assistantNodeText(last);
 
-        if (lastText && lastText !== beforeLastText) {
-          responseOrdinal = lastOrdinal;
+        if (
+          lastText &&
+          lastText !== beforeLastAssistantText
+        ) {
+          relatedAssistant = last;
         }
       }
     }
 
-    if (
-      responseOrdinal >= 0 &&
-      responseOrdinal < nodes.length
-    ) {
-      responseNode = nodes[responseOrdinal];
+    if (relatedAssistant) {
+      responseNode = relatedAssistant;
+      const candidateKey = turnStableKey(responseNode);
+      if (candidateKey) {
+        responseKey = candidateKey;
+      }
+
       const candidate = assistantNodeText(responseNode);
 
       if (candidate) {
@@ -1712,23 +1745,32 @@ async function submitMessage(text, attachments) {
       responseText &&
       Date.now() - lastChange >= RESPONSE_STABLE_MS;
 
-    const newerAssistantTurn =
-      responseOrdinal >= 0 &&
-      nodes.length > responseOrdinal + 1;
+    const laterTurn = turnHasLaterConversationTurn(
+      responseNode
+    );
+    const completionActions =
+      assistantTurnHasCompletionActions(responseNode);
+    const providerIdle = !generationActive();
 
-    // Global generation state is not enough on its own: ChatGPT can begin a
-    // later browser-side follow-up before the tracked Salix response has been
-    // returned. A newer assistant turn proves the tracked turn is closed, so
-    // it may complete even while the page is globally generating again.
     if (
       responseStable &&
-      (!generationActive() || newerAssistantTurn)
+      (
+        providerIdle ||
+        laterTurn ||
+        completionActions
+      )
     ) {
       const completedAt = performance.now();
       const lastChangeAge = Date.now() - lastChange;
-      const stabilizationMs = Math.max(0, Math.round(lastChangeAge));
+      const stabilizationMs = Math.max(
+        0,
+        Math.round(lastChangeAge)
+      );
       const firstResponseMs = firstResponseAt > 0
-        ? Math.max(0, Math.round(firstResponseAt - submittedAt))
+        ? Math.max(
+            0,
+            Math.round(firstResponseAt - submittedAt)
+          )
         : 0;
       const totalMs = Math.max(
         0,
@@ -1741,7 +1783,10 @@ async function submitMessage(text, attachments) {
       const generationMs = firstResponseAt > 0
         ? Math.max(
             0,
-            totalMs - submitMs - firstResponseMs - stabilizationMs
+            totalMs -
+              submitMs -
+              firstResponseMs -
+              stabilizationMs
           )
         : 0;
 
@@ -1750,13 +1795,18 @@ async function submitMessage(text, attachments) {
         responseNode
       );
 
+      let completionReason = "provider_idle";
+      if (laterTurn) {
+        completionReason = "later_conversation_turn";
+      } else if (completionActions) {
+        completionReason = "assistant_turn_actions";
+      }
+
       return {
         text: responseText,
         attachments: attachmentResult.attachments,
         attachment_debug: attachmentResult.debug,
-        completion_reason: newerAssistantTurn
-          ? "newer_assistant_turn"
-          : "provider_idle",
+        completion_reason: completionReason,
         timing: {
           browser_submit_ms: submitMs,
           browser_first_response_ms: firstResponseMs,
@@ -1770,9 +1820,6 @@ async function submitMessage(text, attachments) {
     await sleep(RESPONSE_POLL_MS);
   }
 
-  // Never turn a partial response into a successful completed message. The
-  // outer broker/bridge layers keep larger safety ceilings so this should only
-  // fire for an abandoned or pathological browser command.
   throw new Error(
     responseText
       ? "Safety timeout while waiting for the tracked assistant turn to finish."
@@ -1786,8 +1833,32 @@ browser.runtime.onMessage.addListener((message) => {
   }
 
   if (message.type === "salix_status") {
+    const composer = findComposer();
+    const assistants = assistantNodes();
+    const users = userNodes();
+    const latestAssistant = assistants.length
+      ? assistants[assistants.length - 1]
+      : null;
+
     return Promise.resolve({
-      composer_ready: !!findComposer(),
+      composer_ready: !!composer,
+      generation_active: generationActive(),
+      assistant_turn_count: assistants.length,
+      user_turn_count: users.length,
+      latest_assistant_bytes: latestAssistant
+        ? new TextEncoder().encode(
+            assistantNodeText(latestAssistant)
+          ).length
+        : 0,
+      latest_assistant_actions:
+        assistantTurnHasCompletionActions(latestAssistant),
+      composer_placeholder: composer
+        ? (
+            composer.getAttribute("placeholder") ||
+            composer.getAttribute("aria-label") ||
+            ""
+          )
+        : "",
       url: location.href,
       title: document.title
     });
