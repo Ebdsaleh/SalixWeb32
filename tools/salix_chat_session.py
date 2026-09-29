@@ -310,6 +310,9 @@ class RelayState:
         self.last_heartbeat = 0.0
         self.extension_version = ""
         self.composer_ready = False
+        self.generation_active = False
+        self.relay_trace: dict[str, Any] = {}
+        self.last_trace_line = ""
         self.current_url = ""
         self.title = ""
         self.last_error = ""
@@ -318,6 +321,8 @@ class RelayState:
         self,
         extension_version: str,
         composer_ready: bool,
+        generation_active: bool,
+        relay_trace: dict[str, Any],
         current_url: str,
         title: str,
         error_text: str,
@@ -326,9 +331,28 @@ class RelayState:
             self.last_heartbeat = time.monotonic()
             self.extension_version = extension_version
             self.composer_ready = composer_ready
+            self.generation_active = generation_active
+            self.relay_trace = dict(relay_trace or {})
             self.current_url = current_url
             self.title = title
             self.last_error = error_text
+
+            trace = self.relay_trace
+            trace_line = (
+                f"state={trace.get('state', '')} "
+                f"snapshots={trace.get('assistant_snapshot_count', 0)} "
+                f"candidate_bytes={trace.get('candidate_bytes', 0)} "
+                f"generation={'active' if self.generation_active else 'idle'} "
+                f"anchor={'yes' if trace.get('rendered_anchor_found') else 'no'} "
+                f"rendered_bytes={trace.get('rendered_delta_bytes', 0)} "
+                f"stable_ms={trace.get('stable_ms', 0)} "
+                f"error={trace.get('error', '')!r}"
+            )
+
+            if trace_line != self.last_trace_line:
+                self.last_trace_line = trace_line
+                print("[chat-session] relay trace " + trace_line)
+
             self.condition.notify_all()
 
     def get_status(self) -> dict[str, Any]:
@@ -362,6 +386,8 @@ class RelayState:
                 "extension_connected": extension_connected,
                 "extension_version": self.extension_version,
                 "composer_ready": self.composer_ready,
+                "generation_active": self.generation_active,
+                "relay_trace": self.relay_trace,
                 "session_ready": session_ready,
                 "session_status": session_status,
                 "current_url": self.current_url,
@@ -686,9 +712,15 @@ class ChatSessionHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            relay_trace = request.get("relay_trace", {})
+            if not isinstance(relay_trace, dict):
+                relay_trace = {}
+
             self.state.update_heartbeat(
                 extension_version=str(request.get("extension_version", "")),
                 composer_ready=request.get("composer_ready") is True,
+                generation_active=request.get("generation_active") is True,
+                relay_trace=relay_trace,
                 current_url=str(request.get("current_url", "")),
                 title=str(request.get("title", "")),
                 error_text=str(request.get("error", "")),
