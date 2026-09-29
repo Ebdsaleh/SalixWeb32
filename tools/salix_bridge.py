@@ -20,6 +20,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -40,6 +41,10 @@ MAX_CONVERSATION_ATTACHMENTS = 8
 MAX_CONVERSATION_ATTACHMENT_BYTES = 2 * 1024 * 1024
 MAX_CONVERSATION_TOTAL_ATTACHMENT_BYTES = 4 * 1024 * 1024
 MAX_CONVERSATION_ATTACHMENT_NAME_BYTES = 255
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 CONVERSATION_TIMING_KEYS = (
@@ -798,7 +803,7 @@ def _perform_conversation_relay(raw_body: bytes) -> bytes:
     relay_started_at = time.monotonic()
 
     print(
-        "[conversation] browser relay request "
+        f"[conversation] utc={_utc_now()} browser relay request "
         f"id={request_id} "
         f"text_bytes={len(text.encode('utf-8'))} "
         f"attachments={len(attachments)} credentials=0 session=0"
@@ -815,13 +820,13 @@ def _perform_conversation_relay(raw_body: bytes) -> bytes:
     )
 
     print(
-        "[conversation] browser relay response "
+        f"[conversation] utc={_utc_now()} browser relay response "
         f"id={request_id} "
         f"text_bytes={len(response_text.encode('utf-8'))} "
         f"attachments={len(response_attachments)}"
     )
     print(
-        "[conversation] timing "
+        f"[conversation] utc={_utc_now()} timing "
         + " ".join(
             f"{key}={timing[key]}ms"
             for key in sorted(timing)
@@ -1110,7 +1115,10 @@ class SalixBridgeHandler(BaseHTTPRequestHandler):
         )
 
     def log_message(self, format: str, *args: object) -> None:
-        print(f"[{self.client_address[0]}] {format % args}")
+        print(
+            f"[{self.client_address[0]}] "
+            f"utc={_utc_now()} {format % args}"
+        )
 
 
 def main() -> int:
