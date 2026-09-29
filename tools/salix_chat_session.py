@@ -346,6 +346,8 @@ class RelayState:
                 f"anchor={'yes' if trace.get('rendered_anchor_found') else 'no'} "
                 f"rendered_bytes={trace.get('rendered_delta_bytes', 0)} "
                 f"thread_bytes={trace.get('thread_delta_bytes', 0)} "
+                f"source={trace.get('candidate_source', '')!r} "
+                f"progress_rejected={'yes' if trace.get('thread_progress_rejected') else 'no'} "
                 f"stable_ms={trace.get('stable_ms', 0)} "
                 f"error={trace.get('error', '')!r}"
             )
