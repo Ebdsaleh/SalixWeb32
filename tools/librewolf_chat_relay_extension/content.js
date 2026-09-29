@@ -58,23 +58,44 @@ function cleanNodeText(node) {
 }
 
 function assistantNodes() {
+  // Current ChatGPT can place data-message-author-role on a display:contents
+  // wrapper. Such a wrapper has a zero-size client rect even though its
+  // descendant response text is visibly rendered, so do not require the role
+  // node itself to pass visible().
   const roleNodes = Array.from(
     document.querySelectorAll("[data-message-author-role='assistant']")
-  ).filter(visible);
+  ).filter((node) => !!cleanNodeText(node));
 
   if (roleNodes.length) {
     return roleNodes;
   }
 
-  return Array.from(
+  const turnNodes = Array.from(
     document.querySelectorAll("article[data-testid^='conversation-turn-']")
   ).filter((turn) => !!turn.querySelector(".markdown"));
+
+  if (turnNodes.length) {
+    return turnNodes;
+  }
+
+  // Provider markup can change independently of Salix. The rendered Markdown
+  // response surface is the least-specific fallback and matches the original
+  // text relay semantics without introducing turn-correlation heuristics.
+  return Array.from(
+    document.querySelectorAll("#thread .markdown, main .markdown, .markdown")
+  ).filter((node, index, nodes) =>
+    !!cleanNodeText(node) &&
+    nodes.indexOf(node) === index
+  );
 }
 
 function assistantSnapshots() {
   return assistantNodes()
     .map((node) => {
-      const markdown = node.querySelector(".markdown");
+      const markdown =
+        node.matches && node.matches(".markdown")
+          ? node
+          : node.querySelector(".markdown");
       return cleanNodeText(markdown || node);
     })
     .filter(Boolean);
