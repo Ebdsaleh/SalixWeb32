@@ -1,6 +1,9 @@
 "use strict";
 
-const RESPONSE_TIMEOUT_MS = 180000;
+// A long-running model response can legitimately take tens of minutes. This is
+// only a final safety ceiling for an abandoned content-script command; ordinary
+// completion is driven by the tracked assistant turn, not elapsed time.
+const RESPONSE_SAFETY_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
 const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
@@ -70,12 +73,18 @@ function assistantNodes() {
   ).filter((turn) => !!turn.querySelector(".markdown"));
 }
 
+function assistantNodeText(node) {
+  if (!node) {
+    return "";
+  }
+
+  const markdown = node.querySelector(".markdown");
+  return cleanNodeText(markdown || node);
+}
+
 function assistantSnapshots() {
   return assistantNodes()
-    .map((node) => {
-      const markdown = node.querySelector(".markdown");
-      return cleanNodeText(markdown || node);
-    })
+    .map((node) => assistantNodeText(node))
     .filter(Boolean);
 }
 
@@ -315,7 +324,8 @@ function submitStateSummary(composer) {
 async function waitForSubmitAcceptance(
   beforeUserCount,
   originalText,
-  verifyMilliseconds
+  verifyMilliseconds,
+  generationWasActive
 ) {
   const deadline = Date.now() + verifyMilliseconds;
 
@@ -324,7 +334,11 @@ async function waitForSubmitAcceptance(
       return true;
     }
 
-    if (generationActive()) {
+    // A transition into generation is useful acceptance evidence only when
+    // generation was idle before this submission. During ChatGPT's follow-up
+    // state generation may already be active, so the pre-existing Stop control
+    // must not be mistaken for proof that the new Salix message was accepted.
+    if (!generationWasActive && generationActive()) {
       return true;
     }
 
@@ -349,6 +363,7 @@ async function submitComposer(
   attachmentCount
 ) {
   const beforeUserCount = userMessageCount();
+  const generationWasActive = generationActive();
   const submitDeadline = Date.now() + 20000;
   const verifyMilliseconds = attachmentCount > 0
     ? SUBMIT_ATTACHMENT_VERIFY_MS
@@ -373,7 +388,8 @@ async function submitComposer(
       await waitForSubmitAcceptance(
         beforeUserCount,
         originalText,
-        verifyMilliseconds
+        verifyMilliseconds,
+        generationWasActive
       )
     ) {
       return;
@@ -403,7 +419,8 @@ async function submitComposer(
         await waitForSubmitAcceptance(
           beforeUserCount,
           originalText,
-          verifyMilliseconds
+          verifyMilliseconds,
+          generationWasActive
         )
       ) {
         return;
@@ -855,13 +872,16 @@ async function openAttachmentPreview(element, debug) {
   return null;
 }
 
-function assistantAttachmentRoot() {
-  const nodes = assistantNodes();
-  if (!nodes.length) {
-    return null;
-  }
+function assistantAttachmentRoot(responseNode) {
+  let node = responseNode || null;
 
-  const node = nodes[nodes.length - 1];
+  if (!node) {
+    const nodes = assistantNodes();
+    if (!nodes.length) {
+      return null;
+    }
+    node = nodes[nodes.length - 1];
+  }
 
   return (
     node.closest("article[data-testid^='conversation-turn-']") ||
@@ -1250,7 +1270,7 @@ async function downloadAssistantAttachment(
   return null;
 }
 
-async function collectAssistantAttachments(responseText) {
+async function collectAssistantAttachments(responseText, responseNode) {
   const debug = {
     scan_root: "none",
     scan_passes: 0,
@@ -1284,7 +1304,7 @@ async function collectAssistantAttachments(responseText) {
   let root = null;
 
   do {
-    root = assistantAttachmentRoot();
+    root = assistantAttachmentRoot(responseNode);
     debug.scan_passes += 1;
 
     if (root) {
@@ -1404,9 +1424,15 @@ async function submitMessage(text, attachments) {
     );
   }
 
-  const before = assistantSnapshots();
-  const beforeCount = before.length;
-  const beforeLast = before.length ? before[before.length - 1] : "";
+  // Track the assistant turn that belongs to this Salix submission by ordinal.
+  // Do not keep following the page's latest assistant text: a browser-side
+  // follow-up can start another generation before this request has been
+  // returned to the P4.
+  const beforeNodes = assistantNodes();
+  const beforeCount = beforeNodes.length;
+  const beforeLastText = beforeCount
+    ? assistantNodeText(beforeNodes[beforeCount - 1])
+    : "";
 
   if (text) {
     setComposerText(composer, text);
@@ -1425,44 +1451,71 @@ async function submitMessage(text, attachments) {
   );
 
   const submittedAt = performance.now();
-  const deadline = Date.now() + RESPONSE_TIMEOUT_MS;
+  const deadline = Date.now() + RESPONSE_SAFETY_TIMEOUT_MS;
   let responseText = "";
+  let responseOrdinal = -1;
+  let responseNode = null;
   let lastChange = Date.now();
   let observedResponse = false;
   let firstResponseAt = 0;
 
   while (Date.now() < deadline) {
-    const snapshots = assistantSnapshots();
-    let candidate = "";
+    const nodes = assistantNodes();
 
-    if (snapshots.length > beforeCount) {
-      candidate = snapshots[snapshots.length - 1];
-    } else if (snapshots.length) {
-      const last = snapshots[snapshots.length - 1];
+    if (responseOrdinal < 0) {
+      if (nodes.length > beforeCount) {
+        // The first assistant turn created after the Salix submission belongs
+        // to this request even if later browser follow-ups create more turns.
+        responseOrdinal = beforeCount;
+      } else if (nodes.length) {
+        // ChatGPT may continue an already-present assistant turn when a Salix
+        // message is submitted during an active generation/follow-up window.
+        const lastOrdinal = nodes.length - 1;
+        const lastText = assistantNodeText(nodes[lastOrdinal]);
 
-      if (last !== beforeLast) {
-        candidate = last;
-      }
-    }
-
-    if (candidate) {
-      if (!observedResponse) {
-        firstResponseAt = performance.now();
-      }
-
-      observedResponse = true;
-
-      if (candidate !== responseText) {
-        responseText = candidate;
-        lastChange = Date.now();
+        if (lastText && lastText !== beforeLastText) {
+          responseOrdinal = lastOrdinal;
+        }
       }
     }
 
     if (
+      responseOrdinal >= 0 &&
+      responseOrdinal < nodes.length
+    ) {
+      responseNode = nodes[responseOrdinal];
+      const candidate = assistantNodeText(responseNode);
+
+      if (candidate) {
+        if (!observedResponse) {
+          firstResponseAt = performance.now();
+        }
+
+        observedResponse = true;
+
+        if (candidate !== responseText) {
+          responseText = candidate;
+          lastChange = Date.now();
+        }
+      }
+    }
+
+    const responseStable =
       observedResponse &&
       responseText &&
-      !generationActive() &&
-      Date.now() - lastChange >= RESPONSE_STABLE_MS
+      Date.now() - lastChange >= RESPONSE_STABLE_MS;
+
+    const newerAssistantTurn =
+      responseOrdinal >= 0 &&
+      nodes.length > responseOrdinal + 1;
+
+    // Global generation state is not enough on its own: ChatGPT can begin a
+    // later browser-side follow-up before the tracked Salix response has been
+    // returned. A newer assistant turn proves the tracked turn is closed, so
+    // it may complete even while the page is globally generating again.
+    if (
+      responseStable &&
+      (!generationActive() || newerAssistantTurn)
     ) {
       const completedAt = performance.now();
       const lastChangeAge = Date.now() - lastChange;
@@ -1486,7 +1539,8 @@ async function submitMessage(text, attachments) {
         : 0;
 
       const attachmentResult = await collectAssistantAttachments(
-        responseText
+        responseText,
+        responseNode
       );
 
       return {
@@ -1506,40 +1560,13 @@ async function submitMessage(text, attachments) {
     await sleep(RESPONSE_POLL_MS);
   }
 
-  if (responseText) {
-    const completedAt = performance.now();
-    const firstResponseMs = firstResponseAt > 0
-      ? Math.max(0, Math.round(firstResponseAt - submittedAt))
-      : 0;
-
-    const attachmentResult = await collectAssistantAttachments(
-      responseText
-    );
-
-    return {
-      text: responseText,
-      attachments: attachmentResult.attachments,
-      attachment_debug: attachmentResult.debug,
-      timing: {
-        browser_submit_ms: Math.max(
-          0,
-          Math.round(submittedAt - commandStartedAt)
-        ),
-        browser_first_response_ms: firstResponseMs,
-        browser_generation_ms: firstResponseAt > 0
-          ? Math.max(0, Math.round(completedAt - firstResponseAt))
-          : 0,
-        browser_stabilization_ms: 0,
-        browser_total_ms: Math.max(
-          0,
-          Math.round(completedAt - commandStartedAt)
-        )
-      }
-    };
-  }
-
+  // Never turn a partial response into a successful completed message. The
+  // outer broker/bridge layers keep larger safety ceilings so this should only
+  // fire for an abandoned or pathological browser command.
   throw new Error(
-    "Timed out waiting for a rendered assistant response."
+    responseText
+      ? "Safety timeout while waiting for the tracked assistant turn to finish."
+      : "Safety timeout waiting for a rendered assistant response."
   );
 }
 
