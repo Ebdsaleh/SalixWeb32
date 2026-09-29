@@ -387,6 +387,10 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
   browser relay currently returns a completed response then releases semantic deltas)
+- [~] harden completed-response browser lifecycle for long generations/follow-ups
+  (WebExtension 0.3.0 candidate tracks the originating assistant turn, makes broker waits
+  heartbeat-aware, and removes the old ~180-second normal failure boundary; P4 validation
+  pending)
 - [ ] request-liveness protocol: byte count + SHA-256 receipt verification + immediate
   bridge acknowledgement before provider generation wait
 - [ ] split live Conversation state into request transport, provider generation, and
