@@ -1587,7 +1587,7 @@ The remaining attachment-policy target checks before promotion are explicit butt
 behavior at 8, re-enable after removal, partial multi-select above capacity, and 4 MB
 aggregate rejection.
 
-### WebExtension 0.3.4 assistant-discovery candidate — target validation pending
+### WebExtension 0.3.5 rendered-thread fallback candidate — target validation pending
 
 The validated 0.2.9 browser relay returned ordinary responses correctly but could fail
 around the 180-second boundary. Experimental 0.3.0-0.3.2 completion-detector changes were
@@ -1599,10 +1599,10 @@ successful native text-return baseline: the broker returned 469 response bytes, 
 bridge returned HTTP 200, and Salix rendered the reply. The later 0.2.9 PNG validation
 also recorded a completed 587-byte assistant response and HTTP 200 return to the P4.
 
-0.3.4 keeps the 0.2.9 completed-response lifecycle and long wait ceilings, but fixes one
-current-DOM discovery assumption: assistant author-role wrappers may have zero-size client
-rectangles, so they are no longer rejected solely by `visible()`; rendered
-`.markdown` nodes provide a final fallback.
+0.3.5 keeps the 0.2.9 completed-response lifecycle and long wait ceilings. It retains the
+0.3.4 current-DOM wrapper fix and adds a second, selector-independent response source
+anchored to the exact submitted user message. Static thread-tail text is baselined first,
+so only newly rendered text after that user turn is eligible as the assistant response.
 
 Candidate acceptance:
 
@@ -1611,7 +1611,7 @@ Candidate acceptance:
    is present; otherwise rebuild `Debug|Win32` under VC7.1 with zero errors/warnings.
 3. Restart `salix_chat_session.py` and
    `salix_bridge.py --host 0.0.0.0 --port 8765`.
-4. Reload the temporary LibreWolf extension and confirm version `0.3.4`.
+4. Reload the temporary LibreWolf extension and confirm version `0.3.5`.
 5. Reload/open the target ChatGPT thread and confirm bridge health reports
    `conversation_browser_session=ready`.
 6. Send one short P4 message and leave the browser untouched until completion.
