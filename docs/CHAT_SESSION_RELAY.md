@@ -493,12 +493,13 @@ If page interaction fails after a request begins, the extension returns a failur
 localhost broker, which propagates through `salix_bridge.py` into the existing
 Conversation failure event path.
 
-The current implementation still has a 180-second WebExtension/session response deadline.
-Real target evidence has now shown a P4 request failing after approximately 181.7 seconds,
-which is consistent with that synchronous deadline. This is tracked as a relay-liveness
-limitation, not as a ConversationView character or line limit. The planned stateful
-liveness design above replaces that fixed generation deadline rather than merely making
-the number larger.
+The validated 0.2.9 implementation had a 180-second WebExtension/session response
+deadline. Real target evidence showed P4 requests failing after approximately 181.5-181.7
+seconds, consistent with that synchronous deadline. This is tracked as a relay-liveness
+limitation, not as a ConversationView character or line limit. The active 0.3.0 candidate
+removes that short normal deadline and makes the broker wait heartbeat-aware; the planned
+stateful liveness design above remains the longer-term replacement for synchronous
+request/response waiting.
 
 The ordinary LibreWolf window remains visible throughout, so browser-side failures can be
 inspected directly.
