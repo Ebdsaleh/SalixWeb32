@@ -387,9 +387,10 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
   browser relay currently returns a completed response then releases semantic deltas)
-- [~] restore completed-response relay behavior while removing the short response ceiling
-  (WebExtension 0.3.3 candidate is the validated 0.2.9 browser/broker/bridge behavior with
-  only the response wait ceilings extended; P4 validation pending)
+- [~] restore completed-response relay behavior on current ChatGPT markup while removing
+  the short response ceiling (WebExtension 0.3.4 keeps the validated completed-response
+  lifecycle, accepts zero-size assistant-role wrappers / Markdown fallback, and preserves
+  the extended wait ceilings; P4 validation pending)
 - [ ] request-liveness protocol: byte count + SHA-256 receipt verification + immediate
   bridge acknowledgement before provider generation wait
 - [ ] split live Conversation state into request transport, provider generation, and
@@ -568,8 +569,8 @@ See `docs/FILE_LOCATIONS.md`.
 1. keep the real P4 / Server 2003 R2 build clean under VC7.1,
 2. finish the active attachment-cap UX validation without changing the validated relay
    bounds,
-3. validate the minimal 0.3.3 relay recovery candidate on the real P4: first prove the
-   ordinary return path is restored, then prove a response can run beyond 180 seconds,
+3. validate the 0.3.4 assistant-discovery fix on the real P4: first prove the ordinary
+   return path is restored, then prove a response can run beyond 180 seconds,
 4. replace synchronous long-wait compatibility with verified request receipt and live
    liveness/workflow telemetry,
 5. expose provider generation and composer state separately so Salix can mirror
