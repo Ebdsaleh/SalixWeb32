@@ -1587,15 +1587,22 @@ The remaining attachment-policy target checks before promotion are explicit butt
 behavior at 8, re-enable after removal, partial multi-select above capacity, and 4 MB
 aggregate rejection.
 
-### WebExtension 0.3.3 minimal long-response candidate — target validation pending
+### WebExtension 0.3.4 assistant-discovery candidate — target validation pending
 
 The validated 0.2.9 browser relay returned ordinary responses correctly but could fail
 around the 180-second boundary. Experimental 0.3.0-0.3.2 completion-detector changes were
 rejected after real-P4 testing because they regressed the return path and could leave a
 visibly completed browser response stuck as `request in flight`.
 
-0.3.3 removes those experimental browser changes. Its runtime is the validated 0.2.9
-browser/broker/bridge behavior with only the synchronous wait ceilings extended.
+Historical repo evidence identifies WebExtension 0.1.0 at commit `9321882` as the first
+successful native text-return baseline: the broker returned 469 response bytes, the
+bridge returned HTTP 200, and Salix rendered the reply. The later 0.2.9 PNG validation
+also recorded a completed 587-byte assistant response and HTTP 200 return to the P4.
+
+0.3.4 keeps the 0.2.9 completed-response lifecycle and long wait ceilings, but fixes one
+current-DOM discovery assumption: assistant author-role wrappers may have zero-size client
+rectangles, so they are no longer rejected solely by `visible()`; rendered
+`.markdown` nodes provide a final fallback.
 
 Candidate acceptance:
 
@@ -1604,7 +1611,7 @@ Candidate acceptance:
    is present; otherwise rebuild `Debug|Win32` under VC7.1 with zero errors/warnings.
 3. Restart `salix_chat_session.py` and
    `salix_bridge.py --host 0.0.0.0 --port 8765`.
-4. Reload the temporary LibreWolf extension and confirm version `0.3.3`.
+4. Reload the temporary LibreWolf extension and confirm version `0.3.4`.
 5. Reload/open the target ChatGPT thread and confirm bridge health reports
    `conversation_browser_session=ready`.
 6. Send one short P4 message and leave the browser untouched until completion.
@@ -1636,8 +1643,9 @@ the localhost chat-session broker also defaulted to 180 seconds. The approximate
 181.5-181.7-second native failures are therefore treated as evidence that the synchronous
 relay lifetime could expire while the visible provider was still working.
 
-The active 0.3.3 candidate restores the validated 0.2.9 completion path and changes only
-the synchronous wait ceilings. The planned full replacement remains request-liveness
+The active 0.3.4 candidate keeps the validated completed-response lifecycle, extends the
+synchronous wait ceilings, and minimally broadens assistant discovery for current
+ChatGPT markup. The planned full replacement remains request-liveness
 tracking rather than simply increasing the timeout. Target acceptance
 for that future tranche must cover:
 
