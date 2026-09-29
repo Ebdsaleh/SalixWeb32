@@ -452,6 +452,10 @@ async function processCommand() {
             result.attachment_debug &&
             typeof result.attachment_debug === "object"
           ) ? result.attachment_debug : {},
+        completion_reason:
+          typeof result.completion_reason === "string"
+            ? result.completion_reason
+            : "",
         timing: timing
       });
 
