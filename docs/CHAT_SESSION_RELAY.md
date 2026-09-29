@@ -306,7 +306,7 @@ assistant text.
 These selectors are isolated inside the extension so normal ChatGPT markup changes do
 not require changes to the VC7.1 application.
 
-## WebExtension 0.3.3 minimal long-response candidate
+## WebExtension 0.3.4 current-DOM assistant discovery candidate
 
 Real-P4 testing established two separate facts:
 
@@ -322,9 +322,12 @@ return path: the browser visibly completed an answer but the extension did not e
 
 Those experimental completion changes have been removed from the active candidate.
 
-WebExtension 0.3.3 deliberately restores the validated 0.2.9 browser implementation
-byte-for-byte except for its response wait ceiling. The broker and bridge are likewise
-restored to their validated behavior with only their wait ceilings extended.
+Historical validation identifies WebExtension 0.1.0 at commit `9321882` as the first
+successful P4 text-return baseline, and 0.2.9 later returned completed responses during
+the validated PNG round trip. The active 0.3.4 candidate keeps the validated 0.2.9
+response lifecycle and extended wait ceilings, while changing only assistant discovery:
+author-role wrappers no longer need a non-zero client rectangle, and rendered
+`.markdown` nodes provide the final fallback for current ChatGPT markup.
 
 The active synchronous safety chain is:
 
@@ -335,11 +338,12 @@ bridge worker              : 4 hours + 2 minutes
 native Conversation HTTP   : 4 hours + 3 minutes
 ```
 
-No new DOM selectors, turn-correlation rules, completion-action heuristics, heartbeat
-failure semantics, or follow-up behavior are part of 0.3.3.
+No turn-correlation rules, completion-action heuristics, heartbeat failure semantics, or
+follow-up behavior are part of 0.3.4.
 
-This tranche exists only to answer one question cleanly: can the already-proven 0.2.9
-return path remain functional when the short 180-second lifetime is removed?
+This tranche answers two tightly scoped questions: can the proven completed-response path
+discover the current rendered assistant turn again, and can it remain alive beyond the
+historical 180-second ceiling?
 
 
 ## Planned live browser-workflow telemetry
