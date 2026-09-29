@@ -4,6 +4,38 @@
 const RESPONSE_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
+
+const relayTrace = {
+  state: "idle",
+  assistant_snapshot_count: 0,
+  candidate_bytes: 0,
+  generation_active: false,
+  rendered_anchor_found: false,
+  rendered_delta_bytes: 0,
+  stable_ms: 0,
+  error: ""
+};
+
+function updateRelayTrace(values) {
+  Object.assign(relayTrace, values || {});
+}
+
+function relayTraceSnapshot() {
+  return {
+    state: String(relayTrace.state || ""),
+    assistant_snapshot_count:
+      Number(relayTrace.assistant_snapshot_count) || 0,
+    candidate_bytes:
+      Number(relayTrace.candidate_bytes) || 0,
+    generation_active: !!relayTrace.generation_active,
+    rendered_anchor_found:
+      !!relayTrace.rendered_anchor_found,
+    rendered_delta_bytes:
+      Number(relayTrace.rendered_delta_bytes) || 0,
+    stable_ms: Number(relayTrace.stable_ms) || 0,
+    error: String(relayTrace.error || "")
+  };
+}
 const ATTACHMENT_UPLOAD_TIMEOUT_MS = 30000;
 const ATTACHMENT_IMAGE_SETTLE_MS = 8000;
 const ATTACHMENT_READY_STABLE_MS = 1500;
@@ -1558,14 +1590,33 @@ function sleep(milliseconds) {
 }
 
 async function submitMessage(text, attachments) {
+  updateRelayTrace({
+    state: "command_received",
+    assistant_snapshot_count: 0,
+    candidate_bytes: 0,
+    generation_active: generationActive(),
+    rendered_anchor_found: false,
+    rendered_delta_bytes: 0,
+    stable_ms: 0,
+    error: ""
+  });
+
   const commandStartedAt = performance.now();
   const composer = findComposer();
 
   if (!composer) {
+    updateRelayTrace({
+      state: "composer_missing",
+      error: "composer not visible"
+    });
     throw new Error(
       "ChatGPT composer is not visible in the current LibreWolf tab."
     );
   }
+
+  updateRelayTrace({
+    state: "composer_found"
+  });
 
   const before = assistantSnapshots();
   const beforeCount = before.length;
@@ -1586,6 +1637,11 @@ async function submitMessage(text, attachments) {
     text,
     Array.isArray(attachments) ? attachments.length : 0
   );
+
+  updateRelayTrace({
+    state: "submitted",
+    generation_active: generationActive()
+  });
 
   const submittedAt = performance.now();
   const deadline = Date.now() + RESPONSE_TIMEOUT_MS;
@@ -1608,6 +1664,15 @@ async function submitMessage(text, attachments) {
     }
     const snapshots = assistantSnapshots();
     let candidate = "";
+    let renderedDelta = "";
+
+    updateRelayTrace({
+      state: "waiting_response",
+      assistant_snapshot_count: snapshots.length,
+      generation_active: generationActive(),
+      rendered_anchor_found: !!renderedAnchor,
+      stable_ms: Math.max(0, Date.now() - lastChange)
+    });
 
     if (snapshots.length > beforeCount) {
       candidate = snapshots[snapshots.length - 1];
@@ -1620,11 +1685,24 @@ async function submitMessage(text, attachments) {
     }
 
     if (!candidate && renderedAnchor) {
-      candidate = renderedResponseDelta(
+      renderedDelta = renderedResponseDelta(
         renderedTextAfterSubmittedMessage(renderedAnchor),
         renderedBaseline
       );
+      candidate = renderedDelta;
     }
+
+    updateRelayTrace({
+      rendered_anchor_found: !!renderedAnchor,
+      rendered_delta_bytes: new TextEncoder().encode(
+        renderedDelta || ""
+      ).length,
+      candidate_bytes: new TextEncoder().encode(
+        candidate || ""
+      ).length,
+      generation_active: generationActive(),
+      stable_ms: Math.max(0, Date.now() - lastChange)
+    });
 
     if (candidate) {
       if (!observedResponse) {
@@ -1645,6 +1723,15 @@ async function submitMessage(text, attachments) {
       !generationActive() &&
       Date.now() - lastChange >= RESPONSE_STABLE_MS
     ) {
+      updateRelayTrace({
+        state: "completion_ready",
+        candidate_bytes: new TextEncoder().encode(
+          responseText
+        ).length,
+        generation_active: false,
+        stable_ms: Math.max(0, Date.now() - lastChange)
+      });
+
       const completedAt = performance.now();
       const lastChangeAge = Date.now() - lastChange;
       const stabilizationMs = Math.max(0, Math.round(lastChangeAge));
@@ -1669,6 +1756,11 @@ async function submitMessage(text, attachments) {
       const attachmentResult = await collectAssistantAttachments(
         responseText
       );
+
+      updateRelayTrace({
+        state: "completed",
+        generation_active: false
+      });
 
       return {
         text: responseText,
@@ -1732,6 +1824,8 @@ browser.runtime.onMessage.addListener((message) => {
   if (message.type === "salix_status") {
     return Promise.resolve({
       composer_ready: !!findComposer(),
+      generation_active: generationActive(),
+      relay_trace: relayTraceSnapshot(),
       url: location.href,
       title: document.title
     });
@@ -1760,10 +1854,16 @@ browser.runtime.onMessage.addListener((message) => {
         attachment_debug: result.attachment_debug || {},
         timing: result.timing
       }))
-      .catch((exception) => ({
-        ok: false,
-        error: String(exception)
-      }));
+      .catch((exception) => {
+        updateRelayTrace({
+          state: "error",
+          error: String(exception)
+        });
+        return {
+          ok: false,
+          error: String(exception)
+        };
+      });
   }
 
   return undefined;
