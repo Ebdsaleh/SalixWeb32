@@ -1600,7 +1600,7 @@ Candidate acceptance:
 1. Pull the exact `test` candidate and rebuild `Debug|Win32` under VC7.1 with
    zero errors / zero warnings.
 2. Restart `salix_chat_session.py` and `salix_bridge.py --host 0.0.0.0 --port 8765`.
-3. Reload the temporary LibreWolf extension and confirm version `0.3.0`.
+3. Reload the temporary LibreWolf extension and confirm version `0.3.2`.
 4. Reload/open the target ChatGPT thread and confirm bridge health reports
    `conversation_browser_session=ready`.
 5. Send a normal short message from the P4 and confirm one completed response returns to
