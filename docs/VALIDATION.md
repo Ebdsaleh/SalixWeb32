@@ -1671,3 +1671,48 @@ The separate Browser Probe's 512 KiB capture truncation remains intentional diag
 behavior and is not a Conversation response-size limit.
 
 MiniXP remains outside the acceptance gate.
+
+
+### WebExtension 0.3.7 pre-submit rendered-thread recovery candidate — target validation pending
+
+Real-P4 evidence still localizes the failure to the browser return path: Salix can submit a
+request and remain at `request in flight` after the assistant response is visibly complete.
+The validated 0.2.9 lifecycle remains the reference behavior; 0.3.0-0.3.2 completion
+heuristics remain rejected.
+
+Review of the 0.3.5/0.3.6 selector-independent fallback found a timing hole. That fallback
+did not capture its rendered-thread baseline until the submitted user turn could be found
+after submission. If a short assistant response rendered before that first anchor pass,
+the completed response could already be included in the baseline and therefore subtract
+to an empty delta forever when the normal assistant selectors also failed.
+
+0.3.7 preserves the existing completed-response lifecycle and long safety ceilings. It
+adds one last-resort rendered-thread source whose baseline is captured before the composer
+is submitted. The complete newly inserted rendered region is diffed from that baseline,
+then the submitted user text is removed. Existing assistant-snapshot and anchored response
+sources remain higher priority.
+
+The broker trace now reports `thread_bytes` in addition to snapshot, anchor, rendered,
+candidate, generation, and stability telemetry.
+
+Target validation:
+
+1. Pull branch `relay-recovery-0.3.7` on the modern companion.
+2. Stop the bridge and chat-session broker.
+3. Reload the temporary LibreWolf extension from that branch and verify version `0.3.7`.
+4. Reload the authenticated ChatGPT thread.
+5. Start `python tools\salix_chat_session.py`.
+6. Start `python tools\salix_bridge.py --host 0.0.0.0 --port 8765`.
+7. Restart SalixWeb32 on the P4 so no old request remains in flight.
+8. Send exactly one short, unique text message from the P4 and leave the browser untouched.
+9. Require `POST /v1/result ... 200`, broker/bridge HTTP 200 completion, the reply in
+   SalixWeb32, and the native request leaving `streaming`.
+10. Preserve the broker `relay trace` lines as evidence. If `thread_bytes > 0` while
+    `candidate_bytes == 0`, treat that as a candidate-selection bug. If
+    `candidate_bytes > 0` but completion never occurs, inspect `generation` and
+    `stable_ms` before changing discovery again.
+11. Only after this short ordinary return path is green should a >180-second response be
+    tested.
+
+No promotion to `test` or `main` is allowed until this candidate is green on the real
+Pentium 4.
