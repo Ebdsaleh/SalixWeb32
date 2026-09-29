@@ -223,10 +223,13 @@ int APIENTRY WinMain(
     // that upstream fetch without making the normal placeholder path slower.
     if (use_remote_bridge) {
         bridge_transport.set_timeout_milliseconds(12000);
-        // The browser relay waits for the visible ChatGPT response to finish.
-        // It runs on the existing network executor thread, so this longer bound
-        // does not block the native UI thread.
-        conversation_bridge_transport.set_timeout_milliseconds(240000);
+        // The browser relay can legitimately spend tens of minutes generating.
+        // This remains a final transport safety ceiling only. The request runs on
+        // the Conversation executor thread, so the native UI stays responsive.
+        // Keep this outer bound beyond the companion/browser safety ceilings.
+        conversation_bridge_transport.set_timeout_milliseconds(
+            (4 * 60 * 60 + 180) * 1000
+        );
     }
 
     WebPlatformBackend* selected_web_backend = use_remote_bridge
