@@ -193,10 +193,12 @@ interactive model work was still healthy. Historical validation shows the first 
 0.1.0 at commit `9321882`; the later 0.2.9 baseline also returned completed responses as
 part of the validated PNG round trip. Experimental 0.3.0-0.3.2 browser completion changes
 were rejected after real-P4 testing because they regressed that already-working return
-path. WebExtension 0.3.4 is now the active dev/test candidate: it keeps the validated
-0.2.9 response lifecycle and long wait ceilings, but broadens assistant discovery for the
-current ChatGPT DOM by accepting zero-size author-role wrappers and rendered Markdown
-fallbacks. Target validation is pending.
+path. WebExtension 0.3.5 is now the active dev/test candidate. It keeps the validated 0.2.9
+response lifecycle and long wait ceilings, retains the broader current-DOM assistant
+discovery from 0.3.4, and adds a selector-independent rendered-thread fallback anchored
+to the exact user message Salix submitted. The fallback snapshots the static thread tail
+and returns only new rendered text after that user turn, so it does not depend on
+ChatGPT-specific assistant wrapper classes. Target validation is pending.
 
 The planned longer-term fix remains stateful liveness rather than a larger arbitrary
 timeout. Salix will verify complete
