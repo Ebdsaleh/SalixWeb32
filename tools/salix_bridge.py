@@ -33,7 +33,9 @@ FETCH_TIMEOUT_SECONDS = 10
 CHAT_SESSION_PROTOCOL = "SALIX-CHAT-SESSION/1"
 CHAT_WORKER_HOST = "127.0.0.1"
 CHAT_WORKER_PORT = 8766
-CHAT_WORKER_TIMEOUT_SECONDS = 210
+# The worker can legitimately wait through long model generations. Keep this
+# outside the broker's own safety ceiling so the inner layer owns completion.
+CHAT_WORKER_TIMEOUT_SECONDS = 4 * 60 * 60 + 120
 MAX_CONVERSATION_TEXT_BYTES = 128 * 1024
 MAX_CONVERSATION_DELTA_EVENTS = 28
 MAX_CONVERSATION_ATTACHMENTS = 8
@@ -1165,6 +1167,10 @@ def main() -> int:
     print(
         "Chat session broker   : "
         f"http://{CHAT_WORKER_HOST}:{CHAT_WORKER_PORT}"
+    )
+    print(
+        "Chat worker timeout    : "
+        f"{CHAT_WORKER_TIMEOUT_SECONDS}s safety ceiling"
     )
     print("Message forwarding    : text + bounded files enabled on trusted development LAN")
     print("Attachment forwarding : enabled, bounded (8 files, 2 MB each, 4 MB total)")
