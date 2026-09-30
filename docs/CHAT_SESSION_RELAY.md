@@ -656,3 +656,48 @@ The UTF-8 framework / UTF-16 Win32 boundary and glyph-aware fallback are also va
 on the real P4, including Unicode clipboard and relay round-trip coverage.
 
 See `docs/VALIDATION.md` for the full evidence and regression checklist.
+
+## WebExtension 0.4.0 superseding follow-up candidate
+
+Real Pentium 4 testing of the 0.3.16 recovery line exposed a separate architectural
+limitation after provider-progress filtering was corrected: one browser-relay request
+could remain open while ChatGPT continued working, and every later Salix Send was rejected
+as `SALIX-CONVERSATION/1 browser relay request in flight`.
+
+That behavior came from three independent single-flight assumptions:
+
+- the native `RemoteConversationBackend` owned one active request/executor lane,
+- `salix_chat_session.py` owned one `PendingRequest`,
+- the WebExtension background worker kept `commandBusy` until the complete assistant
+  response returned.
+
+The 0.4.0 candidate introduces **superseding follow-up semantics**. It does not attempt
+to run two assistant generations concurrently in one ChatGPT thread.
+
+When the user sends a newer Salix message while an older browser turn is still open:
+
+1. the native backend may dispatch the newer request through a second independent Win32
+   conversation transport/executor lane;
+2. the localhost broker marks the older pending request as superseded and wakes its
+   waiting HTTP worker;
+3. the WebExtension background poller may dispatch the newer command while the older
+   content-script promise is still alive;
+4. the content script invalidates the older submission token, attempts to stop any visible
+   provider generation control, and submits the newer follow-up;
+5. stale results/events belonging to the older request are rejected instead of reclaiming
+   native presentation ownership.
+
+The intended user-visible result is that a stuck provider turn no longer holds the native
+composer hostage. A new follow-up becomes authoritative and the older request resolves as
+interrupted/superseded.
+
+This tranche changes native C++ and therefore **requires a P4 rebuild**. It remains a
+target-validation candidate until the real Server 2003/Pentium 4 test proves:
+
+- request 1 can remain in flight,
+- request 2 is accepted from the native composer,
+- request 1 is reported/ignored as superseded,
+- request 2 visibly reaches the active ChatGPT thread,
+- only request 2's assistant response is rendered back into Salix,
+- normal returned-file handling still works after the supersede path.
+
