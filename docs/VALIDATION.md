@@ -1955,3 +1955,35 @@ This validates the recovered relay baseline for:
 Freeze 0.3.12 relay behavior unless a new real-P4 regression is reproduced. Native
 presentation fixes should be developed on a separate branch without altering the validated
 relay files.
+
+
+### Native P4 presentation candidate — underscore-safe Markdown + Unicode heart fallback
+
+This branch is based on the validated 0.3.12 relay baseline. No relay, broker, bridge, or
+WebExtension behavior is changed.
+
+Native presentation fixes:
+
+1. Markdown underscore delimiters now require word-boundary-compatible placement.
+   Intraword identifiers and filenames preserve underscores literally, including:
+   `SALIX_P4_0312_ATTACHMENT_RETURN_GREEN`, `snake_case`, and `file_name.txt`.
+   Normal Markdown emphasis such as `_italic_` and `__bold__` remains supported.
+2. UTF-8 Unicode heart text (`❤` and `❤️`) is recognized as an alias for the existing
+   classic GDI heart painter. This avoids missing-glyph squares on Windows Server 2003
+   without changing UTF-8 transport/storage.
+
+Target P4 validation after the next native rebuild:
+
+```text
+SALIX_P4_0312_ATTACHMENT_RETURN_GREEN
+snake_case file_name.txt
+_italic_
+__bold__
+*asterisk italic*
+**asterisk bold**
+<3 ❤ ❤️
+```
+
+Require literal underscores in the first two lines, working emphasis in the next four,
+and the classic GDI heart for all supported heart forms. Relay behavior must remain the
+validated 0.3.12 baseline.
