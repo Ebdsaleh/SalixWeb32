@@ -741,3 +741,28 @@ relay turn. It does **not** yet claim unlimited rapid follow-up depth or concurr
 assistant generations. Returned-file behavior after a supersede remains a separate
 follow-up validation target.
 
+## Unified chat server candidate
+
+The `relay-unified-0.5.0` branch introduces `tools/chat_server.py` as the normal
+modern-side entry point.
+
+Usage stays compatible with the historical bridge command:
+
+```bat
+python tools\chat_server.py --host 0.0.0.0 --port 8765
+```
+
+One Python process now owns:
+
+- the P4-facing trusted-LAN bridge on `--host` / `--port`,
+- the LibreWolf WebExtension endpoint on `127.0.0.1:8766`,
+- one shared `RelayState` for request ownership, supersede state, timing, and diagnostics.
+
+Conversation requests received on the LAN listener call the shared relay state directly
+in-process. The previous bridge-to-broker localhost HTTP hop is removed from the normal
+path. The localhost HTTP endpoint remains because the browser WebExtension still requires
+a browser-accessible endpoint.
+
+`salix_bridge.py` and `salix_chat_session.py` remain available as standalone
+diagnostic/fallback entry points during migration.
+
