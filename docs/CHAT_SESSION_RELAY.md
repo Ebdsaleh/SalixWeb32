@@ -657,7 +657,7 @@ on the real P4, including Unicode clipboard and relay round-trip coverage.
 
 See `docs/VALIDATION.md` for the full evidence and regression checklist.
 
-## WebExtension 0.4.0 superseding follow-up candidate
+## WebExtension 0.4.0 superseding follow-up validation
 
 Real Pentium 4 testing of the 0.3.16 recovery line exposed a separate architectural
 limitation after provider-progress filtering was corrected: one browser-relay request
@@ -700,4 +700,44 @@ target-validation candidate until the real Server 2003/Pentium 4 test proves:
 - request 2 visibly reaches the active ChatGPT thread,
 - only request 2's assistant response is rendered back into Salix,
 - normal returned-file handling still works after the supersede path.
+### Real Pentium 4 validation — September 30, 2026
+
+The real Pentium 4 / Windows Server 2003 target validated the first superseding
+follow-up path end-to-end.
+
+Observed sequence:
+
+- request 1 entered the relay with 49 text bytes and two attachments;
+- request 2 entered while request 1 was still active;
+- the broker marked request 1 superseded by follow-up request 2;
+- request 1's waiting HTTP path returned and the P4 rendered the intentional
+  `Previous response interrupted by newer follow-up.` system event;
+- the WebExtension trace for request 2 reported `followup=yes`;
+- request 2 submitted into the live ChatGPT thread, produced 608 response bytes,
+  completed `POST /v1/result` with HTTP 200, and returned through the bridge with
+  HTTP 200;
+- the native client returned to `SALIX-CONVERSATION/1 ready` after completion.
+
+Measured request-2 target timing:
+
+```text
+P4 total 30531 ms
+bridge 30095 ms
+broker 30078 ms
+queue 347 ms
+extension 29723 ms
+browser 29684 ms
+submit 10434 ms
+first response 10784 ms
+generation 6333 ms
+stabilize 2133 ms
+native batch 28 deltas -> 1 updates
+present 0 ms
+files 0
+```
+
+This validates one newer native user turn superseding one older in-flight browser
+relay turn. It does **not** yet claim unlimited rapid follow-up depth or concurrent
+assistant generations. Returned-file behavior after a supersede remains a separate
+follow-up validation target.
 
