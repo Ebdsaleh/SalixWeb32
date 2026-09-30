@@ -1096,18 +1096,13 @@ function attachmentNamesInText(value) {
   const names = [];
   // Current ChatGPT attachment cards can flatten adjacent UI chrome into the
   // rendered text with no separator, for example:
-  //   report.pngImageOpen file
-  // The historical detector required a word boundary after the extension, so
-  // it rejected the real filename and the managed download later fell back to
-  // a generic local basename such as "content".
+  //   SalixWeb32-remote-test-image.pngImageOpen file
   //
-  // Keep a strict filename body, but also accept the provider's known
-  // attachment-control suffixes as a valid terminator. A sentence-period
-  // delimiter is accepted on the left because flattened rendered text can
-  // likewise produce:
-  //   response text.report.pngImageOpen file
+  // Preserve the historical filename start semantics and only relax the
+  // right-hand terminator: a known attachment-card UI label may immediately
+  // follow the extension without whitespace.
   const pattern =
-    /(?:^|[\s(\[{'"><>,;:.])([^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip))(?=$|[\s)\]}'"<>,;:!?]|Image(?:Open(?:\s+file)?)?|Open(?:\s+file)?|Download|Preview)/gi;
+    /\b([^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip))(?=\b|Image(?:Open(?:\s+file)?)?|Open(?:\s+file)?|Download|Preview)/gi;
   const text = String(value || "");
   let match;
 
