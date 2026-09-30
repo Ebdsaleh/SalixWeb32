@@ -2,7 +2,7 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.3.15";
+const EXTENSION_VERSION = "0.3.16";
 
 let commandBusy = false;
 let activeDownloadCapture = null;
