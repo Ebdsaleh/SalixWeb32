@@ -294,3 +294,28 @@ application-owned storage categories.
 
 > Application-owned storage has explicit roots. File-picker navigation is remembered
 > automatically, but it never determines where SalixWeb32 stores its own data.
+
+## Modern companion development session log
+
+The unified modern-side development server has one deliberately separate diagnostic
+location on the companion machine:
+
+```text
+%USERPROFILE%\Desktop\session.log
+```
+
+`tools/chat_server.py` appends its stdout/stderr stream to this file while continuing to
+show the same output in the console. The Desktop location is intentional for the current
+development workflow: the file is meant to be easy to attach to a debugging conversation
+without manually selecting/copying console text.
+
+This file is **not** part of the SalixWeb32 native application storage contract above. It
+belongs to temporary companion-side development tooling and does not change
+`user_data_root`, Diagnostics, Received, Settings, Portable-mode placement, or file
+picker history on the Pentium 4.
+
+The log contains UTC session boundaries and is opened in append mode. If the companion
+logging path later becomes a productized Salix service rather than development tooling,
+it should move behind an explicit companion log-root policy instead of silently becoming
+part of the native Salix data-root model.
+

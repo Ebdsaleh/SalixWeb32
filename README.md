@@ -196,19 +196,32 @@ part of the validated PNG round trip. Experimental 0.3.0-0.3.2 browser completio
 were rejected after real-P4 testing because they regressed that already-working return
 path.
 
-The current recovery baseline is WebExtension `0.3.15`. It preserves the validated
-0.2.9 request/response lifecycle and long wait ceilings while adapting response discovery
-to current ChatGPT rendered markup. The recovery line also guards transient provider text
-such as `Thinking`, correlates rendered response text after the submitted user turn, and
-recognizes returned attachment filenames when current ChatGPT card chrome is flattened
-directly against the extension, for example `.pngImageOpen file`.
+The current active recovery line is WebExtension `0.4.1`, layered on the unified
+`tools/chat_server.py` topology. It preserves the validated completed-response lifecycle,
+long wait ceilings, transient-provider-text filtering, and returned-file capture while
+fixing an attachment-specific response-anchor hole: attachment cards can change the
+rendered user-turn text enough that exact submitted-text matching no longer finds the
+turn. For attachment-bearing requests, 0.4.1 anchors the response region to the newly
+appended rendered user-role node instead.
 
 Real Pentium 4 / Windows Server 2003 validation on September 30, 2026 returned one PNG
-through the full assistant -> LibreWolf extension -> localhost broker -> bridge -> native
-Salix path, rendered it inline in the native Conversation view, and reported `files 1`.
-The returned payload was byte-for-byte identical to the source at 151901 bytes with
-SHA-256 `3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b`.
-No P4 executable rebuild was required for this relay-recovery validation.
+through the full assistant -> LibreWolf extension -> unified chat server -> native Salix
+path, rendered it inline in the native Conversation view, and reported `files 1`. The
+returned payload was byte-for-byte identical to the source at 151901 bytes with SHA-256
+`3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b`.
+No P4 executable rebuild was required for this browser-side recovery.
+
+The same target session exposed a separate outbound multi-attachment edge case. One
+4-attachment request reached the browser relay but ChatGPT's composer did not expose an
+acceptable Send control (`send=no`), while the immediately following 2-attachment
+request submitted and completed normally. That Send-acceptance path remains active
+hardening work and is not treated as a regression of the returned-file recovery.
+
+The unified server now mirrors its console output to
+`%USERPROFILE%\Desktop\session.log` in append mode while preserving normal console
+output. The log records UTC session boundaries plus bridge, broker, WebExtension trace,
+timing, and failure details so target evidence can be shared without manual console
+copy/paste.
 
 The planned longer-term fix remains stateful liveness rather than a larger arbitrary
 timeout. Salix will verify complete
@@ -287,4 +300,25 @@ newer request owns the returned native response. Real-target validation returned
 608 response bytes for request 2 and restored the native backend to the ready state.
 This validation does not yet claim unlimited rapid follow-up depth or returned-file
 transfer after a supersede.
+
+### 0.4.1 attachment-anchor recovery status
+
+The `relay-recovery-0.4.1-attachment-anchor` line is target-green for ordinary text
+return and for the attachment-bearing response-anchor failure that previously left the
+browser visibly complete while Salix remained waiting. The real target run recovered the
+new user-turn anchor, returned assistant text through `source='rendered_anchor'`,
+captured one returned image through the managed-download interception path, and completed
+`POST /v1/conversation/message` with HTTP 200.
+
+The returned PNG was then sent back from the P4 and matched the original file
+byte-for-byte. A provider-page "Failed to download file" toast was visible during that
+successful capture; current evidence treats that toast as a browser/provider UI
+false-positive when relay capture telemetry reports success.
+
+The remaining attachment priority is outbound multi-file composer acceptance: a
+4-attachment request failed at the Send-control acceptance stage, while a later
+2-attachment request completed successfully.
+
+`tools/chat_server.py` also now appends its live console stream to
+`%USERPROFILE%\Desktop\session.log` for easier real-target diagnostics.
 

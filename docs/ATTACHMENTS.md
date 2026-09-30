@@ -572,3 +572,48 @@ feature set is complete and the MiniXP environment is usable again.
 27. Confirm files above the per-file or total relay limits fail cleanly rather than being
     partially forwarded.
 28. MiniXP is not an acceptance target for this tranche.
+
+## September 30, 2026 relay recovery status
+
+### Attachment-bearing response anchor
+
+Current ChatGPT markup can include attachment-card text inside the rendered user turn.
+That means an outbound message containing attachments may no longer satisfy the
+historical exact-text anchor search even though the user turn is visibly present.
+
+WebExtension 0.4.1 fixes the returned-response side by counting rendered user-role nodes
+before Submit and anchoring an attachment-bearing request to the newly appended
+`[data-message-author-role='user']` node after Submit. The global whole-thread fallback
+remains disabled for attachment requests because attachment/upload DOM mutations can
+contain stale text and provider chrome.
+
+Real-P4 validation returned one PNG successfully. Native diagnostics reported `files 1`,
+and the file sent back from the P4 matched the original at 151901 bytes with SHA-256:
+
+```text
+3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b
+```
+
+### Provider download-failure toast
+
+During that successful returned-image capture the ChatGPT page displayed:
+
+```text
+Failed to download file. Please try again later.
+```
+
+Relay telemetry nevertheless reported successful interception/managed capture with no
+errors, and the P4 received the byte-identical PNG. Treat this page toast as an observed
+provider-UI false-positive when the managed-capture telemetry and native attachment event
+are both green.
+
+### Remaining outbound multi-file issue
+
+The outbound side is not yet fully robust for every multi-file composition.
+
+One real-P4 request carrying four attachments failed before Send acceptance with
+`send=no` and `file_input_count=0`. The immediately following two-attachment request
+submitted and completed normally. This remains an active browser-adapter hardening item;
+it must not be "fixed" by re-enabling unsafe whole-thread response diffing because that
+guard applies after submission, while this defect occurs before submission.
+

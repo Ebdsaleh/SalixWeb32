@@ -2148,3 +2148,83 @@ Scope of this validation: one newer user turn superseding one older in-flight tu
 Unlimited rapid follow-up depth and returned-file transfer after supersede are not
 yet claimed by this result.
 
+## Relay recovery 0.4.1 and unified session log — September 30, 2026
+
+### Attachment-aware returned-response anchor
+
+The real Pentium 4 / Windows Server 2003 target validated WebExtension 0.4.1 after the
+attachment-specific response-anchor repair.
+
+A returned PNG completed the full path:
+
+```text
+ChatGPT rendered response/file
+    -> LibreWolf WebExtension
+    -> localhost extension endpoint
+    -> shared chat_server.py RelayState
+    -> trusted-LAN Conversation bridge
+    -> native SalixWeb32
+```
+
+Observed target evidence included:
+
+- `anchor=yes`;
+- `source='rendered_anchor'`;
+- `attachments_collected=1`;
+- successful managed/intercepted download capture with `errors=[]`;
+- `POST /v1/result` HTTP 200;
+- browser relay response with `attachments=1`;
+- `POST /v1/conversation/message` HTTP 200;
+- native Conversation timing reported `files 1`.
+
+The file returned to the P4 and subsequently sent back for comparison matched the source
+byte-for-byte:
+
+```text
+151901 bytes
+SHA-256 3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b
+```
+
+No new P4 executable build was required because this repair is browser-extension side.
+
+### Outbound multi-attachment negative case and recovery sample
+
+The same target session also produced a useful negative case:
+
+- request 2: 385 text bytes + 4 attachments;
+- WebExtension reached `composer_found`;
+- submission failed before `submitted_utc` was set;
+- diagnostic state reported `send=no`, `file_input_count=0`,
+  `generation_active=no`, and `user_messages=0`;
+- `POST /v1/failure` returned HTTP 200;
+- native `POST /v1/conversation/message` returned HTTP 503.
+
+The immediately following request used 52 text bytes + 2 attachments and completed
+successfully:
+
+- attachment-aware `anchor=yes`;
+- `source='rendered_anchor'`;
+- 36 assistant response bytes;
+- `POST /v1/result` HTTP 200;
+- `POST /v1/conversation/message` HTTP 200.
+
+This proves the current defect is an intermittent/provider-DOM Send-acceptance problem for
+outbound multi-file submission, not a regression of the 0.4.1 returned-response anchor.
+
+### Automatic companion session log
+
+The unified server logging change was exercised on the Aurora companion with a real P4
+request. `chat_server.py` created:
+
+```text
+C:\Users\Developer.ERIDU\Desktop\session.log
+```
+
+and mirrored the live console into it while the server remained operational. The shared
+file contained the UTC session-start marker, topology/protocol lines, P4 request,
+WebExtension trace, `POST /v1/result` HTTP 200, and
+`POST /v1/conversation/message` HTTP 200.
+
+The current-session logger behavior is target-green. A stop/restart check should still
+confirm that a second session block is appended rather than replacing the first.
+

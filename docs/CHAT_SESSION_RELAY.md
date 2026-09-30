@@ -766,3 +766,128 @@ a browser-accessible endpoint.
 `salix_bridge.py` and `salix_chat_session.py` remain available as standalone
 diagnostic/fallback entry points during migration.
 
+## WebExtension 0.4.1 attachment-aware response anchoring
+
+Real-target testing after the unified-server tranche exposed an attachment-specific
+variant of the rendered-response failure.
+
+The failing shape was:
+
+```text
+browser visibly contains the assistant reply/file
+assistant snapshots = 0
+rendered anchor     = no
+attachment guard    = yes
+candidate bytes     = 0
+```
+
+The underlying problem was not the P4 transport or returned-file capture. For ordinary
+text, the selector-independent fallback can find the submitted user turn by comparing
+its rendered text to the exact text Salix sent. With outbound attachments, current
+ChatGPT markup can include attachment-card text inside the rendered user turn, so the
+rendered node is no longer an exact text match. At the same time, whole-thread diffing is
+intentionally disabled for attachment-bearing requests because upload/card DOM mutation
+previously produced stale conversation text and provider chrome.
+
+WebExtension 0.4.1 preserves that safety guard and changes only how the attachment-bearing
+user turn is anchored:
+
+1. count rendered `[data-message-author-role='user']` nodes before Submit;
+2. after Submit, locate the newly appended user-role node;
+3. use that concrete DOM node as the response-region anchor;
+4. keep an empty post-turn baseline for that newly created anchor so a very fast
+   assistant reply cannot be absorbed into a late baseline;
+5. retain the historical exact-text anchor as the fallback when the new user-role node
+   is unavailable.
+
+### Real Pentium 4 validation — September 30, 2026
+
+The real Windows Server 2003/Pentium 4 target validated the 0.4.1 returned-response path.
+
+Observed success included:
+
+- the relay trace moved from `anchor=yes` to
+  `source='rendered_anchor'` as the assistant response appeared;
+- returned-file discovery found one candidate and collected one attachment;
+- managed download interception reported success with no capture errors;
+- `POST /v1/result` returned HTTP 200;
+- the P4-facing `POST /v1/conversation/message` returned HTTP 200;
+- native diagnostics reported `files 1`;
+- the returned PNG rendered/stored on the P4.
+
+The returned PNG was then sent back for integrity comparison and was byte-for-byte
+identical to the source:
+
+```text
+size:    151901 bytes
+SHA-256: 3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b
+```
+
+A ChatGPT-page "Failed to download file. Please try again later." toast was visible during
+the successful managed interception. Because relay telemetry simultaneously reported a
+successful intercepted/managed capture and the P4 received the byte-identical file, this
+is currently tracked as a provider-page false-positive rather than a transport failure.
+
+### Separate outbound multi-attachment failure
+
+0.4.1 does not make the outbound browser composer path fully robust.
+
+In the same target session, one request with four outbound attachments failed before
+submission. The content-script diagnostic reported:
+
+```text
+ChatGPT Send control did not accept the relay submission.
+submit_state={
+  composer=yes
+  text_bytes=1
+  send=no
+  file_input_count=0
+  generation_active=no
+  user_messages=0
+}
+```
+
+The request returned `/v1/failure` and the native Conversation call returned HTTP 503.
+The immediately following request with two outbound attachments submitted, found the new
+attachment-aware response anchor, returned 36 response bytes, and completed HTTP 200.
+
+Therefore the current status is:
+
+```text
+returned attachment response anchoring    target-green in 0.4.1
+returned PNG managed capture              target-green
+ordinary text return                      target-green
+2-attachment outbound sample              target-green
+4-attachment outbound sample              failed Send acceptance
+multi-attachment Send hardening           active
+```
+
+Do not weaken the attachment whole-thread-diff guard to solve this Send-control problem;
+the failure occurs before submission and belongs to composer/upload acceptance.
+
+## Unified server Desktop session log
+
+`tools/chat_server.py` now mirrors both stdout and stderr to:
+
+```text
+%USERPROFILE%\Desktop\session.log
+```
+
+while preserving the normal live console.
+
+The file is opened in append mode and includes UTC session-start/session-end separators.
+Completed console lines are flushed as they are written so a useful diagnostic file is
+available even while the server remains running.
+
+The first real-target logger validation proved:
+
+- `session.log` was created on the Aurora companion Desktop;
+- startup topology/protocol lines were written;
+- live P4 Conversation requests and WebExtension trace lines were written;
+- completed `/v1/result` and `/v1/conversation/message` HTTP 200 lines were present;
+- the file could be shared while `chat_server.py` remained running.
+
+Append-across-process-restart behavior follows from the implementation but still merits a
+simple future target check by stopping/restarting the server and confirming a second
+session block appears beneath the first.
+

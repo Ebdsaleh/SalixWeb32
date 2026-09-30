@@ -387,10 +387,22 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
 - [~] authenticated web-session relay through visible LibreWolf on the companion
 - [~] semantic response streaming into `ConversationView` (local + remote probe proof;
   browser relay currently returns a completed response then releases semantic deltas)
-- [~] restore completed-response relay behavior on current ChatGPT markup while removing
-  the short response ceiling (WebExtension 0.3.5 keeps the validated completed-response
-  lifecycle and extended waits, with both current-DOM assistant discovery and a
-  selector-independent rendered-thread fallback; P4 validation pending)
+- [x] recover completed-response relay behavior on current ChatGPT markup while keeping
+  the long wait ceilings; WebExtension 0.4.1 is target-green for ordinary text and for
+  attachment-bearing returned-response anchoring, including one returned PNG
+- [x] validate one superseding follow-up through WebExtension 0.4.0 so a newer native
+  request can replace one older in-flight browser turn without stale-response ownership
+- [x] consolidate the normal modern-side bridge/broker path behind
+  `tools/chat_server.py` with one shared `RelayState`
+- [x] mirror unified-server stdout/stderr into
+  `%USERPROFILE%\Desktop\session.log` for shareable relay diagnostics
+- [~] harden outbound multi-attachment composer acceptance; a real-P4 4-attachment
+  request failed with `send=no`, while the immediately following 2-attachment request
+  submitted and completed successfully
+- [~] investigate/avoid the provider-page false-positive download-failure toast observed
+  after a returned file was successfully intercepted, captured, and delivered to Salix
+- [ ] avoid the unnecessary returned-file discovery wait when ordinary assistant prose
+  contains filename-like tokens but no attachment card exists
 - [ ] request-liveness protocol: byte count + SHA-256 receipt verification + immediate
   bridge acknowledgement before provider generation wait
 - [ ] split live Conversation state into request transport, provider generation, and
@@ -498,8 +510,8 @@ The first provider-neutral conversation-service contract is now implemented:
 - [x] add a localhost-only chat-session broker on the modern companion,
 - [x] add a normal-LibreWolf development WebExtension so ChatGPT relay does not require
   Selenium/GeckoDriver/Marionette browser automation,
-- [x] add a trusted-LAN text-only browser-relay path without forwarding credentials,
-  cookies, browser session state, or attachments,
+- [x] add a trusted-LAN browser-relay path for semantic text plus bounded attachments
+  without forwarding credentials, cookies, or browser session state,
 - [x] validate the complete modern-side LibreWolf relay round-trip with a real ChatGPT
   message and returned semantic events,
 - [x] validate the LibreWolf browser relay end-to-end on the real P4,
@@ -512,8 +524,14 @@ The first provider-neutral conversation-service contract is now implemented:
   27 semantic deltas into 1 native presentation update with 0 ms measured presentation,
 - [ ] optimize browser-relay latency after architecture/version freeze,
 - [ ] convert the relay from completed-response framing to true incremental transport,
-- [~] validate bounded bidirectional Conversation file relay (8 files, 2 MB each,
+- [x] validate bounded bidirectional Conversation file relay (8 files, 2 MB each,
   4 MB total) with semantic attachment events and application-owned Received storage,
+- [x] validate WebExtension 0.4.1 attachment-aware returned-response anchoring on the
+  real P4, including a returned PNG delivered as `files 1` and verified byte-identical,
+- [~] harden the outbound multi-attachment Send-control path after one real-P4
+  4-attachment submission failed while the following 2-attachment submission succeeded,
+- [x] add append-only companion `Desktop\session.log` capture through
+  `tools/chat_server.py` so relay failures can be shared without console copy/paste,
 - [ ] progressively replace companion capabilities with NT5-native equivalents where
   practical.
 
