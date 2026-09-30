@@ -1955,3 +1955,42 @@ This validates the recovered relay baseline for:
 Freeze 0.3.12 relay behavior unless a new real-P4 regression is reproduced. Native
 presentation fixes should be developed on a separate branch without altering the validated
 relay files.
+
+
+### WebExtension 0.3.12 native-renderer test exposed text-only whole-thread false positive / 0.3.13 anchor guard
+
+A real-P4 text-only request on the native renderer validation branch exposed one remaining
+whole-thread fallback hazard. The browser relay found the exact submitted-message anchor,
+but the anchored response region was still empty while ChatGPT was preparing the reply.
+At the same moment, the selector-independent whole-thread diff produced an atomic 4,549-byte
+candidate only 83 ms after submit:
+
+```text
+anchor=yes
+rendered_bytes=0
+thread_bytes=4549
+source='thread_delta'
+browser_first_response_ms=83
+```
+
+The P4 displayed that payload as a large stale-conversation/history dump. The bridge
+faithfully transported the same 4,549 bytes, so the failure was browser extraction rather
+than broker, bridge, LAN, or native presentation.
+
+0.3.13 changes the priority rule rather than adding content-specific filtering:
+
+- When the exact submitted-message anchor exists, whole-thread diffing is disabled.
+- The relay waits for the per-message rendered-anchor response or normal assistant snapshot.
+- Whole-thread diffing remains available only as a true last resort when no submitted-message
+  anchor can be found at all.
+- Trace field `anchor_guard=yes/no` records when this protection suppresses thread-delta use.
+
+Target validation:
+
+1. Aurora pulls `relay-recovery-0.3.13` and reloads extension 0.3.13.
+2. P4 remains on the native renderer branch; no native rebuild is required.
+3. Send one text-only message from the P4.
+4. Require `anchor=yes anchor_guard=yes thread_bytes=0` while the anchored response is empty.
+5. Require a later actual assistant response from `rendered_anchor` or assistant snapshot.
+6. Require HTTP 200 through result, broker message, and conversation-message endpoints.
+7. Reject any repeat of the stale-conversation/history dump.
