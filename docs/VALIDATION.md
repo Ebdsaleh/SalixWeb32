@@ -1817,3 +1817,46 @@ Target validation:
 7. Preserve both Python consoles without trimming.
 8. Do not alter the relay behavior based on the perceived delay until the UTC timestamps
    identify the missing interval.
+
+
+### WebExtension 0.3.10 attachment guard / 0.3.11 transient receipt filter
+
+The real-P4 0.3.10 attachment request proved the whole-thread attachment guard works:
+the previous 10 KB stale-conversation false response did not recur. The guarded request
+remained on the per-message rendered-anchor path.
+
+Observed request:
+
+```text
+text_bytes=50 attachments=4
+attachment_guard=yes
+snapshots=0 rendered_bytes=0 thread_bytes=0
+```
+
+After the attachment upload/submission settled, ChatGPT exposed the transient rendered
+status text `Confirming receipt`. That string is exactly 18 UTF-8 bytes. The extension
+accepted it from `source='rendered_anchor'`, returned 18 bytes through the broker and
+bridge, and the P4 displayed only `Remote: Confirming receipt`.
+
+0.3.11 preserves the 0.3.10 attachment whole-thread guard and adds a candidate sanitizer
+for observed provider status text. For attachment-bearing requests only,
+`Confirming receipt` is removed/rejected from rendered-anchor candidates. Existing
+`ChatGPT is responding` / `ChatGPT is thinking` transient-status handling remains
+available for the selector-independent fallbacks. A `status_stripped=yes/no` trace field
+records when provider status text was removed.
+
+Target validation:
+
+1. Pull `relay-recovery-0.3.11`.
+2. Stop broker and bridge, reload the temporary extension, and confirm version `0.3.11`.
+3. Reload the authenticated ChatGPT thread.
+4. Restart broker and bridge.
+5. Do not rebuild SalixWeb32 on the P4.
+6. Send one short message with at least one image/file attachment from the P4.
+7. Confirm `attachment_guard=yes` while no trusted response candidate exists.
+8. If `Confirming receipt` appears in the rendered provider surface, require
+   `status_stripped=yes` and `candidate_bytes=0` for that status-only stage.
+9. Require a later non-empty actual assistant reply, then HTTP 200 through
+   `/v1/result`, `/v1/message`, and `/v1/conversation/message`.
+10. Do not promote until the real P4 displays the actual assistant reply rather than
+    provider status text.
