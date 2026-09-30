@@ -904,10 +904,10 @@ bool RemoteConversationBackend::submit_probe(
     if (
         !is_initialized ||
         request_executor == 0 ||
+        followup_request_executor == 0 ||
         request_id == 0 ||
-        pending_operation != operation_none ||
-        !events.empty() ||
-        request_executor->get_is_busy()
+        !all_lanes_idle() ||
+        !events.empty()
     ) {
         return false;
     }
@@ -973,12 +973,34 @@ bool RemoteConversationBackend::submit_request(
     if (
         !is_initialized ||
         request_executor == 0 ||
+        followup_request_executor == 0 ||
         request_id == 0 ||
-        request.empty() ||
-        pending_operation != operation_none ||
-        !events.empty() ||
-        request_executor->get_is_busy()
+        request.empty()
     ) {
+        return false;
+    }
+
+    NetworkRequestExecutor* selected_executor = 0;
+    PendingOperation* selected_operation = 0;
+    unsigned long* selected_request_id = 0;
+
+    if (
+        pending_operation == operation_none &&
+        !request_executor->get_is_busy()
+    ) {
+        selected_executor = request_executor;
+        selected_operation = &pending_operation;
+        selected_request_id = &active_request_id;
+    } else if (
+        followup_pending_operation == operation_none &&
+        !followup_request_executor->get_is_busy()
+    ) {
+        selected_executor = followup_request_executor;
+        selected_operation = &followup_pending_operation;
+        selected_request_id = &followup_request_id;
+    } else {
+        status_text =
+            "SALIX-CONVERSATION/1 two relay requests in flight";
         return false;
     }
 
@@ -1139,7 +1161,7 @@ bool RemoteConversationBackend::submit_request(
     );
     network_request.set_body(body);
 
-    if (!request_executor->submit(
+    if (!selected_executor->submit(
             host.c_str(),
             port,
             network_request
@@ -1148,10 +1170,16 @@ bool RemoteConversationBackend::submit_request(
         return false;
     }
 
-    active_request_id = request_id;
-    pending_operation = operation_conversation;
-    status_text =
-        "SALIX-CONVERSATION/1 browser relay request in flight";
+    *selected_request_id = request_id;
+    *selected_operation = operation_conversation;
+
+    char request_status[128];
+    sprintf(
+        request_status,
+        "SALIX-CONVERSATION/1 browser relay request %lu in flight",
+        request_id
+    );
+    status_text = request_status;
     return true;
 }
 
@@ -1174,7 +1202,7 @@ bool RemoteConversationBackend::take_event(
 
     if (
         events.empty() &&
-        pending_operation == operation_none &&
+        all_lanes_idle() &&
         capability_state == capability_ready
     ) {
         status_text =
@@ -1188,8 +1216,8 @@ bool RemoteConversationBackend::begin_health_check() {
     if (
         !is_initialized ||
         request_executor == 0 ||
-        pending_operation != operation_none ||
-        request_executor->get_is_busy()
+        followup_request_executor == 0 ||
+        !all_lanes_idle()
     ) {
         return false;
     }
