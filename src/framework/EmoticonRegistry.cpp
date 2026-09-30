@@ -50,6 +50,12 @@ namespace {
         { ":p", EmoticonRegistry::emoticon_tongue },
         { ":O", EmoticonRegistry::emoticon_surprised },
         { ":o", EmoticonRegistry::emoticon_surprised },
+
+        // Render Unicode heart text through the existing GDI heart painter.
+        // Windows Server 2003 does not provide modern color-emoji fonts, so
+        // this keeps relay text readable without changing its UTF-8 storage.
+        { "\xE2\x9D\xA4\xEF\xB8\x8F", EmoticonRegistry::emoticon_heart },
+        { "\xE2\x9D\xA4", EmoticonRegistry::emoticon_heart },
         { "<3", EmoticonRegistry::emoticon_heart },
         { "<:", EmoticonRegistry::emoticon_classic }
     };
