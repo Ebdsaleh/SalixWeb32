@@ -354,6 +354,7 @@ class RelayState:
                 f"source={trace.get('candidate_source', '')!r} "
                 f"progress_rejected={'yes' if trace.get('thread_progress_rejected') else 'no'} "
                 f"attachment_guard={'yes' if trace.get('thread_attachment_guarded') else 'no'} "
+                f"status_stripped={'yes' if trace.get('provider_status_stripped') else 'no'} "
                 f"command_utc={trace.get('command_received_utc', '')!r} "
                 f"submitted_utc={trace.get('submitted_utc', '')!r} "
                 f"first_candidate_utc={trace.get('first_candidate_utc', '')!r} "
