@@ -685,6 +685,7 @@ RemoteConversationBackend::RemoteConversationBackend(
     capability_state(capability_unknown),
     active_request_id(0),
     followup_request_id(0),
+    latest_request_id(0),
     status_text("stopped") {
 }
 
@@ -745,6 +746,7 @@ bool RemoteConversationBackend::initialize() {
     capability_state = capability_unknown;
     active_request_id = 0;
     followup_request_id = 0;
+    latest_request_id = 0;
     diagnostic_text.clear();
     events.clear();
     is_initialized = true;
@@ -806,12 +808,22 @@ void RemoteConversationBackend::update_lane(
             return;
         }
 
-        queue_failure(
-            request_id,
-            error_text.empty()
-                ? "Remote conversation browser relay transport failed."
-                : error_text.c_str()
-        );
+        if (
+            latest_request_id != 0 &&
+            request_id != latest_request_id
+        ) {
+            queue_failure(
+                request_id,
+                "Previous response interrupted by newer follow-up."
+            );
+        } else {
+            queue_failure(
+                request_id,
+                error_text.empty()
+                    ? "Remote conversation browser relay transport failed."
+                    : error_text.c_str()
+            );
+        }
         request_id = 0;
         return;
     }
@@ -825,6 +837,18 @@ void RemoteConversationBackend::update_lane(
     }
 
     if (completed_operation == operation_conversation) {
+        if (
+            latest_request_id != 0 &&
+            request_id != latest_request_id
+        ) {
+            queue_failure(
+                request_id,
+                "Previous response interrupted by newer follow-up."
+            );
+            request_id = 0;
+            return;
+        }
+
         parse_response(response, request_id);
         request_id = 0;
     }
@@ -889,6 +913,7 @@ void RemoteConversationBackend::shutdown() {
     capability_state = capability_unknown;
     active_request_id = 0;
     followup_request_id = 0;
+    latest_request_id = 0;
     status_text = "stopped";
     diagnostic_text.clear();
     events.clear();
@@ -1172,6 +1197,7 @@ bool RemoteConversationBackend::submit_request(
 
     *selected_request_id = request_id;
     *selected_operation = operation_conversation;
+    latest_request_id = request_id;
 
     char request_status[128];
     sprintf(
