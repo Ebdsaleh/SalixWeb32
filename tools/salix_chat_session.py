@@ -495,8 +495,18 @@ class RelayState:
                     + str(status["session_status"])
                 )
 
-            if self.pending is not None:
-                raise RuntimeError("another browser relay request is already active")
+            if self.pending is not None and not self.pending.completed:
+                superseded = self.pending
+                superseded.completed = True
+                superseded.completed_at = time.monotonic()
+                superseded.error_text = (
+                    "relay request superseded by newer follow-up"
+                )
+                print(
+                    f"[chat-session] utc={_utc_now()} "
+                    f"request id={superseded.request_id} superseded "
+                    f"by follow-up id={request_id}"
+                )
 
             request = PendingRequest(
                 request_id=request_id,
@@ -512,7 +522,8 @@ class RelayState:
             while not request.completed:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    self.pending = None
+                    if self.pending is request:
+                        self.pending = None
                     self.last_error = (
                         "timed out waiting for LibreWolf extension response"
                     )
@@ -520,7 +531,8 @@ class RelayState:
 
                 self.condition.wait(timeout=min(remaining, 1.0))
 
-            self.pending = None
+            if self.pending is request:
+                self.pending = None
 
             if request.error_text:
                 raise RuntimeError(request.error_text)
