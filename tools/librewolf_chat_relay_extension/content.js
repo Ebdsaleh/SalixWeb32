@@ -1089,20 +1089,30 @@ function looksLikeAttachmentName(value) {
 }
 
 function textMentionsAttachmentName(value) {
-  return /\b[^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip)\b/i.test(
-    value || ""
-  );
+  return attachmentNamesInText(value).length > 0;
 }
 
 function attachmentNamesInText(value) {
   const names = [];
+  // Current ChatGPT attachment cards can flatten adjacent UI chrome into the
+  // rendered text with no separator, for example:
+  //   report.pngImageOpen file
+  // The historical detector required a word boundary after the extension, so
+  // it rejected the real filename and the managed download later fell back to
+  // a generic local basename such as "content".
+  //
+  // Keep a strict filename body, but also accept the provider's known
+  // attachment-control suffixes as a valid terminator. A sentence-period
+  // delimiter is accepted on the left because flattened rendered text can
+  // likewise produce:
+  //   response text.report.pngImageOpen file
   const pattern =
-    /\b[^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip)\b/gi;
+    /(?:^|[\s(\[{'"><>,;:.])([^\s<>:"|?*\/\\]+\.(txt|md|log|csv|json|xml|ini|cfg|conf|c|cc|cpp|cxx|h|hh|hpp|py|js|css|html|htm|lua|rs|toml|yaml|yml|bmp|gif|jpg|jpeg|png|tif|tiff|pdf|zip))(?=$|[\s)\]}'"<>,;:!?]|Image(?:Open(?:\s+file)?)?|Open(?:\s+file)?|Download|Preview)/gi;
   const text = String(value || "");
   let match;
 
   while ((match = pattern.exec(text)) !== null) {
-    const name = sanitizeAttachmentName(match[0]);
+    const name = sanitizeAttachmentName(match[1]);
 
     if (name && !names.includes(name)) {
       names.push(name);
