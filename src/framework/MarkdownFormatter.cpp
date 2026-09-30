@@ -133,6 +133,168 @@ namespace {
         return -1;
     }
 
+    bool is_ascii_word_character(char character) {
+        return (
+            (character >= 'a' && character <= 'z') ||
+            (character >= 'A' && character <= 'Z') ||
+            (character >= '0' && character <= '9') ||
+            character == '_'
+        );
+    }
+
+    bool is_inline_whitespace(char character) {
+        return (
+            character == ' ' ||
+            character == '\t' ||
+            character == '\r' ||
+            character == '\n'
+        );
+    }
+
+    bool is_exact_underscore_run(
+        const char* text,
+        int position,
+        int start,
+        int end,
+        int delimiter_length
+    ) {
+        if (
+            text == 0 ||
+            delimiter_length <= 0 ||
+            position < start ||
+            position + delimiter_length > end
+        ) {
+            return false;
+        }
+
+        for (int index = 0; index < delimiter_length; ++index) {
+            if (text[position + index] != '_') {
+                return false;
+            }
+        }
+
+        if (
+            position > start &&
+            text[position - 1] == '_'
+        ) {
+            return false;
+        }
+
+        if (
+            position + delimiter_length < end &&
+            text[position + delimiter_length] == '_'
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool underscore_can_open(
+        const char* text,
+        int position,
+        int start,
+        int end,
+        int delimiter_length
+    ) {
+        if (
+            !is_exact_underscore_run(
+                text,
+                position,
+                start,
+                end,
+                delimiter_length
+            )
+        ) {
+            return false;
+        }
+
+        int after = position + delimiter_length;
+        if (
+            after >= end ||
+            is_inline_whitespace(text[after])
+        ) {
+            return false;
+        }
+
+        // Preserve underscores inside identifiers/filenames such as
+        // SALIX_P4_0312, snake_case, and file_name.txt.
+        if (
+            position > start &&
+            is_ascii_word_character(text[position - 1])
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool underscore_can_close(
+        const char* text,
+        int position,
+        int start,
+        int end,
+        int delimiter_length
+    ) {
+        if (
+            !is_exact_underscore_run(
+                text,
+                position,
+                start,
+                end,
+                delimiter_length
+            )
+        ) {
+            return false;
+        }
+
+        if (
+            position <= start ||
+            is_inline_whitespace(text[position - 1])
+        ) {
+            return false;
+        }
+
+        int after = position + delimiter_length;
+
+        if (
+            after < end &&
+            is_ascii_word_character(text[after])
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    int find_underscore_closing_delimiter(
+        const char* text,
+        int start,
+        int end,
+        int range_start,
+        int delimiter_length
+    ) {
+        for (
+            int index = start;
+            index + delimiter_length <= end;
+            ++index
+        ) {
+            if (
+                underscore_can_close(
+                    text,
+                    index,
+                    range_start,
+                    end,
+                    delimiter_length
+                )
+            ) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     void parse_inline_range(
         const FormattedText& source,
         int start,
@@ -204,19 +366,13 @@ namespace {
 
             if (
                 position + 2 <= end &&
-                (
-                    strncmp(text + position, "**", 2) == 0 ||
-                    strncmp(text + position, "__", 2) == 0
-                )
+                strncmp(text + position, "**", 2) == 0
             ) {
-                const char* delimiter = text[position] == '*'
-                    ? "**"
-                    : "__";
                 int closing = find_delimiter(
                     text,
                     position + 2,
                     end,
-                    delimiter,
+                    "**",
                     2
                 );
 
@@ -236,16 +392,80 @@ namespace {
                 }
             }
 
-            if (text[position] == '*' || text[position] == '_') {
-                char delimiter_text[2];
-                delimiter_text[0] = text[position];
-                delimiter_text[1] = '\0';
+            if (
+                position + 2 <= end &&
+                underscore_can_open(
+                    text,
+                    position,
+                    start,
+                    end,
+                    2
+                )
+            ) {
+                int closing = find_underscore_closing_delimiter(
+                    text,
+                    position + 2,
+                    end,
+                    start,
+                    2
+                );
 
+                if (closing > position + 2) {
+                    SemanticStyle strong_style = inherited_style;
+                    strong_style.bold = true;
+                    parse_inline_range(
+                        source,
+                        position + 2,
+                        closing,
+                        strong_style,
+                        output_text,
+                        output_formats
+                    );
+                    position = closing + 2;
+                    continue;
+                }
+            }
+
+            if (text[position] == '*') {
                 int closing = find_delimiter(
                     text,
                     position + 1,
                     end,
-                    delimiter_text,
+                    "*",
+                    1
+                );
+
+                if (closing > position + 1) {
+                    SemanticStyle emphasis_style = inherited_style;
+                    emphasis_style.italic = true;
+                    parse_inline_range(
+                        source,
+                        position + 1,
+                        closing,
+                        emphasis_style,
+                        output_text,
+                        output_formats
+                    );
+                    position = closing + 1;
+                    continue;
+                }
+            }
+
+            if (
+                text[position] == '_' &&
+                underscore_can_open(
+                    text,
+                    position,
+                    start,
+                    end,
+                    1
+                )
+            ) {
+                int closing = find_underscore_closing_delimiter(
+                    text,
+                    position + 1,
+                    end,
+                    start,
                     1
                 );
 
