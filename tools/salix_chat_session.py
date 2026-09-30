@@ -360,6 +360,7 @@ class RelayState:
                 f"status_stripped={'yes' if trace.get('provider_status_stripped') else 'no'} "
                 f"short_hold={'yes' if trace.get('short_candidate_hold') else 'no'} "
                 f"short_hold_ms={trace.get('short_candidate_hold_ms', 0)} "
+                f"followup={'yes' if trace.get('superseding_followup') else 'no'} "
                 f"command_utc={trace.get('command_received_utc', '')!r} "
                 f"submitted_utc={trace.get('submitted_utc', '')!r} "
                 f"first_candidate_utc={trace.get('first_candidate_utc', '')!r} "
