@@ -68,15 +68,14 @@ SalixWeb32 / Pentium 4
         `-- ConversationRequest               |
                 |                              |
                 v                              v
-          Win32 HTTP transport ------> salix_bridge.py
-                                           |
-                                           | localhost
-                                           v
-                                  salix_chat_session.py
-                                           ^
-                                           | localhost
-                                           |
-                                  LibreWolf relay extension
+          Win32 HTTP transport ------> chat_server.py
+                                      /           \
+                         trusted LAN /             \ localhost
+                                    v               v
+                              P4 bridge       WebExtension endpoint
+                                                     ^
+                                                     |
+                                              LibreWolf relay extension
                                            |
                                            v
                                    normal LibreWolf
@@ -151,13 +150,15 @@ The remote semantic Conversation probe and its explicit probe-only security poli
 completed positive real-target passes. That content-free probe remains available as a
 diagnostic path.
 
-The current validated text baseline goes one step further: `salix_bridge.py` can relay
-text-only Conversation requests to a localhost-only
-`tools/salix_chat_session.py` broker. A small development WebExtension running inside
-the user's **normal LibreWolf process** talks to that broker; no Selenium/Marionette
-browser process is used. The user authenticates normally in LibreWolf, while Salix does
-not receive ChatGPT credentials, cookies, or browser session storage. Only typed message
-text and rendered assistant response text cross the trusted development LAN.
+The validated relay baseline uses a trusted-LAN conversation bridge plus a localhost-only
+LibreWolf WebExtension endpoint. The `relay-unified-0.5.0` candidate consolidates those
+two Python services behind `tools/chat_server.py`: one process owns both listeners and
+one shared relay state. The P4-facing listener retains the familiar `--host` / `--port`
+arguments, while the browser extension remains pinned to localhost on port 8766. The
+bridge now calls the shared broker state directly in-process instead of making another
+localhost HTTP hop. No Selenium/Marionette browser process is used. The user authenticates
+normally in LibreWolf, while Salix does not receive ChatGPT credentials, cookies, or
+browser session storage.
 
 That text-only relay is now validated end-to-end on the real Pentium 4 / Windows Server
 2003 target. A native SalixWeb32 message reached the authenticated ChatGPT thread through
