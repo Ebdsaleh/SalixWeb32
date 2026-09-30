@@ -1869,6 +1869,7 @@ async function collectAssistantAttachments(responseText, anchorInfo) {
     preview_download_controls: 0,
     preview_close_successes: 0,
     semantic_names_seen: 0,
+    card_names_seen: 0,
     duplicate_candidates_skipped: 0,
     duplicate_attachments_skipped: 0,
     attachments_collected: 0,
@@ -1930,6 +1931,10 @@ async function collectAssistantAttachments(responseText, anchorInfo) {
     }
 
     let preferredName = attachmentNameFromElement(element);
+
+    if (preferredName) {
+      debug.card_names_seen += 1;
+    }
 
     if (!preferredName && responseNameIndex < responseNames.length) {
       preferredName = responseNames[responseNameIndex];
