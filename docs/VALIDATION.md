@@ -1994,3 +1994,52 @@ Target validation:
 5. Require a later actual assistant response from `rendered_anchor` or assistant snapshot.
 6. Require HTTP 200 through result, broker message, and conversation-message endpoints.
 7. Reject any repeat of the stale-conversation/history dump.
+
+
+### WebExtension 0.3.14 returned-file discovery recovery candidate
+
+Historical repository evidence proves that assistant -> P4 text-file relay was previously
+green. The 0.2.7 target retest recorded one returned attachment collected from the browser,
+`attachments=1` through the bridge, `files 1` on the P4, storage under the application
+`Received` directory, Windows Text Document recognition, and successful Open in Notepad.
+
+The 0.3.13 `testing.txt` retest showed that file generation still worked in ChatGPT's
+web UI, but the relay returned `attachments=0`. Capture telemetry localized the regression:
+
+```text
+scan_root='none'
+candidates_seen=0
+semantic_names_seen=1
+attachments_collected=0
+```
+
+The current response text contained the semantic filename, but
+`assistantAttachmentRoot()` still depended exclusively on `assistantNodes()`. Current
+ChatGPT markup no longer exposes the historical assistant-role/.markdown selectors to that
+path, even though the rendered-anchor text extractor can correlate the actual assistant
+response.
+
+0.3.14 preserves the proven MIME/base64/managed-download/native receive pipeline and changes
+only attachment DOM discovery:
+
+- Prefer the existing assistant-node root when available.
+- Otherwise locate the rendered assistant response text after the exact submitted-message
+  anchor.
+- Select only a narrowly matching response node (exact text, or <=512 bytes of surrounding
+  provider/attachment chrome).
+- Climb only within that response's ancestors to find file-card/download controls.
+- Never climb into a wrapper containing the submitted user-message anchor.
+- Report `scan_root_source='assistant_nodes'|'rendered_response'|'none'`.
+
+Target validation:
+
+1. Aurora pulls `relay-recovery-0.3.14`, reloads extension 0.3.14, and restarts broker/bridge.
+2. P4 requires no rebuild.
+3. Send a P4 request asking ChatGPT to return one small `.txt` attachment.
+4. Confirm the web UI visibly contains the returned file card.
+5. Require attachment telemetry to change from `scan_root='none' candidates_seen=0` to a
+   rendered-response root with at least one candidate.
+6. Require `attachments_collected=1`, broker `attachments=1`, bridge `attachments=1`,
+   native `files 1`, and one file in the P4 `Received` directory.
+7. Confirm the semantic filename and MIME/type survive, and Open launches the expected
+   Windows application.
