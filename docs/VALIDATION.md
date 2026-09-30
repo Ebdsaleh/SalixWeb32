@@ -1918,3 +1918,40 @@ Target validation:
 7. Require a later actual assistant response from `rendered_anchor`, followed by HTTP
    200 through result, message, and conversation-message endpoints.
 8. Preserve both consoles and a P4 screenshot.
+
+
+### WebExtension 0.3.12 real-P4 attachment round-trip — validated baseline
+
+Real Pentium 4 validation succeeded with one PNG attachment and a normal assistant reply.
+
+Observed sequence:
+
+```text
+request text_bytes=32 attachments=1
+first candidate: 8 bytes
+short_hold=yes
+candidate grows: 126 -> 426 -> 483 -> 490 bytes
+short_hold=no
+completion_ready after 2150 ms stable
+POST /v1/result ... 200
+response_bytes=490
+POST /v1/message ... 200
+POST /v1/conversation/message ... 200
+```
+
+The P4 displayed the actual assistant response and the uploaded screenshot was present in the
+conversation. The native diagnostic measured 28,969 ms total, with 28 semantic deltas
+coalesced into one native presentation update.
+
+This validates the recovered relay baseline for:
+
+- P4 -> bridge -> broker -> authenticated LibreWolf -> ChatGPT text submission
+- outbound P4 attachments
+- attachment-request whole-thread fallback guard
+- transient short-candidate hold
+- rendered-anchor response extraction
+- broker -> bridge -> P4 text return
+
+Freeze 0.3.12 relay behavior unless a new real-P4 regression is reproduced. Native
+presentation fixes should be developed on a separate branch without altering the validated
+relay files.
