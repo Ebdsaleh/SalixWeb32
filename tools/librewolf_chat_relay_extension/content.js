@@ -16,6 +16,7 @@ const relayTrace = {
   candidate_source: "",
   thread_progress_rejected: false,
   thread_attachment_guarded: false,
+  provider_status_stripped: false,
   command_received_utc: "",
   submitted_utc: "",
   first_candidate_utc: "",
@@ -54,6 +55,8 @@ function relayTraceSnapshot() {
       !!relayTrace.thread_progress_rejected,
     thread_attachment_guarded:
       !!relayTrace.thread_attachment_guarded,
+    provider_status_stripped:
+      !!relayTrace.provider_status_stripped,
     command_received_utc:
       String(relayTrace.command_received_utc || ""),
     submitted_utc:
@@ -290,32 +293,59 @@ function renderedConversationResponseDelta(
   return delta;
 }
 
+function stripProviderProgressText(text) {
+  let current = normalizeRelayText(text);
+  let stripped = false;
+
+  const exactStatuses = [
+    "chatgpt is responding",
+    "chatgpt is thinking",
+    "you said:chatgpt is responding",
+    "you said:chatgpt is thinking",
+    "confirming receipt"
+  ];
+
+  while (current) {
+    const lower = current.toLowerCase();
+
+    if (exactStatuses.includes(lower)) {
+      return {
+        text: "",
+        stripped: true
+      };
+    }
+
+    let matchedPrefix = "";
+
+    for (const status of exactStatuses) {
+      const prefix = status + "\n";
+
+      if (lower.startsWith(prefix)) {
+        matchedPrefix = current.slice(0, status.length);
+        break;
+      }
+    }
+
+    if (!matchedPrefix) {
+      break;
+    }
+
+    current = normalizeRelayText(
+      current.slice(matchedPrefix.length)
+    );
+    stripped = true;
+  }
+
+  return {
+    text: current,
+    stripped: stripped
+  };
+}
+
 function looksLikeProviderProgressText(text) {
-  const normalized = normalizeRelayText(text).toLowerCase();
+  const cleaned = stripProviderProgressText(text);
 
-  if (!normalized) {
-    return false;
-  }
-
-  // Current ChatGPT exposes transient accessibility/progress copy such as
-  // "You said:ChatGPT is responding" while a response is still being
-  // generated. This text is not an assistant response and must never satisfy
-  // the relay completion detector.
-  if (
-    normalized === "chatgpt is responding" ||
-    normalized === "chatgpt is thinking" ||
-    (
-      normalized.startsWith("you said:") &&
-      (
-        normalized.endsWith("chatgpt is responding") ||
-        normalized.endsWith("chatgpt is thinking")
-      )
-    )
-  ) {
-    return true;
-  }
-
-  return false;
+  return !!text && !cleaned.text && cleaned.stripped;
 }
 
 function findRenderedSubmittedMessage(text) {
@@ -1782,6 +1812,7 @@ async function submitMessage(text, attachments) {
     candidate_source: "",
     thread_progress_rejected: false,
     thread_attachment_guarded: false,
+    provider_status_stripped: false,
     command_received_utc: utcNow(),
     submitted_utc: "",
     first_candidate_utc: "",
@@ -1867,6 +1898,7 @@ async function submitMessage(text, attachments) {
     let threadDelta = "";
     let threadProgressRejected = false;
     let threadAttachmentGuarded = false;
+    let providerStatusStripped = false;
 
     updateRelayTrace({
       state: "waiting_response",
@@ -1893,6 +1925,16 @@ async function submitMessage(text, attachments) {
         renderedTextAfterSubmittedMessage(renderedAnchor),
         renderedBaseline
       );
+
+      const cleanedRendered = stripProviderProgressText(
+        renderedDelta
+      );
+
+      if (cleanedRendered.stripped) {
+        providerStatusStripped = true;
+      }
+
+      renderedDelta = cleanedRendered.text;
       candidate = renderedDelta;
       candidateSource = candidate ? "rendered_anchor" : "";
     }
@@ -1908,11 +1950,23 @@ async function submitMessage(text, attachments) {
         text
       );
 
-      if (looksLikeProviderProgressText(threadDelta)) {
-        threadProgressRejected = true;
-        threadDelta = "";
+      const cleanedThread = stripProviderProgressText(
+        threadDelta
+      );
+
+      if (cleanedThread.stripped) {
+        providerStatusStripped = true;
       }
 
+      if (
+        threadDelta &&
+        !cleanedThread.text &&
+        cleanedThread.stripped
+      ) {
+        threadProgressRejected = true;
+      }
+
+      threadDelta = cleanedThread.text;
       candidate = threadDelta;
       candidateSource = candidate ? "thread_delta" : "";
     } else if (!candidate && text && hasOutboundAttachments) {
@@ -1939,6 +1993,7 @@ async function submitMessage(text, attachments) {
       candidate_source: candidateSource,
       thread_progress_rejected: threadProgressRejected,
       thread_attachment_guarded: threadAttachmentGuarded,
+      provider_status_stripped: providerStatusStripped,
       generation_active: generationActive(),
       stable_ms: Math.max(0, Date.now() - lastChange)
     });
