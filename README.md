@@ -193,12 +193,21 @@ interactive model work was still healthy. Historical validation shows the first 
 0.1.0 at commit `9321882`; the later 0.2.9 baseline also returned completed responses as
 part of the validated PNG round trip. Experimental 0.3.0-0.3.2 browser completion changes
 were rejected after real-P4 testing because they regressed that already-working return
-path. WebExtension 0.3.5 is now the active dev/test candidate. It keeps the validated 0.2.9
-response lifecycle and long wait ceilings, retains the broader current-DOM assistant
-discovery from 0.3.4, and adds a selector-independent rendered-thread fallback anchored
-to the exact user message Salix submitted. The fallback snapshots the static thread tail
-and returns only new rendered text after that user turn, so it does not depend on
-ChatGPT-specific assistant wrapper classes. Target validation is pending.
+path.
+
+The current recovery baseline is WebExtension `0.3.15`. It preserves the validated
+0.2.9 request/response lifecycle and long wait ceilings while adapting response discovery
+to current ChatGPT rendered markup. The recovery line also guards transient provider text
+such as `Thinking`, correlates rendered response text after the submitted user turn, and
+recognizes returned attachment filenames when current ChatGPT card chrome is flattened
+directly against the extension, for example `.pngImageOpen file`.
+
+Real Pentium 4 / Windows Server 2003 validation on September 30, 2026 returned one PNG
+through the full assistant -> LibreWolf extension -> localhost broker -> bridge -> native
+Salix path, rendered it inline in the native Conversation view, and reported `files 1`.
+The returned payload was byte-for-byte identical to the source at 151901 bytes with
+SHA-256 `3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b`.
+No P4 executable rebuild was required for this relay-recovery validation.
 
 The planned longer-term fix remains stateful liveness rather than a larger arbitrary
 timeout. Salix will verify complete
