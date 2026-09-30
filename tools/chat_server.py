@@ -18,6 +18,11 @@ available as diagnostic/fallback tools.
 from __future__ import annotations
 
 import argparse
+import atexit
+from datetime import datetime, timezone
+import os
+from pathlib import Path
+import sys
 import threading
 
 from http.server import ThreadingHTTPServer
@@ -29,6 +34,121 @@ import salix_chat_session
 EXTENSION_HOST = "127.0.0.1"
 EXTENSION_PORT = salix_chat_session.DEFAULT_PORT
 
+
+_session_log_file = None
+_session_log_path = None
+_original_stdout = None
+_original_stderr = None
+
+
+class _TeeStream:
+    def __init__(self, console, log_file, lock) -> None:
+        self.console = console
+        self.log_file = log_file
+        self.lock = lock
+
+    @property
+    def encoding(self):
+        return getattr(self.console, "encoding", None)
+
+    def write(self, text: str) -> int:
+        if not text:
+            return 0
+
+        with self.lock:
+            self.console.write(text)
+            self.log_file.write(text)
+
+            if "\n" in text:
+                self.log_file.flush()
+
+        return len(text)
+
+    def flush(self) -> None:
+        with self.lock:
+            self.console.flush()
+            self.log_file.flush()
+
+    def isatty(self) -> bool:
+        isatty = getattr(self.console, "isatty", None)
+        return bool(isatty()) if isatty is not None else False
+
+    def fileno(self) -> int:
+        return self.console.fileno()
+
+
+def _close_session_log() -> None:
+    global _session_log_file
+    global _original_stdout
+    global _original_stderr
+
+    if _session_log_file is None:
+        return
+
+    try:
+        timestamp = datetime.now(timezone.utc).isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")
+        print(
+            "SalixWeb32 chat_server.py session end utc="
+            + timestamp
+        )
+        print("=" * 72)
+        sys.stdout.flush()
+        sys.stderr.flush()
+    finally:
+        sys.stdout = _original_stdout
+        sys.stderr = _original_stderr
+        _session_log_file.close()
+        _session_log_file = None
+
+
+def _install_session_log() -> Path:
+    global _session_log_file
+    global _session_log_path
+    global _original_stdout
+    global _original_stderr
+
+    user_profile = os.environ.get("USERPROFILE")
+    desktop = (
+        Path(user_profile) / "Desktop"
+        if user_profile
+        else Path.home() / "Desktop"
+    )
+    desktop.mkdir(parents=True, exist_ok=True)
+    log_path = desktop / "session.log"
+
+    log_file = log_path.open(
+        "a",
+        encoding="utf-8",
+        errors="replace",
+        buffering=1,
+    )
+    lock = threading.RLock()
+
+    _session_log_file = log_file
+    _session_log_path = log_path
+    _original_stdout = sys.stdout
+    _original_stderr = sys.stderr
+
+    sys.stdout = _TeeStream(_original_stdout, log_file, lock)
+    sys.stderr = _TeeStream(_original_stderr, log_file, lock)
+    atexit.register(_close_session_log)
+
+    timestamp = datetime.now(timezone.utc).isoformat(
+        timespec="milliseconds"
+    ).replace("+00:00", "Z")
+
+    print()
+    print("=" * 72)
+    print(
+        "SalixWeb32 chat_server.py session start utc="
+        + timestamp
+    )
+    print("Session log           : " + str(log_path))
+    print("=" * 72)
+
+    return log_path
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -49,6 +169,8 @@ def main() -> int:
 
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
+    session_log_path = _install_session_log()
+
 
     state = salix_chat_session.RelayState(
         salix_chat_session.DEFAULT_RESPONSE_TIMEOUT_SECONDS
@@ -101,6 +223,7 @@ def main() -> int:
     print("Authentication         : existing LibreWolf profile/session")
     print("Forwarding             : text + bounded files + assistant files")
     print("Credentials/session    : never exposed to the LAN bridge")
+    print("Session log            : " + str(session_log_path))
     print()
     print("LibreWolf must already be running normally.")
     print("Load tools\\librewolf_chat_relay_extension as a temporary add-on.")
