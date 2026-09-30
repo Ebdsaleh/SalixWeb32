@@ -2,9 +2,10 @@
 
 const WORKER_BASE = "http://127.0.0.1:8766";
 const EXTENSION_PROTOCOL = "SALIX-CHAT-EXTENSION/1";
-const EXTENSION_VERSION = "0.3.16";
+const EXTENSION_VERSION = "0.4.0";
 
-let commandBusy = false;
+let commandPollBusy = false;
+const activeCommandIds = new Set();
 let activeDownloadCapture = null;
 
 function sleep(milliseconds) {
@@ -360,51 +361,17 @@ async function postFailure(requestId, detail) {
   }
 }
 
-async function processCommand() {
-  if (commandBusy) {
-    return;
-  }
-
-  commandBusy = true;
+async function runCommand(command, commandAttachments) {
+  const requestId = command.request_id;
+  activeCommandIds.add(requestId);
 
   try {
-    const response = await fetch(WORKER_BASE + "/v1/command", {
-      method: "GET",
-      cache: "no-store"
-    });
-
-    if (response.status === 204) {
-      return;
-    }
-
-    if (!response.ok) {
-      return;
-    }
-
-    const command = await response.json();
-
-    const commandAttachments = (
-      command &&
-      Array.isArray(command.attachments)
-    ) ? command.attachments : [];
-
-    if (
-      !command ||
-      command.protocol !== EXTENSION_PROTOCOL ||
-      command.command !== "send_message" ||
-      !Number.isInteger(command.request_id) ||
-      typeof command.text !== "string" ||
-      (!command.text && !commandAttachments.length)
-    ) {
-      return;
-    }
-
     const commandStartedAt = performance.now();
     const tab = await findChatTab();
 
     if (!tab) {
       await postFailure(
-        command.request_id,
+        requestId,
         "No ChatGPT tab is open in LibreWolf."
       );
       return;
@@ -415,13 +382,13 @@ async function processCommand() {
     try {
       result = await browser.tabs.sendMessage(tab.id, {
         type: "salix_send_message",
-        request_id: command.request_id,
+        request_id: requestId,
         text: command.text,
         attachments: commandAttachments
       });
     } catch (exception) {
       await postFailure(
-        command.request_id,
+        requestId,
         "Could not communicate with the ChatGPT tab: " + String(exception)
       );
       return;
@@ -434,7 +401,7 @@ async function processCommand() {
       !Array.isArray(result.attachments || [])
     ) {
       await postFailure(
-        command.request_id,
+        requestId,
         result && result.error
           ? String(result.error)
           : "ChatGPT content script did not return a response."
@@ -458,7 +425,7 @@ async function processCommand() {
 
       await postJson("/v1/result", {
         protocol: EXTENSION_PROTOCOL,
-        request_id: command.request_id,
+        request_id: requestId,
         text: result.text,
         attachments: resultAttachments,
         attachment_debug:
@@ -491,15 +458,63 @@ async function processCommand() {
       }
     } catch (exception) {
       await postFailure(
-        command.request_id,
+        requestId,
         "Could not return assistant text to localhost worker: " +
           String(exception)
       );
     }
+  } finally {
+    activeCommandIds.delete(requestId);
+  }
+}
+
+async function processCommand() {
+  if (commandPollBusy) {
+    return;
+  }
+
+  commandPollBusy = true;
+
+  try {
+    const response = await fetch(WORKER_BASE + "/v1/command", {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    if (response.status === 204 || !response.ok) {
+      return;
+    }
+
+    const command = await response.json();
+
+    const commandAttachments = (
+      command &&
+      Array.isArray(command.attachments)
+    ) ? command.attachments : [];
+
+    if (
+      !command ||
+      command.protocol !== EXTENSION_PROTOCOL ||
+      command.command !== "send_message" ||
+      !Number.isInteger(command.request_id) ||
+      typeof command.text !== "string" ||
+      (!command.text && !commandAttachments.length)
+    ) {
+      return;
+    }
+
+    if (activeCommandIds.has(command.request_id)) {
+      return;
+    }
+
+    // Do not await the content-script lifetime here. A newer follow-up must be
+    // able to enter while the older request is still waiting for provider
+    // completion. The content script owns supersede/cancellation semantics.
+    void runCommand(command, commandAttachments);
   } catch (_exception) {
     // The localhost worker may not be running yet.
   } finally {
-    commandBusy = false;
+    commandPollBusy = false;
   }
 }
 
