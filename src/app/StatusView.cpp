@@ -1095,7 +1095,10 @@ void StatusView::consume_conversation_events() {
                 break;
 
             case ConversationEvent::event_request_failed:
-                if (presentation_dirty) {
+                if (
+                    request_id == active_conversation_request_id &&
+                    presentation_dirty
+                ) {
                     flush_streaming_message_presentation();
                     presentation_dirty = false;
                 }
