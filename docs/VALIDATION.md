@@ -2078,3 +2078,51 @@ capture telemetry shows interception + managed-download success and the P4 repor
 received file. Do not change the working interception path solely to suppress this toast.
 
 0.3.14 is therefore validated for bidirectional text-file transfer on the real P4.
+
+## September 30, 2026 relay-recovery validation
+
+WebExtension `0.3.15` completed a real Pentium 4 / Windows Server 2003 recovery pass
+against the current ChatGPT rendered UI.
+
+Validated observations:
+
+- a native P4 Conversation request reached the active ChatGPT thread through the trusted
+  LAN bridge, localhost broker, and normal LibreWolf WebExtension,
+- the assistant response returned to the native Conversation view,
+- one assistant-returned PNG traversed the complete return path,
+- Salix reported `files 1` and rendered the returned image inline,
+- the returned image was sent back out from the P4 and matched the original payload
+  byte-for-byte,
+- no new P4 executable build was required for this recovery pass.
+
+Measured target timing:
+
+```text
+P4 total 12157 ms
+bridge 11482 ms
+broker 11462 ms
+queue 179 ms
+extension 11272 ms
+browser 7750 ms
+submit 850 ms
+first response 2633 ms
+generation 2183 ms
+stabilize 2084 ms
+native batch 23 deltas -> 1 updates
+present 0 ms
+files 1
+```
+
+Returned-file integrity:
+
+```text
+size:    151901 bytes
+SHA-256: 3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b
+```
+
+The recovery work also isolated a current provider-markup change in returned-file cards:
+the semantic filename can be flattened directly against attachment UI text, for example
+`SalixWeb32-remote-test-image.pngImageOpen file`. The 0.3.15 filename parser accepts
+that known card suffix while retaining the semantic filename instead of falling back to
+the browser-managed basename `content`.
+
