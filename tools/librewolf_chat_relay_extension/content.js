@@ -7,6 +7,10 @@ const RESPONSE_STABLE_MS = 2000;
 const ATTACHMENT_SHORT_CANDIDATE_BYTES = 96;
 const ATTACHMENT_SHORT_CANDIDATE_HOLD_MS = 12000;
 
+let activeSubmissionToken = 0;
+let activeSubmissionRequestId = 0;
+let nextSubmissionToken = 1;
+
 const relayTrace = {
   state: "idle",
   assistant_snapshot_count: 0,
@@ -23,6 +27,7 @@ const relayTrace = {
   provider_status_stripped: false,
   short_candidate_hold: false,
   short_candidate_hold_ms: 0,
+  superseding_followup: false,
   command_received_utc: "",
   submitted_utc: "",
   first_candidate_utc: "",
@@ -71,6 +76,8 @@ function relayTraceSnapshot() {
       !!relayTrace.short_candidate_hold,
     short_candidate_hold_ms:
       Number(relayTrace.short_candidate_hold_ms) || 0,
+    superseding_followup:
+      !!relayTrace.superseding_followup,
     command_received_utc:
       String(relayTrace.command_received_utc || ""),
     submitted_utc:
@@ -561,6 +568,63 @@ function generationActiveSource() {
 
 function generationActive() {
   return !!generationActiveSource();
+}
+
+function findStopGenerationButton() {
+  const selectors = [
+    "button[data-stop-generating]",
+    "button[data-testid='stop-button']",
+    "button[data-testid*='stop']",
+    "button[aria-label='Stop generating']",
+    "button[aria-label='Stop streaming']",
+    "button[aria-label^='Stop']",
+    "button[title^='Stop']"
+  ];
+
+  for (const selector of selectors) {
+    const buttons = Array.from(
+      document.querySelectorAll(selector)
+    );
+
+    for (const button of buttons) {
+      if (buttonIsUsable(button)) {
+        return button;
+      }
+    }
+  }
+
+  return null;
+}
+
+function assertCurrentSubmission(token) {
+  if (!token || token !== activeSubmissionToken) {
+    throw new Error(
+      "Relay request superseded by a newer follow-up."
+    );
+  }
+}
+
+async function prepareComposerForFollowup(token) {
+  assertCurrentSubmission(token);
+
+  const stopButton = findStopGenerationButton();
+  if (!stopButton) {
+    return;
+  }
+
+  stopButton.focus();
+  stopButton.click();
+
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    assertCurrentSubmission(token);
+
+    if (!findStopGenerationButton()) {
+      return;
+    }
+
+    await sleep(100);
+  }
 }
 
 function dispatchInput(element, data) {
@@ -2031,7 +2095,9 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function submitMessage(text, attachments) {
+async function submitMessage(text, attachments, submissionToken, supersedingFollowup) {
+  assertCurrentSubmission(submissionToken);
+
   updateRelayTrace({
     state: "command_received",
     assistant_snapshot_count: 0,
@@ -2047,6 +2113,7 @@ async function submitMessage(text, attachments) {
     provider_status_stripped: false,
     short_candidate_hold: false,
     short_candidate_hold_ms: 0,
+    superseding_followup: !!supersedingFollowup,
     command_received_utc: utcNow(),
     submitted_utc: "",
     first_candidate_utc: "",
@@ -2076,6 +2143,11 @@ async function submitMessage(text, attachments) {
     state: "composer_found"
   });
 
+  if (supersedingFollowup) {
+    await prepareComposerForFollowup(submissionToken);
+    assertCurrentSubmission(submissionToken);
+  }
+
   // Capture the rendered thread before submission. This fallback baseline is
   // intentionally taken before the new user turn exists, so a very fast
   // assistant reply cannot be absorbed into a later post-submit baseline.
@@ -2090,15 +2162,18 @@ async function submitMessage(text, attachments) {
 
   if (hasOutboundAttachments) {
     await injectAttachments(composer, attachments);
+    assertCurrentSubmission(submissionToken);
   }
 
   await sleep(250);
+  assertCurrentSubmission(submissionToken);
 
   await submitComposer(
     composer,
     text,
     hasOutboundAttachments ? attachments.length : 0
   );
+  assertCurrentSubmission(submissionToken);
 
   updateRelayTrace({
     state: "submitted",
@@ -2118,6 +2193,8 @@ async function submitMessage(text, attachments) {
   let firstCandidateWallClock = 0;
 
   while (Date.now() < deadline) {
+    assertCurrentSubmission(submissionToken);
+
     if (!renderedAnchor && text) {
       renderedAnchor = findRenderedSubmittedMessage(text);
 
@@ -2364,6 +2441,7 @@ async function submitMessage(text, attachments) {
         responseText,
         renderedAnchor
       );
+      assertCurrentSubmission(submissionToken);
 
       updateRelayTrace({
         state: "completed",
@@ -2397,6 +2475,7 @@ async function submitMessage(text, attachments) {
     const attachmentResult = await collectAssistantAttachments(
       responseText
     );
+    assertCurrentSubmission(submissionToken);
 
     return {
       text: responseText,
@@ -2455,7 +2534,21 @@ browser.runtime.onMessage.addListener((message) => {
       });
     }
 
-    return submitMessage(message.text, attachments)
+    const previousRequestId = activeSubmissionRequestId;
+    const submissionToken = nextSubmissionToken++;
+    const supersedingFollowup = previousRequestId !== 0;
+
+    activeSubmissionToken = submissionToken;
+    activeSubmissionRequestId = Number.isInteger(message.request_id)
+      ? message.request_id
+      : submissionToken;
+
+    return submitMessage(
+      message.text,
+      attachments,
+      submissionToken,
+      supersedingFollowup
+    )
       .then((result) => ({
         ok: true,
         text: result.text,
@@ -2464,14 +2557,22 @@ browser.runtime.onMessage.addListener((message) => {
         timing: result.timing
       }))
       .catch((exception) => {
-        updateRelayTrace({
-          state: "error",
-          error: String(exception)
-        });
+        if (activeSubmissionToken === submissionToken) {
+          updateRelayTrace({
+            state: "error",
+            error: String(exception)
+          });
+        }
         return {
           ok: false,
           error: String(exception)
         };
+      })
+      .then((result) => {
+        if (activeSubmissionToken === submissionToken) {
+          activeSubmissionRequestId = 0;
+        }
+        return result;
       });
   }
 
