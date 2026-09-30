@@ -472,6 +472,30 @@ function findRenderedSubmittedMessage(text) {
   };
 }
 
+function findNewRenderedUserTurn(beforeCount) {
+  const root =
+    document.querySelector("#thread") ||
+    document.querySelector("main") ||
+    document.body;
+
+  if (!root) {
+    return null;
+  }
+
+  const userTurns = Array.from(
+    root.querySelectorAll("[data-message-author-role='user']")
+  );
+
+  if (userTurns.length <= beforeCount) {
+    return null;
+  }
+
+  return {
+    root: root,
+    anchor: userTurns[userTurns.length - 1]
+  };
+}
+
 function renderedTextAfterSubmittedMessage(anchorInfo) {
   if (
     !anchorInfo ||
@@ -2152,6 +2176,9 @@ async function submitMessage(text, attachments, submissionToken, supersedingFoll
   // intentionally taken before the new user turn exists, so a very fast
   // assistant reply cannot be absorbed into a later post-submit baseline.
   const renderedConversationBaseline = renderedConversationText();
+  const beforeUserTurnCount = document.querySelectorAll(
+    "[data-message-author-role='user']"
+  ).length;
   const before = assistantSnapshots();
   const beforeCount = before.length;
   const beforeLast = before.length ? before[before.length - 1] : "";
@@ -2196,12 +2223,30 @@ async function submitMessage(text, attachments, submissionToken, supersedingFoll
     assertCurrentSubmission(submissionToken);
 
     if (!renderedAnchor && text) {
-      renderedAnchor = findRenderedSubmittedMessage(text);
-
-      if (renderedAnchor) {
-        renderedBaseline = renderedTextAfterSubmittedMessage(
-          renderedAnchor
+      // Attachment cards change the rendered user-turn text, so the historical
+      // exact-text anchor can disappear even though the new user turn is
+      // present. Prefer the newly appended user-role node for attachment
+      // requests. Because that node did not exist before Submit, its response
+      // region has no pre-submit baseline; keeping the baseline empty also
+      // prevents a very fast assistant reply from being absorbed.
+      if (hasOutboundAttachments) {
+        renderedAnchor = findNewRenderedUserTurn(
+          beforeUserTurnCount
         );
+
+        if (renderedAnchor) {
+          renderedBaseline = "";
+        }
+      }
+
+      if (!renderedAnchor) {
+        renderedAnchor = findRenderedSubmittedMessage(text);
+
+        if (renderedAnchor) {
+          renderedBaseline = renderedTextAfterSubmittedMessage(
+            renderedAnchor
+          );
+        }
       }
     }
     const snapshots = assistantSnapshots();
