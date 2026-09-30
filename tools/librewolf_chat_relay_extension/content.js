@@ -4,6 +4,8 @@
 const RESPONSE_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const RESPONSE_POLL_MS = 250;
 const RESPONSE_STABLE_MS = 2000;
+const ATTACHMENT_SHORT_CANDIDATE_BYTES = 96;
+const ATTACHMENT_SHORT_CANDIDATE_HOLD_MS = 12000;
 
 const relayTrace = {
   state: "idle",
@@ -17,6 +19,8 @@ const relayTrace = {
   thread_progress_rejected: false,
   thread_attachment_guarded: false,
   provider_status_stripped: false,
+  short_candidate_hold: false,
+  short_candidate_hold_ms: 0,
   command_received_utc: "",
   submitted_utc: "",
   first_candidate_utc: "",
@@ -57,6 +61,10 @@ function relayTraceSnapshot() {
       !!relayTrace.thread_attachment_guarded,
     provider_status_stripped:
       !!relayTrace.provider_status_stripped,
+    short_candidate_hold:
+      !!relayTrace.short_candidate_hold,
+    short_candidate_hold_ms:
+      Number(relayTrace.short_candidate_hold_ms) || 0,
     command_received_utc:
       String(relayTrace.command_received_utc || ""),
     submitted_utc:
@@ -306,6 +314,7 @@ function stripProviderProgressText(text, attachmentContext) {
 
   if (attachmentContext) {
     exactStatuses.push("confirming receipt");
+    exactStatuses.push("requesting console details");
   }
 
   while (current) {
@@ -349,6 +358,28 @@ function looksLikeProviderProgressText(text) {
   const cleaned = stripProviderProgressText(text, false);
 
   return !!text && !cleaned.text && cleaned.stripped;
+}
+
+function shortAttachmentCandidateNeedsHold(text) {
+  const normalized = normalizeRelayText(text);
+
+  if (!normalized || normalized.indexOf("\n") >= 0) {
+    return false;
+  }
+
+  const byteLength = new TextEncoder().encode(
+    normalized
+  ).length;
+
+  if (byteLength > ATTACHMENT_SHORT_CANDIDATE_BYTES) {
+    return false;
+  }
+
+  // Provider activity/status labels observed during attachment requests are
+  // short, single-line phrases with no sentence terminator. A legitimate
+  // short final answer that is rendered atomically is allowed after the
+  // bounded hold window instead of being discarded.
+  return !/[.!?][\]"')]*$/.test(normalized);
 }
 
 function findRenderedSubmittedMessage(text) {
@@ -1816,6 +1847,8 @@ async function submitMessage(text, attachments) {
     thread_progress_rejected: false,
     thread_attachment_guarded: false,
     provider_status_stripped: false,
+    short_candidate_hold: false,
+    short_candidate_hold_ms: 0,
     command_received_utc: utcNow(),
     submitted_utc: "",
     first_candidate_utc: "",
@@ -1883,6 +1916,7 @@ async function submitMessage(text, attachments) {
   let firstResponseAt = 0;
   let renderedAnchor = null;
   let renderedBaseline = "";
+  let firstCandidateWallClock = 0;
 
   while (Date.now() < deadline) {
     if (!renderedAnchor && text) {
@@ -2006,6 +2040,7 @@ async function submitMessage(text, attachments) {
     if (candidate) {
       if (!observedResponse) {
         firstResponseAt = performance.now();
+        firstCandidateWallClock = Date.now();
         updateRelayTrace({
           first_candidate_utc: utcNow()
         });
@@ -2022,9 +2057,25 @@ async function submitMessage(text, attachments) {
       }
     }
 
+    const shortCandidateHoldAge =
+      firstCandidateWallClock > 0
+        ? Math.max(0, Date.now() - firstCandidateWallClock)
+        : 0;
+
+    const shortCandidateHold =
+      hasOutboundAttachments &&
+      shortAttachmentCandidateNeedsHold(responseText) &&
+      shortCandidateHoldAge < ATTACHMENT_SHORT_CANDIDATE_HOLD_MS;
+
+    updateRelayTrace({
+      short_candidate_hold: shortCandidateHold,
+      short_candidate_hold_ms: shortCandidateHoldAge
+    });
+
     if (
       observedResponse &&
       responseText &&
+      !shortCandidateHold &&
       !generationActive() &&
       Date.now() - lastChange >= RESPONSE_STABLE_MS
     ) {
