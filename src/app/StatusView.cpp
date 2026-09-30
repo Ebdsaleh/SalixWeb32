@@ -975,6 +975,13 @@ void StatusView::consume_conversation_events() {
 
         switch (event.get_type()) {
             case ConversationEvent::event_request_started:
+                if (
+                    active_conversation_request_id != 0 &&
+                    request_id != active_conversation_request_id
+                ) {
+                    break;
+                }
+
                 active_conversation_request_id = request_id;
                 conversation_delta_event_count = 0;
                 conversation_attachment_event_count = 0;
