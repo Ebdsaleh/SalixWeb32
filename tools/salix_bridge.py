@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Modern-side listener/broker for SalixWeb32 compatibility work.
+"""Modern-side LAN bridge for SalixWeb32 compatibility work.
 
-Browser Probe remains a bounded diagnostic HTTPS fetch. Conversation traffic can use
-the separate localhost-only salix_chat_session.py broker plus the relay WebExtension
-running inside normal LibreWolf. The bridge never receives ChatGPT credentials, cookies,
-or browser session storage; only user message text and rendered assistant response text
-cross the trusted development LAN.
+Browser Probe remains a bounded diagnostic HTTPS fetch. Conversation traffic may use
+either the historical localhost HTTP broker boundary or an in-process shared RelayState
+provided by salix_relay_server.py. The bridge never receives ChatGPT credentials,
+cookies, or browser session storage; only user message text and rendered assistant
+response text cross the trusted development LAN.
 """
 
 from __future__ import annotations
@@ -35,6 +35,10 @@ CHAT_SESSION_PROTOCOL = "SALIX-CHAT-SESSION/1"
 CHAT_WORKER_HOST = "127.0.0.1"
 CHAT_WORKER_PORT = 8766
 CHAT_WORKER_TIMEOUT_SECONDS = 4 * 60 * 60 + 120
+# Optional in-process RelayState installed by salix_relay_server.py.
+# Standalone salix_bridge.py deliberately leaves this as None and retains the
+# historical localhost HTTP worker path.
+CHAT_WORKER_STATE = None
 MAX_CONVERSATION_TEXT_BYTES = 128 * 1024
 MAX_CONVERSATION_DELTA_EVENTS = 28
 MAX_CONVERSATION_ATTACHMENTS = 8
@@ -604,6 +608,43 @@ def _call_chat_worker(
             }
         )
 
+    worker_started_at = time.monotonic()
+
+    if CHAT_WORKER_STATE is not None:
+        try:
+            response_text, worker_response_attachments, timing = (
+                CHAT_WORKER_STATE.submit_message(
+                    request_id,
+                    text,
+                    worker_attachments,
+                )
+            )
+            response_attachments = _decode_worker_attachments(
+                worker_response_attachments
+            )
+            if not response_text and not response_attachments:
+                raise RuntimeError(
+                    "chat worker returned an empty response"
+                )
+
+            sanitized_timing = _sanitize_relay_timing(timing)
+            sanitized_timing["bridge_worker_ms"] = max(
+                0,
+                int(round(
+                    (time.monotonic() - worker_started_at) * 1000.0
+                )),
+            )
+            return (
+                response_text,
+                response_attachments,
+                sanitized_timing,
+            )
+        except Exception as error:
+            raise RuntimeError(
+                f"in-process chat worker failed: "
+                f"{type(error).__name__}: {error}"
+            ) from error
+
     payload = json.dumps(
         {
             "request_id": request_id,
@@ -618,8 +659,6 @@ def _call_chat_worker(
         CHAT_WORKER_PORT,
         timeout=CHAT_WORKER_TIMEOUT_SECONDS,
     )
-    worker_started_at = time.monotonic()
-
     try:
         connection.request(
             "POST",
@@ -681,6 +720,24 @@ def _call_chat_worker(
 
 
 def _chat_worker_health() -> tuple[bool, str]:
+    if CHAT_WORKER_STATE is not None:
+        try:
+            value = CHAT_WORKER_STATE.get_status()
+            if not isinstance(value, dict):
+                return False, "worker_invalid_response"
+            if value.get("protocol") != CHAT_SESSION_PROTOCOL:
+                return False, "worker_protocol_mismatch"
+            if value.get("status") != "ok":
+                return False, "worker_error"
+            if value.get("session_ready") is not True:
+                session_status = value.get("session_status")
+                if isinstance(session_status, str) and session_status:
+                    return False, session_status
+                return False, "browser_login_or_thread_not_ready"
+            return True, "ready"
+        except Exception:
+            return False, "worker_unavailable"
+
     connection = http.client.HTTPConnection(
         CHAT_WORKER_HOST,
         CHAT_WORKER_PORT,
