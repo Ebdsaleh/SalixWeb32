@@ -2234,6 +2234,37 @@ async function submitMessage(text, attachments) {
       threadAttachmentGuarded = true;
     }
 
+    // Apply provider-progress rejection to every candidate source, including
+    // assistant snapshots. Anchored/thread candidates may already be cleaned;
+    // a second pass is intentionally idempotent and closes the snapshot path.
+    if (candidate) {
+      const cleanedCandidate = stripProviderProgressText(
+        candidate,
+        hasOutboundAttachments
+      );
+
+      if (cleanedCandidate.stripped) {
+        providerStatusStripped = true;
+      }
+
+      candidate = cleanedCandidate.text;
+      if (!candidate) {
+        candidateSource = "";
+      }
+    }
+
+    // A provider/tool progress state is not a partial assistant answer. If a
+    // previous short status candidate was retained before the current status
+    // became recognizable, discard it rather than allowing its stability age
+    // to mature into a false completion.
+    if (providerStatusStripped && !candidate) {
+      responseText = "";
+      observedResponse = false;
+      firstResponseAt = 0;
+      firstCandidateWallClock = 0;
+      lastChange = Date.now();
+    }
+
     updateRelayTrace({
       rendered_anchor_found: !!renderedAnchor,
       rendered_delta_bytes: new TextEncoder().encode(
