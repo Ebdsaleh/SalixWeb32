@@ -604,6 +604,54 @@ generation/stabilization latency and long-running request liveness remain follow
 targets, while native completed-response batching is already validated on the real P4.
 True generation-time streaming remains a separate later tranche.
 
+### September 30, 2026 relay-recovery validation
+
+WebExtension `0.3.15` is now target-green on the real Pentium 4 / Windows Server 2003
+path for ordinary text response recovery plus assistant-returned image relay.
+
+The recovery work preserved the validated 0.2.9 request/response lifecycle while adapting
+to current ChatGPT rendered markup. Real-target evidence established two current-DOM
+failure modes that were not native transport failures:
+
+- short/transient rendered states such as `Thinking` could be mistaken for the completed
+  assistant response,
+- returned-file card text can flatten the semantic filename directly against provider UI
+  chrome, for example `SalixWeb32-remote-test-image.pngImageOpen file`.
+
+The 0.3.15 candidate keeps the rendered-response fallback/guarding work from the recovery
+line and recognizes the flattened attachment-card suffix without discarding the real
+semantic filename.
+
+The validated P4 run reported:
+
+```text
+P4 total 12157 ms
+bridge 11482 ms
+broker 11462 ms
+queue 179 ms
+extension 11272 ms
+browser 7750 ms
+submit 850 ms
+first response 2633 ms
+generation 2183 ms
+stabilize 2084 ms
+native batch 23 deltas -> 1 updates
+present 0 ms
+files 1
+```
+
+The assistant-returned PNG reached the Pentium 4, rendered inline in the native
+Conversation view, and was then sent back for integrity comparison. The returned payload
+was byte-for-byte identical to the source:
+
+```text
+size:    151901 bytes
+SHA-256: 3d7fb733123e8fa430cc076e69b578bf6acd830912cd74061b72fe2c2fb2115b
+```
+
+This validates the current recovery branch as an end-to-end text + returned-image
+baseline without requiring a new P4 executable build.
+
 The UTF-8 framework / UTF-16 Win32 boundary and glyph-aware fallback are also validated
 on the real P4, including Unicode clipboard and relay round-trip coverage.
 
