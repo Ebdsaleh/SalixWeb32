@@ -204,6 +204,11 @@ int APIENTRY WinMain(
         &conversation_bridge_transport
     );
 
+    Win32HttpTransport conversation_followup_transport;
+    Win32NetworkRequestExecutor conversation_followup_request_executor(
+        &conversation_followup_transport
+    );
+
     RemoteBridgeWebBackend remote_bridge_web_backend(
         &bridge_request_executor,
         settings.get_bridge_host(),
@@ -212,6 +217,7 @@ int APIENTRY WinMain(
 
     RemoteConversationBackend remote_conversation_backend(
         &conversation_bridge_request_executor,
+        &conversation_followup_request_executor,
         settings.get_bridge_host(),
         settings.get_bridge_port()
     );
@@ -228,6 +234,9 @@ int APIENTRY WinMain(
         // the Conversation executor thread, so the native UI stays responsive.
         // Keep this outer bound beyond the companion/browser safety ceilings.
         conversation_bridge_transport.set_timeout_milliseconds(
+            (4 * 60 * 60 + 180) * 1000
+        );
+        conversation_followup_transport.set_timeout_milliseconds(
             (4 * 60 * 60 + 180) * 1000
         );
     }
