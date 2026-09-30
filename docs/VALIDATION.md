@@ -2126,3 +2126,25 @@ the semantic filename can be flattened directly against attachment UI text, for 
 that known card suffix while retaining the semantic filename instead of falling back to
 the browser-managed basename `content`.
 
+## September 30, 2026 superseding follow-up validation
+
+WebExtension/native relay candidate `0.4.0` completed the first real-target
+superseding follow-up test on the Pentium 4 / Windows Server 2003 system.
+
+Request 1 was still in flight when request 2 was submitted from SalixWeb32. The
+second native request was accepted rather than rejected as `browser relay request
+in flight`. The broker superseded request 1, the extension trace marked request 2
+as `followup=yes`, and request 2 completed with 608 response bytes through
+`/v1/result`, broker `/v1/message`, bridge `/v1/conversation/message`, and the
+native Conversation view. The P4 returned to the ready state after 30531 ms total.
+
+The old request was surfaced intentionally as:
+
+```text
+Previous response interrupted by newer follow-up.
+```
+
+Scope of this validation: one newer user turn superseding one older in-flight turn.
+Unlimited rapid follow-up depth and returned-file transfer after supersede are not
+yet claimed by this result.
+
