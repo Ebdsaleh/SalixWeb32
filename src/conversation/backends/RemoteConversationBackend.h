@@ -95,6 +95,7 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         CapabilityState capability_state;
         unsigned long active_request_id;
         unsigned long followup_request_id;
+        unsigned long latest_request_id;
         std::string status_text;
         std::string diagnostic_text;
         std::vector<ConversationEvent> events;
