@@ -276,3 +276,14 @@ Feature-specific documents under `docs/` record the native conversation, compose
 SalixWeb32 is currently distributed under the **Salix Development Source License 1.0** in `LICENSE`.
 
 It is intentionally restrictive during active development and is **not an OSI-approved open-source license**. The project owner intends to adopt a more permissive license for a release after v1.2.0; the final post-development license has not yet been selected.
+
+### 0.4.0 follow-up recovery status
+
+The `relay-followup-0.4.0` line is now target-green on the real Pentium 4 for one
+superseding follow-up: a second Salix message can be accepted while the first
+browser-relay turn is still active, the older request is interrupted, and only the
+newer request owns the returned native response. Real-target validation returned
+608 response bytes for request 2 and restored the native backend to the ready state.
+This validation does not yet claim unlimited rapid follow-up depth or returned-file
+transfer after a supersede.
+
