@@ -12,6 +12,7 @@ const relayTrace = {
   assistant_snapshot_count: 0,
   candidate_bytes: 0,
   generation_active: false,
+  generation_source: "",
   rendered_anchor_found: false,
   rendered_delta_bytes: 0,
   thread_delta_bytes: 0,
@@ -48,6 +49,8 @@ function relayTraceSnapshot() {
     candidate_bytes:
       Number(relayTrace.candidate_bytes) || 0,
     generation_active: !!relayTrace.generation_active,
+    generation_source:
+      String(relayTrace.generation_source || ""),
     rendered_anchor_found:
       !!relayTrace.rendered_anchor_found,
     rendered_delta_bytes:
@@ -309,6 +312,7 @@ function stripProviderProgressText(text, attachmentContext) {
   let stripped = false;
 
   const exactStatuses = [
+    "thinking",
     "chatgpt is responding",
     "chatgpt is thinking",
     "you said:chatgpt is responding",
@@ -324,6 +328,16 @@ function stripProviderProgressText(text, attachmentContext) {
     const lower = current.toLowerCase();
 
     if (exactStatuses.includes(lower)) {
+      return {
+        text: "",
+        stripped: true
+      };
+    }
+
+    if (
+      attachmentContext &&
+      /^(?:converting|processing|analyzing|analysing|reading|opening|extracting|rendering|preparing|uploading|downloading)\b[^.!?]{0,120}$/i.test(current)
+    ) {
       return {
         text: "",
         stripped: true
@@ -522,18 +536,31 @@ function renderedResponseDelta(currentText, baselineText) {
   return current;
 }
 
-function generationActive() {
+function generationActiveSource() {
   const selectors = [
-    "button[data-testid='stop-button']",
-    "button[aria-label='Stop generating']",
-    "button[aria-label='Stop streaming']"
+    ["data_stop_generating", "button[data-stop-generating]"],
+    ["testid_stop_button", "button[data-testid='stop-button']"],
+    ["aria_stop_generating", "button[aria-label='Stop generating']"],
+    ["aria_stop_streaming", "button[aria-label='Stop streaming']"]
   ];
 
-  return selectors.some((selector) =>
-    Array.from(document.querySelectorAll(selector)).some(
-      (node) => visible(node) && !node.disabled
-    )
-  );
+  for (const entry of selectors) {
+    const source = entry[0];
+    const selector = entry[1];
+    const active = Array.from(
+      document.querySelectorAll(selector)
+    ).some((node) => visible(node) && !node.disabled);
+
+    if (active) {
+      return source;
+    }
+  }
+
+  return "";
+}
+
+function generationActive() {
+  return !!generationActiveSource();
 }
 
 function dispatchInput(element, data) {
@@ -2076,7 +2103,8 @@ async function submitMessage(text, attachments) {
   updateRelayTrace({
     state: "submitted",
     submitted_utc: utcNow(),
-    generation_active: generationActive()
+    generation_active: generationActive(),
+    generation_source: generationActiveSource()
   });
 
   const submittedAt = performance.now();
@@ -2113,6 +2141,7 @@ async function submitMessage(text, attachments) {
       state: "waiting_response",
       assistant_snapshot_count: snapshots.length,
       generation_active: generationActive(),
+      generation_source: generationActiveSource(),
       rendered_anchor_found: !!renderedAnchor,
       stable_ms: Math.max(0, Date.now() - lastChange)
     });
@@ -2222,6 +2251,7 @@ async function submitMessage(text, attachments) {
       thread_anchor_guarded: threadAnchorGuarded,
       provider_status_stripped: providerStatusStripped,
       generation_active: generationActive(),
+      generation_source: generationActiveSource(),
       stable_ms: Math.max(0, Date.now() - lastChange)
     });
 
@@ -2274,6 +2304,7 @@ async function submitMessage(text, attachments) {
           responseText
         ).length,
         generation_active: false,
+        generation_source: "",
         stable_ms: Math.max(0, Date.now() - lastChange)
       });
 
