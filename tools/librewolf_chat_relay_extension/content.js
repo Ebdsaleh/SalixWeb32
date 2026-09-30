@@ -1298,20 +1298,171 @@ async function openAttachmentPreview(element, debug) {
   return null;
 }
 
-function assistantAttachmentRoot() {
-  const nodes = assistantNodes();
-  if (!nodes.length) {
+function nodeFollowsRenderedAnchor(node, anchorInfo) {
+  if (
+    !node ||
+    !anchorInfo ||
+    !anchorInfo.anchor ||
+    !anchorInfo.root ||
+    !anchorInfo.root.contains(node) ||
+    !anchorInfo.root.contains(anchorInfo.anchor)
+  ) {
+    return true;
+  }
+
+  if (node === anchorInfo.anchor || node.contains(anchorInfo.anchor)) {
+    return false;
+  }
+
+  const relation = anchorInfo.anchor.compareDocumentPosition(node);
+  return !!(relation & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
+function renderedAssistantResponseNode(responseText, anchorInfo) {
+  const wanted = normalizeRelayText(responseText);
+
+  if (!wanted) {
     return null;
   }
 
-  const node = nodes[nodes.length - 1];
+  const root =
+    (anchorInfo && anchorInfo.root) ||
+    document.querySelector("#thread") ||
+    document.querySelector("main") ||
+    document.body;
 
-  return (
-    node.closest("article[data-testid^='conversation-turn-']") ||
-    node.closest("article") ||
-    node.parentElement ||
-    node
+  if (!root) {
+    return null;
+  }
+
+  const candidates = Array.from(
+    root.querySelectorAll(
+      "[data-testid^='conversation-turn-'], article, section, div"
+    )
   );
+
+  let exact = null;
+  let relaxed = null;
+  let relaxedOverhead = Number.MAX_SAFE_INTEGER;
+
+  for (const candidate of candidates) {
+    if (!nodeFollowsRenderedAnchor(candidate, anchorInfo)) {
+      continue;
+    }
+
+    const candidateText = normalizeRelayText(
+      cleanNodeText(candidate)
+    );
+
+    if (!candidateText) {
+      continue;
+    }
+
+    if (candidateText === wanted) {
+      if (
+        !exact ||
+        candidate.childElementCount < exact.childElementCount
+      ) {
+        exact = candidate;
+      }
+      continue;
+    }
+
+    const index = candidateText.indexOf(wanted);
+    if (index < 0) {
+      continue;
+    }
+
+    // Allow a small amount of attachment/provider chrome around the rendered
+    // assistant text, but never select a broad conversation/history wrapper.
+    const overhead = candidateText.length - wanted.length;
+    if (
+      overhead >= 0 &&
+      overhead <= 512 &&
+      (
+        !relaxed ||
+        overhead < relaxedOverhead ||
+        (
+          overhead === relaxedOverhead &&
+          candidate.childElementCount < relaxed.childElementCount
+        )
+      )
+    ) {
+      relaxed = candidate;
+      relaxedOverhead = overhead;
+    }
+  }
+
+  return exact || relaxed;
+}
+
+function assistantAttachmentRoot(responseText, anchorInfo) {
+  const nodes = assistantNodes();
+
+  if (nodes.length) {
+    const node = nodes[nodes.length - 1];
+
+    return {
+      root:
+        node.closest("article[data-testid^='conversation-turn-']") ||
+        node.closest("article") ||
+        node.parentElement ||
+        node,
+      source: "assistant_nodes"
+    };
+  }
+
+  // Current ChatGPT can render the assistant response without any of the
+  // historical assistant-role/.markdown selectors. Reuse the exact rendered
+  // response correlation already proven by the text relay, then climb only
+  // within that response's ancestors to find its file card/download control.
+  const responseNode = renderedAssistantResponseNode(
+    responseText,
+    anchorInfo
+  );
+
+  if (!responseNode) {
+    return {
+      root: null,
+      source: "none"
+    };
+  }
+
+  let current = responseNode;
+  let depth = 0;
+
+  while (
+    current &&
+    depth < 8 &&
+    (!anchorInfo || current !== anchorInfo.root)
+  ) {
+    if (
+      anchorInfo &&
+      anchorInfo.anchor &&
+      current.contains(anchorInfo.anchor)
+    ) {
+      break;
+    }
+
+    if (attachmentCandidateElements(current).length) {
+      return {
+        root: current,
+        source: "rendered_response"
+      };
+    }
+
+    current = current.parentElement;
+    depth += 1;
+  }
+
+  return {
+    root:
+      responseNode.closest("article[data-testid^='conversation-turn-']") ||
+      responseNode.closest("article") ||
+      responseNode.parentElement ||
+      responseNode,
+    source: "rendered_response"
+  };
 }
 
 function attachmentCandidateScore(element) {
@@ -1693,9 +1844,10 @@ async function downloadAssistantAttachment(
   return null;
 }
 
-async function collectAssistantAttachments(responseText) {
+async function collectAssistantAttachments(responseText, anchorInfo) {
   const debug = {
     scan_root: "none",
+    scan_root_source: "none",
     scan_passes: 0,
     candidates_seen: 0,
     sandbox_candidates: 0,
@@ -1727,7 +1879,12 @@ async function collectAssistantAttachments(responseText) {
   let root = null;
 
   do {
-    root = assistantAttachmentRoot();
+    const rootInfo = assistantAttachmentRoot(
+      responseText,
+      anchorInfo
+    );
+    root = rootInfo.root;
+    debug.scan_root_source = rootInfo.source;
     debug.scan_passes += 1;
 
     if (root) {
@@ -2132,7 +2289,8 @@ async function submitMessage(text, attachments) {
         : 0;
 
       const attachmentResult = await collectAssistantAttachments(
-        responseText
+        responseText,
+        renderedAnchor
       );
 
       updateRelayTrace({
