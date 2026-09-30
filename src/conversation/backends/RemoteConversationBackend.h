@@ -18,6 +18,7 @@ class RemoteConversationBackend : public ConversationServiceBackend {
     public:
         RemoteConversationBackend(
             NetworkRequestExecutor* request_executor,
+            NetworkRequestExecutor* followup_request_executor,
             const char* host,
             unsigned short port
         );
@@ -61,6 +62,12 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         };
 
         bool begin_health_check();
+        void update_lane(
+            NetworkRequestExecutor* executor,
+            PendingOperation& operation,
+            unsigned long& request_id
+        );
+        bool all_lanes_idle() const;
         void apply_health_response(
             const NetworkResponse& response
         );
@@ -78,13 +85,16 @@ class RemoteConversationBackend : public ConversationServiceBackend {
         );
 
         NetworkRequestExecutor* request_executor;
+        NetworkRequestExecutor* followup_request_executor;
         std::string host;
         unsigned short port;
         bool is_initialized;
         bool bridge_online;
         PendingOperation pending_operation;
+        PendingOperation followup_pending_operation;
         CapabilityState capability_state;
         unsigned long active_request_id;
+        unsigned long followup_request_id;
         std::string status_text;
         std::string diagnostic_text;
         std::vector<ConversationEvent> events;
