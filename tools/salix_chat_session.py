@@ -349,6 +349,7 @@ class RelayState:
                 f"snapshots={trace.get('assistant_snapshot_count', 0)} "
                 f"candidate_bytes={trace.get('candidate_bytes', 0)} "
                 f"generation={'active' if self.generation_active else 'idle'} "
+                f"generation_source={trace.get('generation_source', '')!r} "
                 f"anchor={'yes' if trace.get('rendered_anchor_found') else 'no'} "
                 f"rendered_bytes={trace.get('rendered_delta_bytes', 0)} "
                 f"thread_bytes={trace.get('thread_delta_bytes', 0)} "
