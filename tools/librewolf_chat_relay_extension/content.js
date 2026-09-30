@@ -18,6 +18,7 @@ const relayTrace = {
   candidate_source: "",
   thread_progress_rejected: false,
   thread_attachment_guarded: false,
+  thread_anchor_guarded: false,
   provider_status_stripped: false,
   short_candidate_hold: false,
   short_candidate_hold_ms: 0,
@@ -59,6 +60,8 @@ function relayTraceSnapshot() {
       !!relayTrace.thread_progress_rejected,
     thread_attachment_guarded:
       !!relayTrace.thread_attachment_guarded,
+    thread_anchor_guarded:
+      !!relayTrace.thread_anchor_guarded,
     provider_status_stripped:
       !!relayTrace.provider_status_stripped,
     short_candidate_hold:
@@ -1846,6 +1849,7 @@ async function submitMessage(text, attachments) {
     candidate_source: "",
     thread_progress_rejected: false,
     thread_attachment_guarded: false,
+    thread_anchor_guarded: false,
     provider_status_stripped: false,
     short_candidate_hold: false,
     short_candidate_hold_ms: 0,
@@ -1935,6 +1939,7 @@ async function submitMessage(text, attachments) {
     let threadDelta = "";
     let threadProgressRejected = false;
     let threadAttachmentGuarded = false;
+    let threadAnchorGuarded = false;
     let providerStatusStripped = false;
 
     updateRelayTrace({
@@ -1977,11 +1982,16 @@ async function submitMessage(text, attachments) {
       candidateSource = candidate ? "rendered_anchor" : "";
     }
 
-    // Selector-independent last resort: compare the complete rendered thread
-    // against a baseline captured before Submit, then remove the inserted user
-    // turn. Unlike the 0.3.5 anchor baseline, this path cannot lose a fast
-    // completed response by baselining it after it has already rendered.
-    if (!candidate && text && !hasOutboundAttachments) {
+    // Selector-independent last resort: only use whole-thread diffing when
+    // the exact submitted-message anchor cannot be found. Once the anchor
+    // exists, its per-message response region is strictly safer than a global
+    // thread diff, which can be invalidated by unrelated DOM reordering.
+    if (
+      !candidate &&
+      text &&
+      !hasOutboundAttachments &&
+      !renderedAnchor
+    ) {
       threadDelta = renderedConversationResponseDelta(
         renderedConversationBaseline,
         renderedConversationText(),
@@ -2008,6 +2018,16 @@ async function submitMessage(text, attachments) {
       threadDelta = cleanedThread.text;
       candidate = threadDelta;
       candidateSource = candidate ? "thread_delta" : "";
+    } else if (
+      !candidate &&
+      text &&
+      !hasOutboundAttachments &&
+      renderedAnchor
+    ) {
+      // The submitted user turn is known exactly. Do not let a whole-thread
+      // diff override that stronger anchor, even if the anchored response is
+      // still empty while ChatGPT is preparing the reply.
+      threadAnchorGuarded = true;
     } else if (!candidate && text && hasOutboundAttachments) {
       // Uploading an attachment mutates large parts of ChatGPT's rendered
       // thread/composer DOM. A whole-thread diff can therefore contain stale
@@ -2032,6 +2052,7 @@ async function submitMessage(text, attachments) {
       candidate_source: candidateSource,
       thread_progress_rejected: threadProgressRejected,
       thread_attachment_guarded: threadAttachmentGuarded,
+      thread_anchor_guarded: threadAnchorGuarded,
       provider_status_stripped: providerStatusStripped,
       generation_active: generationActive(),
       stable_ms: Math.max(0, Date.now() - lastChange)
