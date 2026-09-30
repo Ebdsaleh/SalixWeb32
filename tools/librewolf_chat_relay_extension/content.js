@@ -15,6 +15,7 @@ const relayTrace = {
   thread_delta_bytes: 0,
   candidate_source: "",
   thread_progress_rejected: false,
+  thread_attachment_guarded: false,
   command_received_utc: "",
   submitted_utc: "",
   first_candidate_utc: "",
@@ -51,6 +52,8 @@ function relayTraceSnapshot() {
       String(relayTrace.candidate_source || ""),
     thread_progress_rejected:
       !!relayTrace.thread_progress_rejected,
+    thread_attachment_guarded:
+      !!relayTrace.thread_attachment_guarded,
     command_received_utc:
       String(relayTrace.command_received_utc || ""),
     submitted_utc:
@@ -1778,6 +1781,7 @@ async function submitMessage(text, attachments) {
     thread_delta_bytes: 0,
     candidate_source: "",
     thread_progress_rejected: false,
+    thread_attachment_guarded: false,
     command_received_utc: utcNow(),
     submitted_utc: "",
     first_candidate_utc: "",
@@ -1789,6 +1793,8 @@ async function submitMessage(text, attachments) {
   });
 
   const commandStartedAt = performance.now();
+  const hasOutboundAttachments =
+    Array.isArray(attachments) && attachments.length > 0;
   const composer = findComposer();
 
   if (!composer) {
@@ -1817,7 +1823,7 @@ async function submitMessage(text, attachments) {
     setComposerText(composer, text);
   }
 
-  if (Array.isArray(attachments) && attachments.length) {
+  if (hasOutboundAttachments) {
     await injectAttachments(composer, attachments);
   }
 
@@ -1826,7 +1832,7 @@ async function submitMessage(text, attachments) {
   await submitComposer(
     composer,
     text,
-    Array.isArray(attachments) ? attachments.length : 0
+    hasOutboundAttachments ? attachments.length : 0
   );
 
   updateRelayTrace({
@@ -1860,6 +1866,7 @@ async function submitMessage(text, attachments) {
     let renderedDelta = "";
     let threadDelta = "";
     let threadProgressRejected = false;
+    let threadAttachmentGuarded = false;
 
     updateRelayTrace({
       state: "waiting_response",
@@ -1894,7 +1901,7 @@ async function submitMessage(text, attachments) {
     // against a baseline captured before Submit, then remove the inserted user
     // turn. Unlike the 0.3.5 anchor baseline, this path cannot lose a fast
     // completed response by baselining it after it has already rendered.
-    if (!candidate && text) {
+    if (!candidate && text && !hasOutboundAttachments) {
       threadDelta = renderedConversationResponseDelta(
         renderedConversationBaseline,
         renderedConversationText(),
@@ -1908,6 +1915,14 @@ async function submitMessage(text, attachments) {
 
       candidate = threadDelta;
       candidateSource = candidate ? "thread_delta" : "";
+    } else if (!candidate && text && hasOutboundAttachments) {
+      // Uploading an attachment mutates large parts of ChatGPT's rendered
+      // thread/composer DOM. A whole-thread diff can therefore contain stale
+      // conversation text, attachment labels, and provider UI rather than the
+      // new assistant response. Keep the validated per-message anchor and
+      // assistant-snapshot paths, but never use whole-thread diffing for an
+      // attachment-bearing request.
+      threadAttachmentGuarded = true;
     }
 
     updateRelayTrace({
@@ -1923,6 +1938,7 @@ async function submitMessage(text, attachments) {
       ).length,
       candidate_source: candidateSource,
       thread_progress_rejected: threadProgressRejected,
+      thread_attachment_guarded: threadAttachmentGuarded,
       generation_active: generationActive(),
       stable_ms: Math.max(0, Date.now() - lastChange)
     });
