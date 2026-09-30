@@ -65,9 +65,9 @@ maximum per file    2 MB
 maximum aggregate   4 MB
 ```
 
-## Current recovery line
+## Current main baseline
 
-WebExtension `0.4.1` adds attachment-aware rendered-response anchoring.
+WebExtension `0.4.1` is the current `main` browser-relay baseline and adds attachment-aware rendered-response anchoring.
 
 For an attachment-bearing request, the rendered user turn may contain attachment-card
 text and therefore no longer exactly equal the original submitted text. 0.4.1 counts

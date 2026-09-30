@@ -396,6 +396,11 @@ session rather than turning SalixWeb32 into a general remote-desktop client.
   `tools/chat_server.py` with one shared `RelayState`
 - [x] mirror unified-server stdout/stderr into
   `%USERPROFILE%\Desktop\session.log` for shareable relay diagnostics
+- [x] consolidate the validated relay/recovery history onto `main` and delete the
+  obsolete `dev`, `test`, unified, follow-up, and 0.3.x/0.4.1 recovery branches
+- [~] resolve the final `native-markdown-underscore-fix` branch: preserve/integrate its
+  three unique native presentation commits, validate on the P4, then return to a
+  single-branch `main` workflow
 - [~] harden outbound multi-attachment composer acceptance; a real-P4 4-attachment
   request failed with `send=no`, while the immediately following 2-attachment request
   submitted and completed successfully

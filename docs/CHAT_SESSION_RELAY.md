@@ -891,3 +891,45 @@ Append-across-process-restart behavior follows from the implementation but still
 simple future target check by stopping/restarting the server and confirming a second
 session block appears beneath the first.
 
+## Main-branch consolidation — September 30, 2026
+
+After the 0.4.1 returned-response recovery, returned-PNG validation, unified-server
+logging validation, and documentation refresh, the full relay/recovery history was
+fast-forwarded onto `main`.
+
+The repository comparison before promotion showed the 0.4.1 recovery head was 174 commits
+ahead of the previous `main` and 0 commits behind, so the promotion was a clean
+fast-forward with no merge conflict or history rewrite.
+
+After promotion, the following remote branches were deleted because their histories were
+already contained in `main`:
+
+```text
+dev
+test
+relay-followup-0.4.0
+relay-unified-0.5.0
+relay-recovery-0.3.7
+relay-recovery-0.3.8
+relay-recovery-0.3.9-timing
+relay-recovery-0.3.10
+relay-recovery-0.3.11
+relay-recovery-0.3.12
+relay-recovery-0.3.13
+relay-recovery-0.3.14
+relay-recovery-0.3.15
+relay-recovery-0.3.16
+relay-recovery-0.4.1-attachment-anchor
+```
+
+The remaining remote branch list is intentionally small:
+
+```text
+main
+native-markdown-underscore-fix
+```
+
+`native-markdown-underscore-fix` was not deleted because it still contains three unique
+native presentation commits unrelated to the relay stack. Until that branch is resolved,
+all relay work continues directly from the validated `main` baseline.
+

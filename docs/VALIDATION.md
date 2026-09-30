@@ -2228,3 +2228,41 @@ WebExtension trace, `POST /v1/result` HTTP 200, and
 The current-session logger behavior is target-green. A stop/restart check should still
 confirm that a second session block is appended rather than replacing the first.
 
+## Repository consolidation validation — September 30, 2026
+
+The validated relay recovery history was promoted to `main` after GitHub comparison
+reported:
+
+```text
+base:      main @ 29fc477aae809253f7ec208dafbf4f4a156a12d4
+head:      relay-recovery-0.4.1-attachment-anchor @ 53bd11929c6c7279cca6005b5b3f7798d62cc943
+status:    ahead
+ahead_by:  174
+behind_by: 0
+```
+
+`main` was fast-forwarded to `53bd119`. The Aurora working copy was then reset to
+`origin/main`, verified with `git log -1 --oneline`, and the obsolete relay branches were
+removed remotely and locally. A final `git fetch --prune` / `git branch -a` check showed
+only:
+
+```text
+main
+origin/main
+origin/native-markdown-underscore-fix
+```
+
+The working tree itself was otherwise clean except for the local untracked relay test
+artifact `attachment_test.txt`, which is not part of the repository baseline.
+
+The remaining `native-markdown-underscore-fix` branch was deliberately preserved because
+it contains three commits not present in `main`:
+
+```text
+9f99dcc Preserve intraword underscores in Markdown
+7a6451c Render Unicode hearts with classic GDI heart
+41b703f Document native underscore and heart validation
+```
+
+No relay feature work is missing from `main` as a result of the branch cleanup.
+

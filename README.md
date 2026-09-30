@@ -151,9 +151,8 @@ completed positive real-target passes. That content-free probe remains available
 diagnostic path.
 
 The validated relay baseline uses a trusted-LAN conversation bridge plus a localhost-only
-LibreWolf WebExtension endpoint. The `relay-unified-0.5.0` candidate consolidates those
-two Python services behind `tools/chat_server.py`: one process owns both listeners and
-one shared relay state. The P4-facing listener retains the familiar `--host` / `--port`
+LibreWolf WebExtension endpoint. The unified `tools/chat_server.py` topology is now part
+of `main`: one process owns both listeners and one shared relay state. The P4-facing listener retains the familiar `--host` / `--port`
 arguments, while the browser extension remains pinned to localhost on port 8766. The
 bridge now calls the shared broker state directly in-process instead of making another
 localhost HTTP hop. No Selenium/Marionette browser process is used. The user authenticates
@@ -196,7 +195,7 @@ part of the validated PNG round trip. Experimental 0.3.0-0.3.2 browser completio
 were rejected after real-P4 testing because they regressed that already-working return
 path.
 
-The current active recovery line is WebExtension `0.4.1`, layered on the unified
+The current `main` relay baseline uses WebExtension `0.4.1`, layered on the unified
 `tools/chat_server.py` topology. It preserves the validated completed-response lifecycle,
 long wait ceilings, transient-provider-text filtering, and returned-file capture while
 fixing an attachment-specific response-anchor hole: attachment cards can change the
@@ -293,7 +292,8 @@ It is intentionally restrictive during active development and is **not an OSI-ap
 
 ### 0.4.0 follow-up recovery status
 
-The `relay-followup-0.4.0` line is now target-green on the real Pentium 4 for one
+The 0.4.0 follow-up work is now integrated into `main` and is target-green on the real
+Pentium 4 for one
 superseding follow-up: a second Salix message can be accepted while the first
 browser-relay turn is still active, the older request is interrupted, and only the
 newer request owns the returned native response. Real-target validation returned
@@ -303,7 +303,8 @@ transfer after a supersede.
 
 ### 0.4.1 attachment-anchor recovery status
 
-The `relay-recovery-0.4.1-attachment-anchor` line is target-green for ordinary text
+The 0.4.1 attachment-anchor recovery is now integrated into `main` and is target-green
+for ordinary text
 return and for the attachment-bearing response-anchor failure that previously left the
 browser visibly complete while Salix remained waiting. The real target run recovered the
 new user-turn anchor, returned assistant text through `source='rendered_anchor'`,
@@ -321,4 +322,23 @@ The remaining attachment priority is outbound multi-file composer acceptance: a
 
 `tools/chat_server.py` also now appends its live console stream to
 `%USERPROFILE%\Desktop\session.log` for easier real-target diagnostics.
+### Repository consolidation — September 30, 2026
+
+The relay/recovery branch stack has been consolidated into `main`. The previous
+`dev`, `test`, `relay-followup-0.4.0`, `relay-unified-0.5.0`, and
+`relay-recovery-0.3.7` through `relay-recovery-0.4.1-attachment-anchor` remote branches
+were deleted after verifying that their histories were fully contained in `main`.
+
+The only remaining non-main remote branch is `native-markdown-underscore-fix`. It has
+three unique native-presentation commits that are intentionally preserved until they are
+integrated or deliberately retired:
+
+```text
+9f99dcc Preserve intraword underscores in Markdown
+7a6451c Render Unicode hearts with classic GDI heart
+41b703f Document native underscore and heart validation
+```
+
+The normal development baseline is therefore `main`; temporary relay branches should not
+be recreated unless a new isolated regression investigation actually requires one.
 
