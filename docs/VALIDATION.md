@@ -2043,3 +2043,38 @@ Target validation:
    native `files 1`, and one file in the P4 `Received` directory.
 7. Confirm the semantic filename and MIME/type survive, and Open launches the expected
    Windows application.
+
+
+### WebExtension 0.3.14 real-P4 returned text-file validation — GREEN
+
+The real Pentium 4 `testing.txt` return test passed end-to-end.
+
+Observed browser/broker capture:
+
+```text
+scan_root='div'
+candidates_seen=1
+semantic_names_seen=1
+intercept_capture_attempts=1
+intercept_capture_successes=1
+intercepted_requests=1
+managed_download_successes=1
+download_capture_successes=1
+attachments_collected=1
+request ... attachments=1
+```
+
+The bridge returned `attachments=1`, and the native P4 diagnostic reported `files 1`.
+The file persisted under the application-owned `Received` directory with its semantic
+filename and opened through the normal Windows association path.
+
+LibreWolf/ChatGPT may display a transient "failed to download attachment/file" notification
+during this successful path. This is currently expected: the WebExtension deliberately
+intercepts and cancels the page-initiated returned-file request, then immediately replays
+the captured signed URL through `browser.downloads.download(..., saveAs:false)`. The
+cancelled page request can trigger provider/browser UI failure feedback even though the
+managed download succeeds. Treat this notification as presentation noise only when the
+capture telemetry shows interception + managed-download success and the P4 reports the
+received file. Do not change the working interception path solely to suppress this toast.
+
+0.3.14 is therefore validated for bidirectional text-file transfer on the real P4.
