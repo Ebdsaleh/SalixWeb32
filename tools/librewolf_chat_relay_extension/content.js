@@ -293,7 +293,7 @@ function renderedConversationResponseDelta(
   return delta;
 }
 
-function stripProviderProgressText(text) {
+function stripProviderProgressText(text, attachmentContext) {
   let current = normalizeRelayText(text);
   let stripped = false;
 
@@ -301,9 +301,12 @@ function stripProviderProgressText(text) {
     "chatgpt is responding",
     "chatgpt is thinking",
     "you said:chatgpt is responding",
-    "you said:chatgpt is thinking",
-    "confirming receipt"
+    "you said:chatgpt is thinking"
   ];
+
+  if (attachmentContext) {
+    exactStatuses.push("confirming receipt");
+  }
 
   while (current) {
     const lower = current.toLowerCase();
@@ -343,7 +346,7 @@ function stripProviderProgressText(text) {
 }
 
 function looksLikeProviderProgressText(text) {
-  const cleaned = stripProviderProgressText(text);
+  const cleaned = stripProviderProgressText(text, false);
 
   return !!text && !cleaned.text && cleaned.stripped;
 }
@@ -1927,7 +1930,8 @@ async function submitMessage(text, attachments) {
       );
 
       const cleanedRendered = stripProviderProgressText(
-        renderedDelta
+        renderedDelta,
+        hasOutboundAttachments
       );
 
       if (cleanedRendered.stripped) {
@@ -1951,7 +1955,8 @@ async function submitMessage(text, attachments) {
       );
 
       const cleanedThread = stripProviderProgressText(
-        threadDelta
+        threadDelta,
+        false
       );
 
       if (cleanedThread.stripped) {
