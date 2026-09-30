@@ -671,16 +671,20 @@ namespace {
 
 RemoteConversationBackend::RemoteConversationBackend(
     NetworkRequestExecutor* new_request_executor,
+    NetworkRequestExecutor* new_followup_request_executor,
     const char* new_host,
     unsigned short new_port
 ) : request_executor(new_request_executor),
+    followup_request_executor(new_followup_request_executor),
     host(new_host == 0 ? "" : new_host),
     port(new_port),
     is_initialized(false),
     bridge_online(false),
     pending_operation(operation_none),
+    followup_pending_operation(operation_none),
     capability_state(capability_unknown),
     active_request_id(0),
+    followup_request_id(0),
     status_text("stopped") {
 }
 
@@ -716,6 +720,7 @@ bool RemoteConversationBackend::initialize() {
 
     if (
         request_executor == 0 ||
+        followup_request_executor == 0 ||
         host.empty() ||
         port == 0
     ) {
@@ -728,10 +733,18 @@ bool RemoteConversationBackend::initialize() {
         return false;
     }
 
+    if (!followup_request_executor->initialize()) {
+        request_executor->shutdown();
+        status_text = "follow-up network executor initialization failed";
+        return false;
+    }
+
     bridge_online = false;
     pending_operation = operation_none;
+    followup_pending_operation = operation_none;
     capability_state = capability_unknown;
     active_request_id = 0;
+    followup_request_id = 0;
     diagnostic_text.clear();
     events.clear();
     is_initialized = true;
@@ -746,11 +759,14 @@ bool RemoteConversationBackend::initialize() {
     return true;
 }
 
-void RemoteConversationBackend::update() {
+void RemoteConversationBackend::update_lane(
+    NetworkRequestExecutor* executor,
+    PendingOperation& operation,
+    unsigned long& request_id
+) {
     if (
-        !is_initialized ||
-        request_executor == 0 ||
-        pending_operation == operation_none
+        executor == 0 ||
+        operation == operation_none
     ) {
         return;
     }
@@ -759,7 +775,7 @@ void RemoteConversationBackend::update() {
     std::string error_text;
     bool succeeded = false;
 
-    if (!request_executor->take_result(
+    if (!executor->take_result(
             response,
             error_text,
             succeeded
@@ -767,8 +783,8 @@ void RemoteConversationBackend::update() {
         return;
     }
 
-    PendingOperation completed_operation = pending_operation;
-    pending_operation = operation_none;
+    PendingOperation completed_operation = operation;
+    operation = operation_none;
 
     if (!succeeded) {
         bridge_online = false;
@@ -791,12 +807,12 @@ void RemoteConversationBackend::update() {
         }
 
         queue_failure(
-            active_request_id,
+            request_id,
             error_text.empty()
                 ? "Remote conversation browser relay transport failed."
                 : error_text.c_str()
         );
-        active_request_id = 0;
+        request_id = 0;
         return;
     }
 
@@ -804,16 +820,50 @@ void RemoteConversationBackend::update() {
 
     if (completed_operation == operation_health) {
         apply_health_response(response);
+        request_id = 0;
         return;
     }
 
     if (completed_operation == operation_conversation) {
-        if (!parse_response(response, active_request_id)) {
-            active_request_id = 0;
-            return;
-        }
+        parse_response(response, request_id);
+        request_id = 0;
+    }
+}
 
-        active_request_id = 0;
+bool RemoteConversationBackend::all_lanes_idle() const {
+    return (
+        pending_operation == operation_none &&
+        followup_pending_operation == operation_none &&
+        request_executor != 0 &&
+        followup_request_executor != 0 &&
+        !request_executor->get_is_busy() &&
+        !followup_request_executor->get_is_busy()
+    );
+}
+
+void RemoteConversationBackend::update() {
+    if (!is_initialized) {
+        return;
+    }
+
+    update_lane(
+        request_executor,
+        pending_operation,
+        active_request_id
+    );
+    update_lane(
+        followup_request_executor,
+        followup_pending_operation,
+        followup_request_id
+    );
+
+    if (
+        events.empty() &&
+        all_lanes_idle() &&
+        capability_state == capability_ready
+    ) {
+        status_text =
+            "SALIX-CONVERSATION/1 ready | browser relay | trusted LAN | text + files";
     }
 }
 
@@ -825,11 +875,20 @@ void RemoteConversationBackend::shutdown() {
         request_executor->shutdown();
     }
 
+    if (
+        followup_request_executor != 0 &&
+        followup_request_executor->get_is_initialized()
+    ) {
+        followup_request_executor->shutdown();
+    }
+
     is_initialized = false;
     bridge_online = false;
     pending_operation = operation_none;
+    followup_pending_operation = operation_none;
     capability_state = capability_unknown;
     active_request_id = 0;
+    followup_request_id = 0;
     status_text = "stopped";
     diagnostic_text.clear();
     events.clear();
