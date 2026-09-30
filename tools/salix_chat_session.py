@@ -91,6 +91,7 @@ ATTACHMENT_DEBUG_INTEGER_KEYS = (
     "preview_download_controls",
     "preview_close_successes",
     "semantic_names_seen",
+    "card_names_seen",
     "duplicate_candidates_skipped",
     "duplicate_attachments_skipped",
     "attachments_collected",
