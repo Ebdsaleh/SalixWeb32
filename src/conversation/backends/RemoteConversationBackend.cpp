@@ -1010,6 +1010,17 @@ bool RemoteConversationBackend::submit_request(
     unsigned long* selected_request_id = 0;
 
     if (
+        latest_request_id != 0 &&
+        latest_request_id != request_id &&
+        !events.empty()
+    ) {
+        // The user submitted a newer turn before queued semantic events from
+        // the older turn were presented. Supersede those stale events rather
+        // than allowing them to reclaim native presentation ownership.
+        events.clear();
+    }
+
+    if (
         pending_operation == operation_none &&
         !request_executor->get_is_busy()
     ) {
