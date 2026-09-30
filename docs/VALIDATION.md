@@ -1860,3 +1860,61 @@ Target validation:
    `/v1/result`, `/v1/message`, and `/v1/conversation/message`.
 10. Do not promote until the real P4 displays the actual assistant reply rather than
     provider status text.
+
+
+### WebExtension 0.3.11 mixed attachment result / 0.3.12 short-status hold
+
+0.3.11 produced two distinct attachment-bearing outcomes on the real P4.
+
+The first request was successful:
+
+```text
+text_bytes=32 attachments=3
+rendered_anchor: 22 -> 119 -> 302 -> 343 -> 348 bytes
+response_bytes=348
+POST /v1/conversation/message ... 200
+```
+
+This proves the attachment upload, response extraction, broker, bridge, LAN, and native
+presentation path can complete correctly.
+
+The second request exposed another transient provider activity label:
+
+```text
+text_bytes=133 attachments=1
+candidate_bytes=26
+source='rendered_anchor'
+response_bytes=26
+```
+
+The P4 displayed exactly `Remote: Requesting console details`. That phrase is 26 UTF-8
+bytes and was accepted after the ordinary 2-second stabilization window even though it
+was not the final assistant response.
+
+0.3.12 does not relax the attachment whole-thread guard. It adds two protections:
+
+- The observed `Requesting console details` provider activity label is stripped for
+  attachment-bearing requests, like the previously observed `Confirming receipt`.
+- More generally, a short (<=96-byte), single-line, non-sentence candidate on an
+  attachment-bearing request is held for up to 12 seconds rather than immediately
+  satisfying the ordinary 2-second completion rule. If the candidate grows into a normal
+  answer or gains normal sentence structure, the hold clears immediately. A genuinely
+  short atomic answer is delayed, not discarded.
+
+Trace additions:
+
+- `short_hold=yes/no`
+- `short_hold_ms=<n>`
+
+Target validation:
+
+1. Pull `relay-recovery-0.3.12`.
+2. Reload the temporary extension and confirm version `0.3.12`.
+3. Restart broker and bridge.
+4. Do not rebuild SalixWeb32.
+5. Send one short P4 message with one or more attachments.
+6. If a transient short provider label appears, require either `status_stripped=yes` or
+   `short_hold=yes`; it must not be returned to the P4 as the completed reply.
+7. Require a later actual assistant response from `rendered_anchor`, followed by HTTP
+   200 through result, message, and conversation-message endpoints.
+8. Preserve both consoles and a P4 screenshot.
